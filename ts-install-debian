@@ -1,0 +1,59 @@
+#!/usr/bin/perl -w
+
+use strict qw(vars);
+
+use DBI;
+use Osstest;
+
+readconfig();
+opendb_state();
+our $ho= selecthost($c{Host});
+
+our $instance= $ho->{Name};
+
+sub install () {
+    power_state($ho, 0);
+#    setup_tftp_firstboot();
+#    power_state($ho, 1);
+#    await_arp();
+}   
+
+install();
+
+__DATA__
+sub setup_pxeboot_firstboot() {
+    my $wscommon= $c{WebspaceCommon}.'pre/'.$instance";
+    my $url= $c{WebspaceUrl}.$wscommon;
+    
+    my @installcmdline= qw(initrd=debian-installer/i386/initrd.gz
+                           vga=normal auto=true preseed);
+
+    
+    push @installcmdline, ("hostname=$ho->{Name}",
+                           "url=stove.xci-test.com/xc_vhds/iwj/spider.
+                           domain=uk.xensource.com );
+
+    push @installcmdline, qw(DEBCONF_DEBUG=5 DEBIAN_FRONTEND=text
+                             -- console=ttyS0,38400n8);
+    
+    setup_pxeboot($ho, <<END
+serial 0 38400
+
+prompt 0
+timeout 0
+
+include debian-installer/i386/boot-screens/menu.cfg
+
+label local
+  LOCALBOOT 0
+
+label overwrite
+	menu label ^Overwrite
+	menu default
+	kernel debian-installer/i386/linux
+	append vga=normal initrd=debian-installer/i386/initrd.gz auto=true url=stove.xci-test.com/xc_vhds/iwj/spider.preseed hostname=spider domain=uk.xensource.com DEBCONF_DEBUG=5 DEBIAN_FRONTEND=text -- console=ttyS0,38400n8
+
+default overwrite
+END
+                  );
+
