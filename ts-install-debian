@@ -1,59 +1,171 @@
 #!/usr/bin/perl -w
 
 use strict qw(vars);
-
 use DBI;
 use Osstest;
 
 readconfig();
 opendb_state();
-our $ho= selecthost($c{Host});
-
-our $instance= $ho->{Name};
+our $ho= selecthost($r{Host});
 
 sub install () {
     power_state($ho, 0);
-#    setup_tftp_firstboot();
-#    power_state($ho, 1);
-#    await_arp();
+    my ($ps_url,$ps_file)= create_preseed();
+    setup_pxeboot_firstboot($ps_url);
+    sleep(1);
+
+    $logtailer= Osstest::Logtailer->new($c{WebspaceLog});
+    power_state($ho, 1);
+
+    await_webspace_fetch_byleaf(300,1,$logtailer, $ho, $ps_url);
+    setup_pxeboot_localboot($ho);
+
+    await_sshd(3000,14,$ho);
+
+    alarm(60);
+    target_ssh_root($ho, 'echo ok');
 }   
 
-install();
-
-__DATA__
-sub setup_pxeboot_firstboot() {
-    my $wscommon= $c{WebspaceCommon}.'pre/'.$instance";
-    my $url= $c{WebspaceUrl}.$wscommon;
+sub setup_pxeboot_firstboot($) {
+    my ($ps_url) = @_;
     
-    my @installcmdline= qw(initrd=debian-installer/i386/initrd.gz
-                           vga=normal auto=true preseed);
-
+    my $d_i= $c{PxeDiBase}.'/'.$r{Arch};
+    $ps_url =~ s,^http://,,;
     
-    push @installcmdline, ("hostname=$ho->{Name}",
-                           "url=stove.xci-test.com/xc_vhds/iwj/spider.
-                           domain=uk.xensource.com );
-
-    push @installcmdline, qw(DEBCONF_DEBUG=5 DEBIAN_FRONTEND=text
-                             -- console=ttyS0,38400n8);
+    my @installcmdline= qw(vga=normal auto=true preseed);
     
-    setup_pxeboot($ho, <<END
-serial 0 38400
+    push @installcmdline, ("initrd=$d_i/initrd.gz",
+                           "hostname=$ho->{Name}",
+                           "url=$ps_url",
+                           "domain=$c{TestHostDomain}"
+                           );
 
-prompt 0
-timeout 0
+    push @installcmdline, qw(DEBCONF_DEBUG=5 DEBIAN_FRONTEND=text --);
+    push @installcmdline, "console=ttyS0,$c{Baud}n8";
 
-include debian-installer/i386/boot-screens/menu.cfg
+    my $installcmdline= join ' ', @installcmdline;
 
-label local
-  LOCALBOOT 0
-
+    setup_pxeboot($ho, <<END);
+serial 0 $c{Baud}
+timeout 5
 label overwrite
 	menu label ^Overwrite
 	menu default
-	kernel debian-installer/i386/linux
-	append vga=normal initrd=debian-installer/i386/initrd.gz auto=true url=stove.xci-test.com/xc_vhds/iwj/spider.preseed hostname=spider domain=uk.xensource.com DEBCONF_DEBUG=5 DEBIAN_FRONTEND=text -- console=ttyS0,38400n8
-
+	kernel $d_i/i386/linux
+	append $installcmdline
 default overwrite
 END
-                  );
+}
 
+sub create_preseed ($) {
+
+    my $authkeys= map {
+        next unless m/\S/;
+        get_filecontents($_, "# $_ ENOENT\n")
+    } ("$ENV{'HOME'}/.ssh/authorized_keys",
+       "$ENV{'HOME'}/.ssh/id_dsa.pub",
+       "$ENV{'HOME'}/.ssh/id_rsa.pub",
+       split ':', $c{AuthorizedKeysFiles});
+    $authkeys .= $c{AuthorizedKeysValues};
+    my $authkeys_url= create_webfile('authkeys', $authkeys);
+
+    my $overlay_url= create_webfile('overlay.tar', sub {
+        my ($fh) = @_;
+        my $chld= fork;  defined $chld or die $!;
+        if (!$chld) {
+            chdir('overlay') or die $!;
+            open STDIN, 'find ! -name "*~" ! -name "#*" -type f -print0 |'
+                or die $!;
+            open STDOUT, '>&', $fh or die $!;
+            system 'cpio -Hustar -o --quiet -0 -R 1000:1000'; $? and die $?;
+            $!=0; close STDIN; die "$! $?" if $! or $?;
+            exit 0;
+        }
+        waitpid($child, 0) == $child or die $!;
+        $? and die $?;
+    });
+    
+    my $latecmd_url= create_webfile('latecmd', <<END);
+#!/bin/sh
+set -ex
+
+r=/target/root
+cd $r
+
+umask 022
+mkdir .ssh
+wget -O .ssh/authorized_keys '$authkeys_url'
+
+u=osstest
+h=/home/$u
+mkdir $h/.ssh
+cp .ssh/authorized_keys $h/.ssh
+chown -R $u.$u $h/.ssh
+
+wget -O overlay.tar '$overlay_url'
+cd /target
+tar xf $r/overlay.tar
+rm $r/overlay.tar
+
+echo latecmd done.
+END
+
+    my $latecmdcmd=
+ "wget -O /tmp/latecmd '$latecmd_url' && chmod +x /tmp/latecmd && /tmp/latecmd;
+
+    return create_webfile('preseed', <<END);
+<<END
+d-i mirror/suite string $c{Suite}
+
+d-i debian-installer/locale string en_GB
+d-i console-keymaps-at/keymap select gb
+
+#d-i debconf/frontend string readline
+
+d-i mirror/country string manual
+d-i mirror/http/proxy string
+
+d-i clock-setup/utc boolean true
+d-i time/zone string Europe/London
+d-i clock-setup/ntp boolean true
+
+d-i partman-auto/method string regular
+#d-i partman-auto/init_automatically_partition select regular
+d-i partman-auto/disk string
+d-i partman-auto/choose_recipe select atomic
+
+d-i partman-lvm/device_remove_lvm boolean true
+d-i partman-partitioning/confirm_write_new_label boolean true
+d-i partman/choose_partition select finish
+d-i partman/confirm boolean true
+
+d-i passwd/root-password password xenroot
+d-i passwd/root-password-again password xenroot
+d-i passwd/user-fullname string FLOSS Xen Test
+d-i passwd/username string osstest
+d-i passwd/user-password password osstest
+d-i passwd/user-password-again password osstest
+
+console-common  console-data/keymap/policy      select  Don't touch keymap
+console-data    console-data/keymap/policy      select  Don't touch keymap
+console-data    console-data/keymap/family      select  qwerty
+console-data console-data/keymap/template/layout select British
+
+popularity-contest popularity-contest/participate boolean false
+tasksel tasksel/first multiselect standard, web-server
+
+d-i pkgsel/include string openssh-server
+
+d-i grub-installer/only_debian boolean true
+
+d-i finish-install/keep-consoles boolean true
+d-i finish-install/reboot_in_progress note
+d-i cdrom-detect/eject boolean false
+
+base-config base-config/late_command string $latecmdcmd
+
+$c{Preseed}
+END
+}
+
+install();
