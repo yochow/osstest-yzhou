@@ -15,13 +15,13 @@ BEGIN {
     @EXPORT      = qw(
                       $tftptail
                       %c %r $dbh_state
-                      readconfig opendb_state selecthost postfork
-                      get_filecontents
+                      readconfig opendb_state selecthost need_rparams
+                      get_filecontents postfork
                       poll_loop logm link_file_contents create_webfile
                       power_state
                       setup_pxeboot setup_pxeboot_local
                       await_webspace_fetch_byleaf await_sshd
-                      target_cmd_root
+                      target_cmd_root target_cmd
                       );
     %EXPORT_TAGS = ( );
 
@@ -52,21 +52,38 @@ sub postfork () {
     $dbh_state->{InactiveDestroy}= 1;
 }
 
-sub target_cmd_root ($$;$) {
-    my ($ho, $tcmd, $timeout) = @_;
-    # $tcmd will be put between '' but not escaped
-    
-    $timeout=10 if !defined $timeout;
-
-    my $cmd= "ssh";
-    my $opts= "-o UserKnownHostsFile=known_hosts";
-    my $args= "root\@$ho->{Ip} '$tcmd'";
-    logm("executing $cmd ... $args");
-    alarm($timeout);
-    system "$cmd $opts $args";
-    $? and die $?;
-    alarm(0);
+sub cmd {
+    my ($timeout,@cmd) = @_;
+    my $child= fork;  die $! unless defined $child;
+    if (!$child) { exec @cmd; die "$cmd[0]: $!"; }
+    my $r;
+    eval {
+        local $SIG{ALRM} = sub { die "alarm\n"; };
+        alarm($timeout);
+        $r= waitpid $child, 0;
+        alarm(0);
+    };
+    if ($@) {
+        die unless $@ eq "alarm\n";
+        return '(timed out)';
+    }
+    die "$r $child $!" unless $r == $child;
+    return $?;
 }
+
+sub tcmd { # $tcmd will be put between '' but not escaped
+    my ($user,$ho,$tcmd,$timeout) = @_;
+    $timeout=10 if !defined $timeout;
+    my $cmd= "ssh";
+    my @opts= qw(-o UserKnownHostsFile=known_hosts);
+    my @args= ("$user\@$ho->{Ip}",$tcmd);
+    logm("executing $cmd ... @args");
+    my $r= cmd($timeout, $cmd,@opts,@args);
+    $r and die "status $r";
+}
+
+sub target_cmd ($$;$) { tcmd('osstest',@_); }
+sub target_cmd_root ($$;$) { tcmd('root',@_); }
 
 sub opendb_state () {
     $dbh_state= opendb('statedb');
@@ -86,6 +103,12 @@ sub selecthost ($) {
     logm("host: selected $ho->{Name} $ho->{Asset} $ho->{Ether} $ho->{Ip}");
     return $ho;
     $dbh->disconnect();
+}
+
+sub need_rparams {
+    my @missing= grep { !defined $r{$_} } @_;
+    return unless @missing;
+    die "missing r parameters @missing ";
 }
 
 sub poll_loop ($$$&) {

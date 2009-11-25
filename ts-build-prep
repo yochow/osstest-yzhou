@@ -1,0 +1,18 @@
+#!/usr/bin/perl -w
+
+use strict qw(vars);
+use DBI;
+use Osstest;
+
+readconfig();
+opendb_state();
+our $ho= selecthost($r{Host});
+
+sub prep () {
+    my @packages= qw(mercurial build-essential bin86 bcc ccache
+                     libpci-dev libncurses5-dev libssl-dev python-dev
+                     libx11-dev git-core uuid-dev gettext);
+    target_cmd_root($ho, "apt-get -y install @packages", 300);
+}   
+
+prep();
