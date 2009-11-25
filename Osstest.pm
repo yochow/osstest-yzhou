@@ -4,7 +4,8 @@ package Osstest;
 use strict;
 use warnings;
 
-use Fcntl;
+use POSIX;
+use IO::File;
 
 BEGIN {
     use Exporter ();
@@ -13,12 +14,14 @@ BEGIN {
     @ISA         = qw(Exporter);
     @EXPORT      = qw(
                       $tftptail
-                      %c $dbh_state
-                      readconfig opendb_state selecthost
+                      %c %r $dbh_state
+                      readconfig opendb_state selecthost postfork
+                      get_filecontents
                       poll_loop logm link_file_contents create_webfile
                       power_state
                       setup_pxeboot setup_pxeboot_local
                       await_webspace_fetch_byleaf await_sshd
+                      target_cmd_root
                       );
     %EXPORT_TAGS = ( );
 
@@ -27,7 +30,7 @@ BEGIN {
 
 our $tftptail= '/spider/pxelinux.cfg';
 
-our %c;
+our (%c,%r);
 our $dbh_state;
 
 sub readconfig () {
@@ -45,14 +48,22 @@ sub opendb ($) {
     return $dbh;
 }
 
-sub target_ssh_root ($$) {
-    my ($ho, $timeout, $tcmd) = @_;
+sub postfork () {
+    $dbh_state->{InactiveDestroy}= 1;
+}
+
+sub target_cmd_root ($$;$) {
+    my ($ho, $tcmd, $timeout) = @_;
     # $tcmd will be put between '' but not escaped
     
-    my $cmd= "ssh root@$ho->{Ip} '$tcmd'";
-    logm("executing $cmd");
+    $timeout=10 if !defined $timeout;
+
+    my $cmd= "ssh";
+    my $opts= "-o UserKnownHostsFile=known_hosts";
+    my $args= "root\@$ho->{Ip} '$tcmd'";
+    logm("executing $cmd ... $args");
     alarm($timeout);
-    system $cmd;
+    system "$cmd $opts $args";
     $? and die $?;
     alarm(0);
 }
@@ -72,7 +83,7 @@ sub selecthost ($) {
     $ho->{Ip}=    $row->{ip};
     $ho->{Ether}= $row->{hardware};
     $ho->{Asset}= $row->{asset};
-    logm("host: selected $ho->{Name} $ho->{Asset} $ho->{Ether}");
+    logm("host: selected $ho->{Name} $ho->{Asset} $ho->{Ether} $ho->{Ip}");
     return $ho;
     $dbh->disconnect();
 }
@@ -83,16 +94,19 @@ sub poll_loop ($$$&) {
     
     logm("$what: waiting ${maxwait}s...");
     my $start= time;  die $! unless defined $start;
+    my $wantwaited= 0;
+    my $waited= 0;
     for (;;) {
         my $bad= $code->();
+        my $now= time;  die $! unless defined $now;
+        $waited= $now - $start;
         last if !defined $bad;
         $waited <= $maxwait or die "$what: wait timed out: $bad.\n";
-        $waited += $interval;
-        my $target= $start+$waited;
-        my $now= time;  die $! unless defined $now;
-        sleep($target - $now) if $now < $target;
+        $wantwaited += $interval;
+        my $needwait= $wantwaited - $waited;
+        sleep($needwait) if $needwait > 0;
     }
-    logm("$what: ok.");
+    logm("$what: ok. (${waited}s)");
 }
 
 sub power_state ($$) {
@@ -108,7 +122,7 @@ sub power_state ($$) {
         ('SELECT current_power FROM control WHERE asset = ?');
     $sth->bind_param(1, $asset);
     
-    poll_loop(30,1, "power: checking $want", {
+    poll_loop(30,1, "power: checking $want", sub {
         $sth->execute();
         my ($got) = $sth->fetchrow_array();
         return undef if $got eq $want;
@@ -119,18 +133,18 @@ sub logm ($) {
     my ($m) = @_;
     print "LOG $m\n";
 }
-sub file_link_contents ($$$) {
+sub file_link_contents ($$) {
     my ($fn, $contents) = @_;
     # $contents may be a coderef in which case we call it with the
     #  filehandle to allow caller to fill in the file
     my ($dir, $base, $ext) =
-        $fn =~ m/^( (?: .*/ )? )( [^/]+? )( (?: \.[^./]+ )? )$/x
+        $fn =~ m,^( (?: .*/ )? )( [^/]+? )( (?: \.[^./]+ )? )$,x
         or die "$fn ?";
     my $real= "$dir$base--osstest$ext";
-    my $linktarg= "$base$ext";
+    my $linktarg= "$base--osstest$ext";
 
     unlink $real or $!==&ENOENT or die "$real $!";
-    my $flc= new IO::File '>', "$real" or die "$real $!";
+    my $flc= new IO::File "$real",'w' or die "$real $!";
     if (ref $contents eq 'CODE') {
         $contents->($flc);
     } else {
@@ -142,7 +156,7 @@ sub file_link_contents ($$$) {
 
     if (!lstat "$fn") {
         $!==&ENOENT or die "$fn $!";
-    } elsif (!-L _) {
+    } elsif (!-l _) {
         die "$fn not a symlink";
         unlink $fn or die "$fn $!";
     }
@@ -153,13 +167,13 @@ sub file_link_contents ($$$) {
 
 sub setup_pxeboot ($$) {
     my ($ho, $bootfile) = @_;
-    my $leaf= $ho->{Ether};
-    $leaf =~ y/A-Z/a-z/;
-    $leaf =~ y/0-9a-f//cd;
-    len($leaf)==12 or die "$leaf";
-    $leaf =~ s/../ $&- /g;
-    $leaf =~ s/\-$//;
-    file_link_contents($c{Tftp}.'/'.$leaf, $bootfile);
+    my $dir= $ho->{Ether};
+    $dir =~ y/A-Z/a-z/;
+    $dir =~ y/0-9a-f//cd;
+    length($dir)==12 or die "$dir";
+    $dir =~ s/../$&-/g;
+    $dir =~ s/\-$//;
+    file_link_contents($c{Tftp}."/$dir/pxelinux.cfg", $bootfile);
 }
 
 sub setup_pxeboot_local ($) {
@@ -176,13 +190,13 @@ END
 sub await_webspace_fetch_byleaf ($$$$$) {
     my ($maxwait,$interval,$logtailer, $ho, $url) = @_;
     my $leaf= $url;
-    $leaf =~ s,.*/,/,;
-    poll_loop($maxwait,$interval, "fetch ...$leaf", {
+    $leaf =~ s,.*/,,;
+    poll_loop($maxwait,$interval, "fetch $leaf", sub {
         my ($line, $last);
         $last= '(none)';
         while (defined($line= $logtailer->getline())) {
-            my ($ip, $got) =
-                m,^([0-9.]+) \S+ \S+ \[[^][]+\] \"GET [^ \t\r/]*/(\S+) ,
+            my ($ip, $got) = $line =~
+                m,^([0-9.]+) \S+ \S+ \[[^][]+\] \"GET \S*/(\S+) ,
                 or next;
             next unless $ip eq $ho->{Ip};
             $last= $got;
@@ -194,8 +208,8 @@ sub await_webspace_fetch_byleaf ($$$$$) {
 }
 
 sub await_sshd ($$$) {
-    ($maxwait,$interval,$ho) = @_;
-    poll_loop($maxwait,$interval, "await sshd", {
+    my ($maxwait,$interval,$ho) = @_;
+    poll_loop($maxwait,$interval, "await sshd", sub {
         my $ncout= `nc -n -v -z -w $interval $ho->{Ip} 22 2>&1`;
         return undef if !$?;
         $ncout =~ s/\n/ | /g;
@@ -216,22 +230,25 @@ sub get_filecontents ($;$) {
     my ($path, $ifnoent) = @_;  # $ifnoent=undef => is error
     if (!open GFC, '<', $path) {
         $!==&ENOENT or die "$path $!";
-        return $ifnoent if defined $ifnoent;
-        die "$path does not exist";
+        die "$path does not exist" unless defined $ifnoent;
+        logm("read $path absent.");
+        return $ifnoent;
     }
     local ($/);
     undef $/;
     my $data= <GFC>;
     defined $data or die "$path $!";
     close GFC or die "$path $!";
+    logm("read $path ok.");
     return $data;
 }
 
 package Osstest::Logtailer;
+use Fcntl qw(:seek);
 
 sub new ($$) {
     my ($class, $fn) = @_;
-    my $fh= new IO::File, '<', $fn;
+    my $fh= new IO::File $fn,'r';
     my $ino= -1;
     if (!$fh) {
         $!==&ENOENT or die "$fn $!";
@@ -273,7 +290,7 @@ sub getline ($) {
         return undef
             unless $nino != $lt->{Ino};
 
-        my $nfh= new IO::File, '<', $lt->{Path};
+        my $nfh= new IO::File $lt->{Path},'r';
         if (!$nfh) {
             $!==&ENOENT or die "$lt->{Path} $!";
             warn "newly-created $lt->{Path} vanished again";

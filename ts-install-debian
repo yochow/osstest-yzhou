@@ -8,22 +8,26 @@ readconfig();
 opendb_state();
 our $ho= selecthost($r{Host});
 
+our %timeout= qw(ReadPreseed 100
+                 Sshd        800);
+
 sub install () {
     power_state($ho, 0);
     my ($ps_url,$ps_file)= create_preseed();
     setup_pxeboot_firstboot($ps_url);
     sleep(1);
 
-    $logtailer= Osstest::Logtailer->new($c{WebspaceLog});
+    my $logtailer= Osstest::Logtailer->new($c{WebspaceLog});
     power_state($ho, 1);
 
-    await_webspace_fetch_byleaf(300,1,$logtailer, $ho, $ps_url);
-    setup_pxeboot_localboot($ho);
+    await_webspace_fetch_byleaf($timeout{ReadPreseed},1,
+                                $logtailer, $ho, $ps_url);
+    setup_pxeboot_local($ho);
 
-    await_sshd(3000,14,$ho);
+    await_sshd($timeout{Sshd},14,$ho);
 
-    alarm(60);
-    target_ssh_root($ho, 'echo ok');
+    target_cmd_root($ho, 'echo ok');
+    logm('OK: install completed');
 }   
 
 sub setup_pxeboot_firstboot($) {
@@ -51,7 +55,7 @@ timeout 5
 label overwrite
 	menu label ^Overwrite
 	menu default
-	kernel $d_i/i386/linux
+	kernel $d_i/linux
 	append $installcmdline
 default overwrite
 END
@@ -59,20 +63,23 @@ END
 
 sub create_preseed ($) {
 
-    my $authkeys= map {
-        next unless m/\S/;
-        get_filecontents($_, "# $_ ENOENT\n")
-    } ("$ENV{'HOME'}/.ssh/authorized_keys",
-       "$ENV{'HOME'}/.ssh/id_dsa.pub",
-       "$ENV{'HOME'}/.ssh/id_rsa.pub",
-       split ':', $c{AuthorizedKeysFiles});
-    $authkeys .= $c{AuthorizedKeysValues};
-    my $authkeys_url= create_webfile('authkeys', $authkeys);
+    my $authkeys= '';
+    my @akf= map {
+        "$ENV{'HOME'}/.ssh/$_"
+        } qw(authorized_keys id_dsa.pub id_rsa.pub);
+    push @akf, split ':', $c{AuthorizedKeysFiles};
+    foreach my $akf (@akf) {
+        next unless $akf =~ m/\S/;
+        $authkeys .= get_filecontents($akf, "# $akf ENOENT\n"). "\n";
+    }
+    $authkeys .= $c{AuthorizedKeysAppend};
+    my $authkeys_url= create_webfile($ho, 'authkeys', $authkeys);
 
-    my $overlay_url= create_webfile('overlay.tar', sub {
+    my $overlay_url= create_webfile($ho, 'overlay.tar', sub {
         my ($fh) = @_;
-        my $chld= fork;  defined $chld or die $!;
-        if (!$chld) {
+        my $child= fork;  defined $child or die $!;
+        if (!$child) {
+            postfork();
             chdir('overlay') or die $!;
             open STDIN, 'find ! -name "*~" ! -name "#*" -type f -print0 |'
                 or die $!;
@@ -85,36 +92,35 @@ sub create_preseed ($) {
         $? and die $?;
     });
     
-    my $latecmd_url= create_webfile('latecmd', <<END);
+    my $latecmd_url= create_webfile($ho, 'latecmd', <<END);
 #!/bin/sh
 set -ex
 
 r=/target/root
-cd $r
+cd \$r
 
 umask 022
 mkdir .ssh
 wget -O .ssh/authorized_keys '$authkeys_url'
 
 u=osstest
-h=/home/$u
-mkdir $h/.ssh
-cp .ssh/authorized_keys $h/.ssh
-chown -R $u.$u $h/.ssh
+h=/home/\$u
+mkdir /target\$h/.ssh
+cp .ssh/authorized_keys /target\$h/.ssh
+chroot /target chown -R \$u.\$u \$h/.ssh
 
 wget -O overlay.tar '$overlay_url'
 cd /target
-tar xf $r/overlay.tar
-rm $r/overlay.tar
+tar xf \$r/overlay.tar
+rm \$r/overlay.tar
 
 echo latecmd done.
 END
 
     my $latecmdcmd=
- "wget -O /tmp/latecmd '$latecmd_url' && chmod +x /tmp/latecmd && /tmp/latecmd;
+"wget -O /tmp/latecmd '$latecmd_url' && chmod +x /tmp/latecmd && /tmp/latecmd";
 
-    return create_webfile('preseed', <<END);
-<<END
+    return create_webfile($ho, 'preseed', <<END);
 d-i mirror/suite string $c{Suite}
 
 d-i debian-installer/locale string en_GB
@@ -162,7 +168,7 @@ d-i finish-install/keep-consoles boolean true
 d-i finish-install/reboot_in_progress note
 d-i cdrom-detect/eject boolean false
 
-base-config base-config/late_command string $latecmdcmd
+d-i preseed/late_command string $latecmdcmd
 
 $c{Preseed}
 END

@@ -2,13 +2,14 @@ $c{Domain}= 'uk.xensource.com';
 $c{TestHostDomain}= 'cam.xci-test.com';
 
 $c{WebspaceFile}= '/export/home/osstest/public_html/';
-$c{WebspaceUrl}= 'http://woking.$c{Domain}/~osstest/';
+$c{WebspaceUrl}= "http://woking.$c{Domain}/~osstest/";
 $c{WebspaceCommon}= 'osstest/';
 $c{WebspaceLog}= '/var/log/apache2/access.log';
 
 $c{Tftp}= '/tftpboot/pxe';
 
-$c{Baud}= 38400;
+#$c{Baud}= 38400;
+$c{Baud}= 115200;
 $c{PxeDiBase}= 'debian-installer';
 
 $c{Suite}= 'lenny';
@@ -23,7 +24,7 @@ $r{Host}= 'spider';
 $r{Arch}= 'i386';
 
 $c{AuthorizedKeysFiles}= '';
-$c{AuthorizedKeysAppend}= <<END;
+$c{AuthorizedKeysAppend}= <<'END';
 ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEA2m8+FRm8zaCy4+L2ZLsINt3OiRzDu82JE67b4Xyt3O0+IEyflPgw5zgGH69ypOn2GqYTaiBoiYNoAn9bpUksMk71q+co4gsZJ17Acm0256A3NP46ByT6z6/AKTl58vwwNKSCEAzNru53sXTYw2TcCZUN8A4vXY76OeJNJmCmgBDHCNod9fW6+EOn8ZSU1YjFUBV2UmS2ekKmsGNP5ecLAF1bZ8I13KpKUIDIY+UiG0UMwTWDfQY59SNsz6bCxv9NsxSXL29RS2XHFeIQis7t6hJuyZTT4b9YzjEAxvk8kdGzzK6314kwILibm1O1Y8LLyrYsWK1AvnJQFIhcYXF0EQ== iwj@mariner
 END
 
