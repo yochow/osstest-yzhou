@@ -22,6 +22,8 @@ BEGIN {
                       setup_pxeboot setup_pxeboot_local
                       await_webspace_fetch_byleaf await_sshd
                       target_cmd_root target_cmd
+                      target_getfile target_putfile
+                      store_runparam
                       );
     %EXPORT_TAGS = ( );
 
@@ -71,15 +73,47 @@ sub cmd {
     return $?;
 }
 
-sub tcmd { # $tcmd will be put between '' but not escaped
-    my ($user,$ho,$tcmd,$timeout) = @_;
-    $timeout=10 if !defined $timeout;
-    my $cmd= "ssh";
+sub sshuho ($$) { my ($user,$ho)= @_; return "$user\@$ho->{Ip}"; }
+
+sub tcmdex {
+    my ($timeout,$cmd,@args) = @_;
     my @opts= qw(-o UserKnownHostsFile=known_hosts);
-    my @args= ("$user\@$ho->{Ip}",$tcmd);
     logm("executing $cmd ... @args");
     my $r= cmd($timeout, $cmd,@opts,@args);
     $r and die "status $r";
+}
+
+sub tcmd { # $tcmd will be put between '' but not escaped
+    my ($user,$ho,$tcmd,$timeout) = @_;
+    $timeout=10 if !defined $timeout;
+    tcmdex($timeout,
+           'ssh',
+           sshuho($user,$ho), $tcmd);
+}
+
+sub target_getfile ($$$$) {
+    my ($ho,$timeout, $rsrc,$ldst) = @_;
+    tcmdex($timeout,
+           'scp',
+           sshuho('osstest',$ho).":$rsrc", $ldst);
+}
+sub target_putfile ($$$$) {
+    my ($ho,$timeout, $lsrc,$rdst) = @_;
+    tcmdex($timeout,
+           'scp',
+           $lsrc, sshuho('osstest',$ho).":$rdst");
+}
+sub target_putfile_root ($$$$) {
+    my ($ho,$timeout, $lsrc,$rdst) = @_;
+    tcmdex($timeout,
+           'scp',
+           $lsrc, sshuho('root',$ho).":$rdst");
+}
+
+sub store_runparam ($$) {
+    my ($param,$value) = @_;
+    print STDERR "STORE RUNPARAM $param=$value\n";
+    $r{$param}= $value;
 }
 
 sub target_cmd ($$;$) { tcmd('osstest',@_); }

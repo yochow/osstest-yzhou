@@ -6,6 +6,8 @@ $c{WebspaceUrl}= "http://woking.$c{Domain}/~osstest/";
 $c{WebspaceCommon}= 'osstest/';
 $c{WebspaceLog}= '/var/log/apache2/access.log';
 
+$c{BuildStash}= '/export/home/xc_osstest/builds';
+
 $c{Tftp}= '/tftpboot/pxe';
 
 #$c{Baud}= 38400;

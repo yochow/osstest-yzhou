@@ -3,12 +3,14 @@
 use strict qw(vars);
 use DBI;
 use Osstest;
+use File::Path;
 
 readconfig();
 opendb_state();
 our $ho= selecthost($r{Host});
 
-my $builddir= "/home/osstest/build-$r{Job}.$r{Task}";
+my $leaf= "build-$r{Job}.$r{Task}";
+my $builddir= "/home/osstest/$leaf";
 
 sub build () {
     target_cmd($ho, "rm -rf $builddir && mkdir $builddir");
@@ -31,9 +33,28 @@ END
         make -j4 2>&1 |tee ../log
         echo ok.
 END
-}   
+}  
+
+sub stash () {
+    target_cmd($ho, <<END, 300);
+	set -xe
+	cd $builddir
+        cd xen-unstable
+        cd dist
+        cd install
+        tar zcf ../../../dist.tar.gz *
+END
+    my $stashleaf= "$leaf/dist.tar.gz";
+    my $stashdir= "$c{Stash}/$leaf";
+    mkdir($stashdir) or $!==&EEXIST or die "$stashdir $!";
+    target_getfile($ho, 300,
+                   "$builddir/dist.tar.gz",
+                   "$c{Stash}/$stashleaf");
+    store_runparam("Build_$r{Arch}_dist", $stashleaf);
+}
 
 need_rparams(qw(Tree_Xen Revision_Xen
                 Tree_Qemu Revision_Qemu));
 
 build();
+stash();
