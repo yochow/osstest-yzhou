@@ -6,7 +6,7 @@ $c{WebspaceUrl}= "http://woking.$c{Domain}/~osstest/";
 $c{WebspaceCommon}= 'osstest/';
 $c{WebspaceLog}= '/var/log/apache2/access.log';
 
-$c{BuildStash}= '/export/home/xc_osstest/builds';
+$c{BuildStash}= '/home/xc_osstest/builds';
 
 $c{Tftp}= '/tftpboot/pxe';
 
@@ -33,12 +33,12 @@ $r{Job}= '100';
 $r{Task}= 'x';
 
 $r{Tree_Xen}= 'http://hg.uk.xensource.com/xen-unstable.hg';
-$r{Revision_Xen}= 'tip';
+$r{Revision_Xen}= 'c01e324ef514'; #'20538:c01e324ef514'; #'tip';
 
 $r{Tree_Qemu}= 'git://mariner.uk.xensource.com/qemu-xen-unstable.git';
-$r{Revision_Qemu}= 'HEAD';
+$r{Revision_Qemu}= ''; #'HEAD';
 
 #$r{Tree_Linux}= 'git://git.kernel.org/pub/scm/linux/kernel/git/x86/linux-2.6-tip.git';
-#$r{Revision_Linux}= 'HEAD';
+#$r{Revision_Linux}= '956:7ee9b1483445'; #'HEAD';
 
 1;

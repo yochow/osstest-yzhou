@@ -4,6 +4,7 @@ use strict qw(vars);
 use DBI;
 use Osstest;
 use File::Path;
+use POSIX;
 
 readconfig();
 opendb_state();
@@ -14,7 +15,7 @@ my $builddir= "/home/osstest/$leaf";
 
 sub build () {
     target_cmd($ho, "rm -rf $builddir && mkdir $builddir");
-    target_cmd($ho, <<END, 300);
+    target_cmd($ho, <<END.
 	set -xe
         cd $builddir
 	hg clone '$r{Tree_Xen}' xen-unstable
@@ -23,8 +24,11 @@ sub build () {
 	>.config
 	echo >>.config GIT_HTTP=y
 	echo >>.config QEMU_REMOTE='$r{Tree_Qemu}'
+END
+               (length($r{Revision_Qemu}) ? <<END : ''),
 	echo >>.config QEMU_TAG='$r{Revision_Qemu}'
 END
+               , 300);
     target_cmd($ho, <<END, 3000);
 	set -xe
         PATH=/usr/lib/ccache:\$PATH
@@ -45,11 +49,11 @@ sub stash () {
         tar zcf ../../../dist.tar.gz *
 END
     my $stashleaf= "$leaf/dist.tar.gz";
-    my $stashdir= "$c{Stash}/$leaf";
+    my $stashdir= "$c{BuildStash}/$leaf";
     mkdir($stashdir) or $!==&EEXIST or die "$stashdir $!";
     target_getfile($ho, 300,
                    "$builddir/dist.tar.gz",
-                   "$c{Stash}/$stashleaf");
+                   "$c{BuildStash}/$stashleaf");
     store_runparam("Build_$r{Arch}_dist", $stashleaf);
 }
 
