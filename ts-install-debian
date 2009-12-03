@@ -6,7 +6,7 @@ use Osstest;
 
 readconfig();
 opendb_state();
-our $ho= selecthost($r{Host});
+our $ho= selecthost($r{host});
 
 our %timeout= qw(ReadPreseed 100
                  Sshd        800);
@@ -33,7 +33,7 @@ sub install () {
 sub setup_pxeboot_firstboot($) {
     my ($ps_url) = @_;
     
-    my $d_i= $c{PxeDiBase}.'/'.$r{Arch};
+    my $d_i= $c{PxeDiBase}.'/'.$r{arch};
     $ps_url =~ s,^http://,,;
     
     my @installcmdline= qw(vga=normal auto=true preseed);

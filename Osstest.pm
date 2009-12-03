@@ -14,16 +14,16 @@ BEGIN {
     @ISA         = qw(Exporter);
     @EXPORT      = qw(
                       $tftptail
-                      %c %r $dbh_state
-                      readconfig opendb_state selecthost need_rparams
+                      %c %r $dbh_state $dbh_tests $flight $job
+                      get_runvar get_runvar_maybe store_runvar
+                      readconfig opendb_state selecthost need_runvars
                       get_filecontents postfork
                       poll_loop logm link_file_contents create_webfile
                       power_state
                       setup_pxeboot setup_pxeboot_local
                       await_webspace_fetch_byleaf await_sshd
                       target_cmd_root target_cmd
-                      target_getfile target_putfile
-                      store_runparam
+                      target_getfile target_putfile target_putfile_root
                       );
     %EXPORT_TAGS = ( );
 
@@ -32,12 +32,37 @@ BEGIN {
 
 our $tftptail= '/spider/pxelinux.cfg';
 
-our (%c,%r);
+our (%c,%r,$flight,$job);
 our $dbh_state;
+our $dbh_tests;
 
 sub readconfig () {
     require 'config.pl';
+    $dbh_tests= opendb('osstestdb');
+    $flight= $ENV{'OSSTEST_FLIGHT'};
+    $job=    $ENV{'OSSTEST_JOB'};
+    die unless defined $flight and defined $job;
+    my $q= $dbh_tests->prepare(<<END);
+        SELECT count(*) FROM jobs WHERE flight=? AND job=?
+END
+    $q->execute($flight, $job);
+    my ($count) = $q->fetchrow_array();
+    die "$flight.$job $count" unless $count==1;
+    $q->finish;
+    logm("starting $flight.$job");
+
+    $q= $dbh_tests->prepare(<<END);
+        SELECT name, val FROM runvars WHERE flight=? AND job=?
+END
+    $q->execute($flight, $job);
+    my $row;
+    while ($row= $q->fetchrow_hashref()) {
+        $r{ $row->{name} }= $row->{val};
+        logm("setting $row->{name}=$row->{val}");
+    }
+    $q->finish();
 }
+
 sub opendb ($) {
     my ($dbname) = @_;
     my $src= "dbi:Pg:dbname=$dbname";
@@ -110,10 +135,34 @@ sub target_putfile_root ($$$$) {
            $lsrc, sshuho('root',$ho).":$rdst");
 }
 
-sub store_runparam ($$) {
+sub store_runvar ($$) {
     my ($param,$value) = @_;
-    print STDERR "STORE RUNPARAM $param=$value\n";
+    logm("runvar store: $param=$value");
     $r{$param}= $value;
+    my $q= $dbh_tests->prepare(<<END);
+        INSERT INTO runvars VALUES (?,?,?,?)
+END
+    $q->execute($flight,$job, $param,$value);
+}
+
+sub get_runvar ($$) {
+    my ($param, $otherjob) = @_;
+    my $r= get_runvar_maybe($param,$otherjob);
+    die "need $param in $otherjob" unless defined $r;
+    return $r;
+}    
+sub get_runvar_maybe ($$) {
+    my ($param, $otherjob) = @_;
+    my $q= $dbh_tests->prepare(<<END);
+        SELECT val FROM runvars WHERE flight=? AND job=? AND name=?
+END
+    $q->execute($flight,$otherjob,$param);
+    my $row= $q->fetchrow_arrayref();
+    if (!$row) { $q->finish(); return undef; }
+    my ($val)= @$row;
+    die "$flight.$otherjob $param" if $q->fetchrow_arrayref();
+    $q->finish();
+    return $val;
 }
 
 sub target_cmd ($$;$) { tcmd('osstest',@_); }
@@ -139,10 +188,10 @@ sub selecthost ($) {
     $dbh->disconnect();
 }
 
-sub need_rparams {
+sub need_runvars {
     my @missing= grep { !defined $r{$_} } @_;
     return unless @missing;
-    die "missing r parameters @missing ";
+    die "missing runvars @missing ";
 }
 
 sub poll_loop ($$$&) {

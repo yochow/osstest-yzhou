@@ -8,9 +8,9 @@ use POSIX;
 
 readconfig();
 opendb_state();
-our $ho= selecthost($r{Host});
+our $ho= selecthost($r{host});
 
-my $leaf= "build-$r{Job}.$r{Task}";
+my $leaf= "build.$flight.$job";
 my $builddir= "/home/osstest/$leaf";
 
 sub build () {
@@ -18,15 +18,15 @@ sub build () {
     target_cmd($ho, <<END.
 	set -xe
         cd $builddir
-	hg clone '$r{Tree_Xen}' xen-unstable
+	hg clone '$r{tree_xen}' xen-unstable
 	cd xen-unstable
-	hg update '$r{Revision_Xen}'
+	hg update '$r{revision_xen}'
 	>.config
 	echo >>.config GIT_HTTP=y
-	echo >>.config QEMU_REMOTE='$r{Tree_Qemu}'
+	echo >>.config QEMU_REMOTE='$r{tree_qemu}'
 END
-               (length($r{Revision_Qemu}) ? <<END : ''),
-	echo >>.config QEMU_TAG='$r{Revision_Qemu}'
+               (length($r{revision_qemu}) ? <<END : ''),
+	echo >>.config QEMU_TAG='$r{revision_qemu}'
 END
                , 300);
     target_cmd($ho, <<END, 3000);
@@ -54,11 +54,11 @@ END
     target_getfile($ho, 300,
                    "$builddir/dist.tar.gz",
                    "$c{BuildStash}/$stashleaf");
-    store_runparam("Build_$r{Arch}_dist", $stashleaf);
+    store_runvar("distpath", $stashleaf);
 }
 
-need_rparams(qw(Tree_Xen Revision_Xen
-                Tree_Qemu Revision_Qemu));
+need_runvars(qw(tree_xen revision_xen
+                tree_qemu revision_qemu));
 
 build();
 stash();

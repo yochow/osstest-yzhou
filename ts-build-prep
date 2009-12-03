@@ -6,7 +6,7 @@ use Osstest;
 
 readconfig();
 opendb_state();
-our $ho= selecthost($r{Host});
+our $ho= selecthost($r{host});
 
 sub prep () {
     my @packages= qw(mercurial build-essential bin86 bcc ccache

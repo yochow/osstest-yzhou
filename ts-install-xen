@@ -1,0 +1,23 @@
+#!/usr/bin/perl -w
+
+use strict qw(vars);
+use DBI;
+use Osstest;
+use File::Path;
+use POSIX;
+
+readconfig();
+opendb_state();
+our $ho= selecthost($r{host});
+
+sub extract () {
+    my $distpath= get_runvar('distpath',$r{buildjob});
+    die "$distpath $& " if
+        $distpath =~ m,[^-+._0-9a-zA-Z/], or
+        $distpath =~ m/\.\./;
+    target_putfile_root($ho, 300,
+                        "$c{BuildStash}/$distpath",
+                        "/root/dist.tar.gz");
+}
+
+extract();
