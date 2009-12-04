@@ -24,6 +24,7 @@ BEGIN {
                       await_webspace_fetch_byleaf await_sshd
                       target_cmd_root target_cmd
                       target_getfile target_putfile target_putfile_root
+                      target_install_packages target_reboot
                       );
     %EXPORT_TAGS = ( );
 
@@ -35,6 +36,9 @@ our $tftptail= '/spider/pxelinux.cfg';
 our (%c,%r,$flight,$job,$stash);
 our $dbh_state;
 our $dbh_tests;
+
+our %timeout= qw(RebootDown   100
+                 RebootUp     200);
 
 sub readconfig () {
     require 'config.pl';
@@ -158,6 +162,21 @@ sub target_putfile_root ($$$$) {
     tcmdex($timeout,
            'scp',
            $lsrc, sshuho('root',$ho).":$rdst");
+}
+sub target_install_packages {
+    my ($ho, @packages) = @_;
+    target_cmd_root($ho, "apt-get -y install @packages", 100 * @packages);
+}
+sub target_reboot ($) {
+    my ($ho) = @_;
+    target_cmd_root($ho, "init 6");
+    poll_loop($timeout{RebootDown},5,'reboot-down', sub {
+        my $out= `ping -c 5 $ho->{Ip} 2>&1`;
+        return undef if $?==256;
+        $out =~ s/\n/ | /g;
+        return "ping gave ($?): $out";
+    });
+    await_sshd($timeout{RebootUp},5,$ho);
 }
 
 sub store_runvar ($$) {

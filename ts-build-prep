@@ -9,10 +9,10 @@ opendb_state();
 our $ho= selecthost($r{host});
 
 sub prep () {
-    my @packages= qw(mercurial build-essential bin86 bcc ccache
-                     libpci-dev libncurses5-dev libssl-dev python-dev
-                     libx11-dev git-core uuid-dev gettext);
-    target_cmd_root($ho, "apt-get -y install @packages", 300);
-}   
+    target_install_packages($ho,
+                            qw(mercurial build-essential bin86 bcc ccache
+                               libpci-dev libncurses5-dev libssl-dev python-dev
+                               libx11-dev git-core uuid-dev gettext);
+}
 
 prep();

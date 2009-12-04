@@ -12,6 +12,11 @@ our $ho= selecthost($r{host});
 
 my $distpath;
 
+sub packages () {
+    target_install_packages($ho,
+                            qw(bridge-utils));
+}
+
 sub extract () {
     $distpath= get_stashed('distpath',$r{buildjob});
     my $distcopy= "/root/dist.tar.gz";
@@ -62,5 +67,12 @@ sub setupboot () {
     logm("ready to boot Xen");
 }
 
+sub setupinitd () {
+    target_cmd_root($ho, "update-rc.d xend start 92 2 .");
+}
+
+packages();
 extract();
 setupboot();
+setupinitd();
+target_reboot($ho);
