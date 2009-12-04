@@ -10,14 +10,57 @@ readconfig();
 opendb_state();
 our $ho= selecthost($r{host});
 
+my $distpath;
+
 sub extract () {
-    my $distpath= get_runvar('distpath',$r{buildjob});
-    die "$distpath $& " if
-        $distpath =~ m,[^-+._0-9a-zA-Z/], or
-        $distpath =~ m/\.\./;
-    target_putfile_root($ho, 300,
-                        "$c{BuildStash}/$distpath",
-                        "/root/dist.tar.gz");
+    $distpath= get_stashed('distpath',$r{buildjob});
+    my $distcopy= "/root/dist.tar.gz";
+    target_putfile_root($ho, 300, $distpath, $distcopy);
+    target_cmd_root($ho, "cd / && tar zxf $distcopy", 300);
+}
+
+sub setupboot () {
+    target_cmd_root($ho, "update-grub");
+    my $lmenu= "$stash/menu.lst";
+    target_getfile($ho, 60, "/boot/grub/menu.lst", $lmenu);
+    my $f= new IO::File $lmenu, 'r' or die "$lmenu $?";
+    my $def;
+    while (<$f>) {
+        die if m/^\s*title\b/;
+        next unless m/^\s*default\b/;
+        die "$_ ?" unless m/^\s*default\s+(\d+)\s*$/;
+        $def= $1;
+        last;
+    }
+    my $ix= -1;
+    die unless defined $def;
+    logm("boot check: grub default is option $ix");
+    my $kern;
+    while (<$f>) {
+        s/^\s*//; s/\s+$//;
+        if (m/^title\b/) {
+            $ix++;
+            if ($ix==$def) {
+                logm("boot check: title $'");
+            }
+            next;
+        }
+        next unless $ix==$def;
+        if (m/^kernel\b/) {
+            die "$_ ?" unless m,^kernel\s+/boot/(xen\-[-+.0-9a-z]+\.gz)$,;
+            logm("boot check: xen: $1");
+        }
+        if (m/^module\b/) {
+            die "$_ ?" unless m,^module\s+/(boot/\S+)(?:\s.*)?$,;
+            $kern= $1;
+            logm("boot check: kernel: $kern");
+            last;
+        }
+    }
+    die "$def $ix" unless defined $kern;
+    system "tar zvtf $distpath $kern"; $? and die $?;
+    logm("ready to boot Xen");
 }
 
 extract();
+setupboot();

@@ -14,10 +14,10 @@ BEGIN {
     @ISA         = qw(Exporter);
     @EXPORT      = qw(
                       $tftptail
-                      %c %r $dbh_state $dbh_tests $flight $job
-                      get_runvar get_runvar_maybe store_runvar
+                      %c %r $dbh_state $dbh_tests $flight $job $stash
+                      get_runvar get_runvar_maybe store_runvar get_stashed
                       readconfig opendb_state selecthost need_runvars
-                      get_filecontents postfork
+                      get_filecontents ensuredir postfork
                       poll_loop logm link_file_contents create_webfile
                       power_state
                       setup_pxeboot setup_pxeboot_local
@@ -32,7 +32,7 @@ BEGIN {
 
 our $tftptail= '/spider/pxelinux.cfg';
 
-our (%c,%r,$flight,$job);
+our (%c,%r,$flight,$job,$stash);
 our $dbh_state;
 our $dbh_tests;
 
@@ -61,6 +61,31 @@ END
         logm("setting $row->{name}=$row->{val}");
     }
     $q->finish();
+
+    $stash= "$c{Stash}/$flight.$job";
+    ensuredir($stash);
+}
+
+sub otherflightjob ($) {
+    my ($otherflightjob) = @_;    
+    return $otherflightjob =~ m/^([^.]+)\.([^.]+)$/ ? ($1,$2) :
+           $otherflightjob =~ m/^\.?([^.]+)$/ ? ($flight,$1) :
+           die "$otherflightjob ?";
+}
+
+sub get_stashed ($$) {
+    my ($param, $otherflightjob) = @_; 
+    my ($oflight, $ojob) = otherflightjob($otherflightjob);
+    my $path= get_runvar($param, $otherflightjob);
+    die "$path $& " if
+        $path =~ m,[^-+._0-9a-zA-Z/], or
+        $path =~ m/\.\./;
+    return "$c{Stash}/$oflight.$ojob/$path";
+}
+
+sub ensuredir ($) {
+    my ($dir)= @_;
+    mkdir($dir) or $!==&EEXIST or die "$dir $!";
 }
 
 sub opendb ($) {
@@ -145,22 +170,23 @@ END
     $q->execute($flight,$job, $param,$value);
 }
 
-sub get_runvar ($$) {
-    my ($param, $otherjob) = @_;
-    my $r= get_runvar_maybe($param,$otherjob);
-    die "need $param in $otherjob" unless defined $r;
+sub get_runvar ($$$) {
+    my ($param, $otherflightjob) = @_;
+    my $r= get_runvar_maybe($param,$otherflightjob);
+    die "need $param in $otherflightjob" unless defined $r;
     return $r;
 }    
-sub get_runvar_maybe ($$) {
-    my ($param, $otherjob) = @_;
+sub get_runvar_maybe ($$$) {
+    my ($param, $otherflightjob) = @_;
+    my ($oflight, $ojob) = otherflightjob($otherflightjob);
     my $q= $dbh_tests->prepare(<<END);
         SELECT val FROM runvars WHERE flight=? AND job=? AND name=?
 END
-    $q->execute($flight,$otherjob,$param);
+    $q->execute($oflight,$ojob,$param);
     my $row= $q->fetchrow_arrayref();
     if (!$row) { $q->finish(); return undef; }
     my ($val)= @$row;
-    die "$flight.$otherjob $param" if $q->fetchrow_arrayref();
+    die "$oflight.$ojob $param" if $q->fetchrow_arrayref();
     $q->finish();
     return $val;
 }

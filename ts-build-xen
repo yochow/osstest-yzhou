@@ -14,7 +14,7 @@ my $leaf= "build.$flight.$job";
 my $builddir= "/home/osstest/$leaf";
 
 sub build () {
-    target_cmd($ho, "rm -rf $builddir && mkdir $builddir");
+    target_cmd($ho, "rm -rf $builddir && mkdir $builddir", 60);
     target_cmd($ho, <<END.
 	set -xe
         cd $builddir
@@ -48,12 +48,12 @@ sub stash () {
         cd install
         tar zcf ../../../dist.tar.gz *
 END
-    my $stashleaf= "$leaf/dist.tar.gz";
-    my $stashdir= "$c{BuildStash}/$leaf";
-    mkdir($stashdir) or $!==&EEXIST or die "$stashdir $!";
+    my $build= "build";
+    my $stashleaf= "$build/dist.tar.gz";
+    ensuredir("$stash/$build");
     target_getfile($ho, 300,
                    "$builddir/dist.tar.gz",
-                   "$c{BuildStash}/$stashleaf");
+                   "$stash/$stashleaf");
     store_runvar("distpath", $stashleaf);
 }
 
