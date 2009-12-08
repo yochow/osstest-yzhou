@@ -25,9 +25,29 @@ sub extract () {
 }
 
 sub setupboot () {
-    target_cmd_root($ho, "update-grub");
+    my $rmenu= "/boot/grub/menu.lst";
     my $lmenu= "$stash/menu.lst";
-    target_getfile($ho, 60, "/boot/grub/menu.lst", $lmenu);
+
+    target_getfile($ho, 60, $rmenu, $lmenu);
+    open M, "$lmenu" or die "$lmenu: $!";
+    open N, "> $lmenu.new" or die "$lmenu.new: $!";
+    while (<M>) {
+        if (m/^## ## Start Default/ ..
+            m/^## ## End Default/) {
+            s/^# xenhopt=.*/# xenhopt= com1=$c{Baud},8n1 console=com1,vga gdb=com1 conswitch=x/;
+            s/^# xenkopt=.*/# xenkopt= xencons=ttyS console=ttyS0,$c{Baud}n8/;
+        }
+        print N or die $!;
+    }
+    M->error and die $!;
+    close M or die $!;
+    close N or die $!;
+    target_putfile_root($ho, 60, "$lmenu.new", $rmenu);
+
+    target_cmd_root($ho, "update-grub");
+
+    $lmenu .= ".out";
+    target_getfile($ho, 60, $rmenu, $lmenu);
     my $f= new IO::File $lmenu, 'r' or die "$lmenu $?";
     my $def;
     while (<$f>) {
@@ -52,18 +72,28 @@ sub setupboot () {
         }
         next unless $ix==$def;
         if (m/^kernel\b/) {
-            die "$_ ?" unless m,^kernel\s+/boot/(xen\-[-+.0-9a-z]+\.gz)$,;
+            die "$_ ?" unless
+                m,^kernel\s+/(?:boot/)?(xen\-[-+.0-9a-z]+\.gz)(?:\s.*)?$,;
             logm("boot check: xen: $1");
         }
         if (m/^module\b/) {
-            die "$_ ?" unless m,^module\s+/(boot/\S+)(?:\s.*)?$,;
+            die "$_ ?" unless m,^module\s+/((?:boot/)?\S+)(?:\s.*)?$,;
             $kern= $1;
             logm("boot check: kernel: $kern");
             last;
         }
     }
     die "$def $ix" unless defined $kern;
-    system "tar zvtf $distpath $kern"; $? and die $?;
+    system "tar zvtf $distpath boot/$kern"; $? and die $?;
+
+    my $kernbase= $kern;
+    $kernbase =~ s,^/?(?:vmlinu[xz]-)?,,;
+    target_cmd_root($ho,
+                    "update-initramfs -k $kernbase -c ||".
+                    " update-initramfs -k $kernbase -u",
+                    200);
+    target_cmd_root($ho, "update-grub");
+
     logm("ready to boot Xen");
 }
 
@@ -75,4 +105,3 @@ packages();
 extract();
 setupboot();
 setupinitd();
-target_reboot($ho);

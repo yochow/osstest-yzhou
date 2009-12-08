@@ -25,8 +25,11 @@ sub build () {
 	echo >>.config GIT_HTTP=y
 	echo >>.config QEMU_REMOTE='$r{tree_qemu}'
 END
-               (length($r{revision_qemu}) ? <<END : ''),
+               (length($r{revision_qemu}) ? <<END : '').
 	echo >>.config QEMU_TAG='$r{revision_qemu}'
+END
+               (length($r{xen_kernels}) ? <<END : '')
+	echo >>.config KERNELS='$r{xen_kernels}'
 END
                , 300);
     target_cmd($ho, <<END, 3000);
@@ -34,7 +37,8 @@ END
         PATH=/usr/lib/ccache:\$PATH
 	cd $builddir
         cd xen-unstable
-        make -j4 2>&1 |tee ../log
+        (make -j4 2>&1 && touch ../build-ok-stamp) |tee ../log
+        test -f ../build-ok-stamp
         echo ok.
 END
 }  
