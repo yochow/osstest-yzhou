@@ -1,0 +1,13 @@
+#!/usr/bin/perl -w
+
+use strict qw(vars);
+use DBI;
+use Osstest;
+
+readconfig();
+opendb_state();
+our $ho= selecthost($r{host});
+
+power_state($ho, 0);
+sleep(1);
+power_state($ho, 1);
