@@ -114,6 +114,63 @@ cd /target
 tar xf \$r/overlay.tar
 rm \$r/overlay.tar
 
+echo ===
+cat /proc/mounts
+echo ===
+
+#t=/tmp/mounts-aside
+#mkdir \$t
+#exec 3>\$t/.undo
+
+
+chroot /target fuser -avm / || echo x
+chroot /target fuser -avm /target || echo y
+
+
+exec </proc/mounts
+while read dev mountpoint rest; do
+	echo "|\$dev|\$mountpoint|"
+	case "\$mountpoint" in
+	/target)
+        	case "\$dev" in
+        	/*)
+			rdev="\$dev"
+			;;
+		esac
+		;;
+	/target/*)
+		#mnt="\${mountpoint#/target/}"
+		#dir="\${mnt%/*}"
+		umount \$mountpoint
+		;;
+	esac
+done
+
+echo "=\$rdev="
+test "x\$rdev" != x
+
+
+echo ======
+cat /proc/mounts
+ps uaxww ||: a
+ps -efww ||: b
+ps -ef ||: c
+echo ======
+
+umount /target ||: q
+umount -f /target ||: w
+
+e2fsck -f \$rdev
+resize2fs \$rdev $c{HostDisk}G
+
+mount "\$rdev" /target
+
+chroot /target lvreduce -f -v -L $c{HostDisk}G "\$rdev"
+
+umount /target
+mount "\$rdev" /target
+
+
 echo latecmd done.
 END
 

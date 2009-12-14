@@ -15,6 +15,7 @@ $c{Baud}= 115200;
 $c{PxeDiBase}= 'debian-installer';
 
 $c{Suite}= 'lenny';
+$c{HostDisk}= '30'; #G
 
 $c{Preseed}= <<END;
 d-i mirror/http/hostname string debian.uk.xensource.com
