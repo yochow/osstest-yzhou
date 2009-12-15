@@ -1,4 +1,5 @@
-$c{Domain}= 'uk.xensource.com';
+#$c{Domain}= 'uk.xensource.com';
+$c{Domain}= 'cam.xci-test.com';
 $c{TestHostDomain}= 'cam.xci-test.com';
 
 $c{WebspaceFile}= '/export/home/osstest/public_html/';
@@ -15,7 +16,9 @@ $c{Baud}= 115200;
 $c{PxeDiBase}= 'debian-installer';
 
 $c{Suite}= 'lenny';
-$c{HostDisk}= '30'; #G
+$c{HostDiskBoot}=   '100'; #Mby
+$c{HostDiskRoot}= '30000'; #Mby
+$c{HostDiskSwap}=  '1000'; #Mby
 
 $c{Preseed}= <<END;
 d-i mirror/http/hostname string debian.uk.xensource.com

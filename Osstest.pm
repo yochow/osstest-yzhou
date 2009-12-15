@@ -23,6 +23,7 @@ BEGIN {
                       setup_pxeboot setup_pxeboot_local
                       await_webspace_fetch_byleaf await_sshd
                       target_cmd_root target_cmd
+                      target_cmd_output_root target_cmd_output
                       target_getfile target_putfile target_putfile_root
                       target_install_packages target_reboot
                       );
@@ -109,9 +110,16 @@ sub postfork () {
 }
 
 sub cmd {
-    my ($timeout,@cmd) = @_;
+    my ($timeout,$stdout,@cmd) = @_;
     my $child= fork;  die $! unless defined $child;
-    if (!$child) { exec @cmd; die "$cmd[0]: $!"; }
+    if (!$child) {
+        if (defined $stdout) {
+            open STDOUT, '>&', $stdout
+                or die "STDOUT $stdout $cmd[0] $!";
+        }
+        exec @cmd;
+        die "$cmd[0]: $!";
+    }
     my $r;
     eval {
         local $SIG{ALRM} = sub { die "alarm\n"; };
@@ -130,36 +138,28 @@ sub cmd {
 sub sshuho ($$) { my ($user,$ho)= @_; return "$user\@$ho->{Ip}"; }
 
 sub tcmdex {
-    my ($timeout,$cmd,@args) = @_;
+    my ($timeout,$stdout,$cmd,@args) = @_;
     my @opts= qw(-o UserKnownHostsFile=known_hosts);
     logm("executing $cmd ... @args");
-    my $r= cmd($timeout, $cmd,@opts,@args);
+    my $r= cmd($timeout,$stdout, $cmd,@opts,@args);
     $r and die "status $r";
-}
-
-sub tcmd { # $tcmd will be put between '' but not escaped
-    my ($user,$ho,$tcmd,$timeout) = @_;
-    $timeout=10 if !defined $timeout;
-    tcmdex($timeout,
-           'ssh',
-           sshuho($user,$ho), $tcmd);
 }
 
 sub target_getfile ($$$$) {
     my ($ho,$timeout, $rsrc,$ldst) = @_;
-    tcmdex($timeout,
+    tcmdex($timeout,undef,
            'scp',
            sshuho('osstest',$ho).":$rsrc", $ldst);
 }
 sub target_putfile ($$$$) {
     my ($ho,$timeout, $lsrc,$rdst) = @_;
-    tcmdex($timeout,
+    tcmdex($timeout,undef,
            'scp',
            $lsrc, sshuho('osstest',$ho).":$rdst");
 }
 sub target_putfile_root ($$$$) {
     my ($ho,$timeout, $lsrc,$rdst) = @_;
-    tcmdex($timeout,
+    tcmdex($timeout,undef,
            'scp',
            $lsrc, sshuho('root',$ho).":$rdst");
 }
@@ -210,8 +210,29 @@ END
     return $val;
 }
 
-sub target_cmd ($$;$) { tcmd('osstest',@_); }
-sub target_cmd_root ($$;$) { tcmd('root',@_); }
+sub tcmd { # $tcmd will be put between '' but not escaped
+    my ($stdout,$user,$ho,$tcmd,$timeout) = @_;
+    $timeout=10 if !defined $timeout;
+    tcmdex($timeout,$stdout,
+           'ssh',
+           sshuho($user,$ho), $tcmd);
+}
+sub target_cmd ($$;$) { tcmd(undef,'osstest',@_); }
+sub target_cmd_root ($$;$) { tcmd(undef,'root',@_); }
+
+sub tcmdout {
+    my $stdout= IO::File::new_tempfile();
+    tcmd($stdout,@_);
+    $stdout->seek(0,0) or die "$stdout $!";
+    my $r;
+    { local ($/) = undef;
+      $r= <$stdout>; }
+    die "$stdout $!" if !defined $r or $r->error or close $r;
+    return chomp($r);
+}
+
+sub target_cmd_output ($$;$) { tcmdout('osstest',@_); }
+sub target_cmd_output_root ($$;$) { tcmdout('root',@_); }
 
 sub opendb_state () {
     $dbh_state= opendb('statedb');
