@@ -42,6 +42,9 @@ END
 #$r{Tree_Qemu}= 'git://mariner.uk.xensource.com/qemu-xen-unstable.git';
 #$r{Revision_Qemu}= ''; #'HEAD';
 
+#$r{Tree_Linux}= 'http://hg.uk.xensource.com/carbon/trunk/kernels/dom0.hg';
+#$r{Pq_Linux}= 'http://hg.uk.xensource.com/carbon/trunk/kernels/dom0.pq.hg'
+    
 ##$r{Tree_Linux}= 'git://git.kernel.org/pub/scm/linux/kernel/git/x86/linux-2.6-tip.git';
 ##$r{Revision_Linux}= '956:7ee9b1483445'; #'HEAD';
 

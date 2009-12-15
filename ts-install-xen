@@ -17,11 +17,18 @@ sub packages () {
                             qw(bridge-utils));
 }
 
-sub extract () {
-    $distpath= get_stashed('distpath',$r{buildjob});
+sub extract_one ($$) {
+    my ($path, $job) = @_;
+    $distpath= get_stashed($path, $job);
     my $distcopy= "/root/dist.tar.gz";
     target_putfile_root($ho, 300, $distpath, $distcopy);
     target_cmd_root($ho, "cd / && tar zxf $distcopy", 300);
+
+sub extract () {
+    extract_one('path_dist', $r{buildjob});
+    if (length $r{kernbuildjob}) {
+        extract_one('path_kerndist',$r{kernbuildjob});
+    }
 }
 
 sub setupboot () {

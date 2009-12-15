@@ -26,9 +26,10 @@ sub install () {
 
     await_sshd($timeout{Sshd},14,$ho);
 
-    my $lvs= target_cmd_output_root($ho, 'lvdisplay --colons');
+    my $lvs= target_cmd_output_root($ho, 'lvdisplay --colon');
     foreach my $l (split /\n/, $lvs) {
-        next unless m,^\s*(/dev/[^/:]+/dummy):,;
+        logm("| $l");
+        next unless $l =~ m,^\s*(/dev/[^:]+/dummy):,;
         target_cmd_root($ho, "lvremove -f $1");
     }
 

@@ -44,25 +44,10 @@ END
 }  
 
 sub stash () {
-    target_cmd($ho, <<END, 300);
-	set -xe
-	cd $builddir
-        cd xen-unstable
-        cd dist
-        cd install
-        tar zcf ../../../dist.tar.gz *
-END
-    my $build= "build";
-    my $stashleaf= "$build/dist.tar.gz";
-    ensuredir("$stash/$build");
-    target_getfile($ho, 300,
-                   "$builddir/dist.tar.gz",
-                   "$stash/$stashleaf");
-    store_runvar("distpath", $stashleaf);
 }
 
 need_runvars(qw(tree_xen revision_xen
                 tree_qemu revision_qemu));
 
 build();
-stash();
+built_stash($ho, $builddir, 'xen-unstable/dist/install', 'dist');

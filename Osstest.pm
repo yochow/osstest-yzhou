@@ -221,14 +221,15 @@ sub target_cmd ($$;$) { tcmd(undef,'osstest',@_); }
 sub target_cmd_root ($$;$) { tcmd(undef,'root',@_); }
 
 sub tcmdout {
-    my $stdout= IO::File::new_tempfile();
+    my $stdout= IO::File::new_tmpfile();
     tcmd($stdout,@_);
     $stdout->seek(0,0) or die "$stdout $!";
     my $r;
     { local ($/) = undef;
       $r= <$stdout>; }
-    die "$stdout $!" if !defined $r or $r->error or close $r;
-    return chomp($r);
+    die "$stdout $!" if !defined $r or $stdout->error or !close $stdout;
+    chomp($r);
+    return $r;
 }
 
 sub target_cmd_output ($$;$) { tcmdout('osstest',@_); }
@@ -476,6 +477,23 @@ sub getline ($) {
         $lt->{Ino}= $nino;
     }
 }        
+
+sub built_stash ($$) {
+    my ($ho, $builddir, $distroot, $item) = @_;
+    target_cmd($ho, <<END, 300);
+	set -xe
+	cd $builddir
+        cd $distroot
+        tar zcf ../../../$item.tar.gz *
+END
+    my $build= "build";
+    my $stashleaf= "$build/$item.tar.gz";
+    ensuredir("$stash/$build");
+    target_getfile($ho, 300,
+                   "$builddir/$item.tar.gz",
+                   "$stash/$stashleaf");
+    store_runvar("path_$item", $stashleaf);
+}
 
 sub _close ($) {
     my ($lt) = @_;
