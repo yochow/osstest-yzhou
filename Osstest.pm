@@ -16,6 +16,7 @@ BEGIN {
                       $tftptail
                       %c %r $dbh_state $dbh_tests $flight $job $stash
                       get_runvar get_runvar_maybe store_runvar get_stashed
+                      built_stash
                       readconfig opendb_state selecthost need_runvars
                       get_filecontents ensuredir postfork
                       poll_loop logm link_file_contents create_webfile
@@ -25,7 +26,7 @@ BEGIN {
                       target_cmd_root target_cmd
                       target_cmd_output_root target_cmd_output
                       target_getfile target_putfile target_putfile_root
-                      target_install_packages target_reboot
+                      target_install_packages target_reboot target_choose_vg
                       );
     %EXPORT_TAGS = ( );
 
@@ -183,8 +184,11 @@ sub store_runvar ($$) {
     my ($param,$value) = @_;
     logm("runvar store: $param=$value");
     $r{$param}= $value;
+    $dbh_tests->do(<<END, $flight, $job, $param);
+	DELETE FROM runvars WHERE flight=? AND job=? AND name=? AND synth
+END
     my $q= $dbh_tests->prepare(<<END);
-        INSERT INTO runvars VALUES (?,?,?,?)
+        INSERT OR IGNORE INTO runvars VALUES (?,?,?,?,'t')
 END
     $q->execute($flight,$job, $param,$value);
 }
@@ -234,6 +238,31 @@ sub tcmdout {
 
 sub target_cmd_output ($$;$) { tcmdout('osstest',@_); }
 sub target_cmd_output_root ($$;$) { tcmdout('root',@_); }
+
+sub target_choose_vg ($$) {
+    my ($ho, $mbneeded) = @_;
+    my $vgs= target_cmd_output_root($ho, 'vgdisplay -colon');
+    my $bestkb= 1e9;
+    my $bestvg;
+    foreach my $l (split /\n/, $vgs) {
+        $l =~ s/^\s+//; $l =~ s/\s+$//;
+        my @l= split /\:/, $l;
+        my $tvg= $l[0];
+        my $tkb= $l[12];
+        if ($tkb < $mbneeded*1024) {
+            logm("vg $tvg ${tkb}kb too small");
+            next;
+        }
+        if ($tkb < $bestkb) {
+            $bestvg= $tvg;
+            $bestkb= $tkb;
+        }
+    }
+    die "no vg of sufficient size"
+        unless defined $bestkb;
+    logm("vg $bestvg ${bestkb}kb - will use");
+    return $bestvg;
+}
 
 sub opendb_state () {
     $dbh_state= opendb('statedb');
@@ -416,6 +445,23 @@ sub get_filecontents ($;$) {
     return $data;
 }
 
+sub built_stash ($$$$) {
+    my ($ho, $builddir, $distroot, $item) = @_;
+    target_cmd($ho, <<END, 300);
+	set -xe
+	cd $builddir
+        cd $distroot
+        tar zcf $builddir/$item.tar.gz *
+END
+    my $build= "build";
+    my $stashleaf= "$build/$item.tar.gz";
+    ensuredir("$stash/$build");
+    target_getfile($ho, 300,
+                   "$builddir/$item.tar.gz",
+                   "$stash/$stashleaf");
+    store_runvar("path_$item", $stashleaf);
+}
+
 package Osstest::Logtailer;
 use Fcntl qw(:seek);
 
@@ -477,23 +523,6 @@ sub getline ($) {
         $lt->{Ino}= $nino;
     }
 }        
-
-sub built_stash ($$) {
-    my ($ho, $builddir, $distroot, $item) = @_;
-    target_cmd($ho, <<END, 300);
-	set -xe
-	cd $builddir
-        cd $distroot
-        tar zcf ../../../$item.tar.gz *
-END
-    my $build= "build";
-    my $stashleaf= "$build/$item.tar.gz";
-    ensuredir("$stash/$build");
-    target_getfile($ho, 300,
-                   "$builddir/$item.tar.gz",
-                   "$stash/$stashleaf");
-    store_runvar("path_$item", $stashleaf);
-}
 
 sub _close ($) {
     my ($lt) = @_;

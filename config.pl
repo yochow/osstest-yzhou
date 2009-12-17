@@ -16,13 +16,15 @@ $c{Baud}= 115200;
 $c{PxeDiBase}= 'debian-installer';
 
 $c{Suite}= 'lenny';
-$c{HostDiskBoot}=   '100'; #Mby
+$c{GuestSuite}= 'lenny';
+$c{HostDiskBoot}=   '500'; #Mby
 $c{HostDiskRoot}= '30000'; #Mby
-$c{HostDiskSwap}=  '1000'; #Mby
+$c{HostDiskSwap}=  '2000'; #Mby
+
+$c{DebianMirrorHost}= 'debian.uk.xensource.com';
+$c{DebianMirrorSubpath}= 'debian';
 
 $c{Preseed}= <<END;
-d-i mirror/http/hostname string debian.uk.xensource.com
-d-i mirror/http/directory string /debian
 d-i clock-setup/ntp-server string ntp.uk.xensource.com
 END
 

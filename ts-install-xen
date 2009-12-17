@@ -20,9 +20,11 @@ sub packages () {
 sub extract_one ($$) {
     my ($path, $job) = @_;
     $distpath= get_stashed($path, $job);
-    my $distcopy= "/root/dist.tar.gz";
+    my $local= $path;  $local =~ s/path_//;
+    my $distcopy= "/root/extract_$local.tar.gz";
     target_putfile_root($ho, 300, $distpath, $distcopy);
     target_cmd_root($ho, "cd / && tar zxf $distcopy", 300);
+}
 
 sub extract () {
     extract_one('path_dist', $r{buildjob});
@@ -66,7 +68,7 @@ sub setupboot () {
     }
     my $ix= -1;
     die unless defined $def;
-    logm("boot check: grub default is option $ix");
+    logm("boot check: grub default is option $def");
     my $kern;
     while (<$f>) {
         s/^\s*//; s/\s+$//;
@@ -93,13 +95,15 @@ sub setupboot () {
     die "$def $ix" unless defined $kern;
     system "tar zvtf $distpath boot/$kern"; $? and die $?;
 
-    my $kernbase= $kern;
-    $kernbase =~ s,^/?(?:vmlinu[xz]-)?,,;
+    my $kernver= $kern;
+    $kernver =~ s,^/?(?:boot/)?(?:vmlinu[xz]-)?,, or die "$kernver ?";
     target_cmd_root($ho,
-                    "update-initramfs -k $kernbase -c ||".
-                    " update-initramfs -k $kernbase -u",
+                    "update-initramfs -k $kernver -c ||".
+                    " update-initramfs -k $kernver -u",
                     200);
     target_cmd_root($ho, "update-grub");
+    store_runvar('xen_kernel_path',$kern);
+    store_runvar('xen_kernel_ver',$kernver);
 
     logm("ready to boot Xen");
 }

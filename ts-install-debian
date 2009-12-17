@@ -204,6 +204,9 @@ d-i cdrom-detect/eject boolean false
 
 d-i preseed/late_command string $latecmdcmd
 
+d-i mirror/http/hostname string $c{DebianMirrorHost}
+d-i mirror/http/directory string /$c{DebianMirrorSubpath}
+
 $c{Preseed}
 END
 }
