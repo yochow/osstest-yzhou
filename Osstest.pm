@@ -339,6 +339,7 @@ sub selectguest ($) {
     my ($gn) = @_;
     my $gho= selectguest_core($gn);
     return $gho if ref $gho;
+    die "guest $gn: $gho";
 }
 
 sub guest_xmrunning ($$) {

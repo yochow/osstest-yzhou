@@ -1,0 +1,32 @@
+#!/usr/bin/perl -w
+
+use strict qw(vars);
+use DBI;
+use Osstest;
+
+readconfig();
+opendb_state();
+our $ho= selecthost($r{host});
+
+my $gn= 'guest';
+our $gho;
+
+sub save () {
+    guest_xmrunning($ho,$gn) or die $gn;
+    $gho= selectguest($gn);
+    target_cmd_root($ho, "xm save $r{$gn.'_hostname'} image", 200);
+    target_ping_check_down($gho);
+}
+sub restore () {
+    target_cmd_root($ho, "xm restore image", 200);
+    target_ping_check_up($gho);
+}
+sub checkok () {
+    await_sshd(5,1,$gho);
+    target_cmd_root($gho, "echo guest $gn: restored");
+}
+
+my $gho= guest_await(5,5,$gn);
+save();
+restore();
+checkok();
