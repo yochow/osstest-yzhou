@@ -1,0 +1,25 @@
+#!/usr/bin/perl -w
+
+use strict qw(vars);
+use DBI;
+use Osstest;
+
+readconfig();
+opendb_state();
+our $ho= selecthost($r{host});
+
+my $gn= 'guest';
+our $gho;
+
+sub start () {
+    guest_umount_lv($ho, $gn);
+    target_cmd_root($ho, "xm create $r{$gn.'_cfgpath'}", 100);
+}
+
+sub checkstart () {
+    guest_xmrunning($ho,$gn) or die $gn;
+}
+
+start();
+checkstart();
+guest_await(100,100,$gn);

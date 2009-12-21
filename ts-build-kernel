@@ -1,0 +1,79 @@
+#!/usr/bin/perl
+
+use strict qw(vars);
+use DBI;
+use Osstest;
+
+readconfig();
+opendb_state();
+our $ho= selecthost($r{host});
+
+my $leaf= "build.$flight.$job";
+my $builddir= "/home/osstest/$leaf";
+
+sub build () {
+    target_cmd($ho, "rm -rf $builddir && mkdir $builddir", 60);
+    target_cmd($ho, <<END.
+	set -xe
+	cd $builddir
+	hg clone $r{tree_linux} linux
+END
+               (length($r{treepq_linux}) ? <<END : '')
+	hg clone $r{treepq_linux} linux/.hg/patches
+	cd linux
+	hg qpush -a
+END
+		, 1000);
+    target_cmd($ho, <<END, 100);
+	set -xe
+	cd $builddir
+        PATH=/usr/lib/ccache:\$PATH
+	cd linux
+	perl -i.bak -pe '
+		s/^(CONFIG_(?:AGP|DRM|FB)(?:_.*)?)=m\$/# \$1 is not set/;
+		s/^CONFIG_(?: VGA | VIDEO | FRAMEBUFFER | BOOTSPLASH
+			XEN_FRAMEBUFFER ).*//x;
+	' buildconfigs/linux-defconfig_*[^~]
+	make -f buildconfigs/Rules.mk defconfig </dev/null
+END
+    target_cmd($ho, <<END, 3000);
+	set -xe
+	cd $builddir/linux
+        PATH=/usr/lib/ccache:\$PATH
+	(make -j4 all modules 2>&1 && touch ../build-ok-stamp) |tee ../log
+        test -f ../build-ok-stamp
+        echo ok.
+END
+}
+
+sub kinstall () {
+    my $kernfile= 'arch/x86/boot/vmlinux-stripped';
+    target_cmd($ho, <<END, 100);
+	set -xe
+	cd $builddir
+	mkdir -p dist/boot dist/lib/modules
+	cd linux
+	make -j4 INSTALL_MOD_PATH=$builddir/dist modules_install
+	cp System.map $builddir/dist/boot/
+	cp $kernfile $builddir/dist/boot/vmlinuz
+	cp .config $builddir/dist/boot/config
+END
+    my $kernver= target_cmd_output($ho, <<END);
+	set -xe
+	cd $builddir/dist/lib/modules
+	echo *
+END
+    die "$kernver ?" unless $kernver =~ m/^\d\S+$/;
+    logm("built $kernver");
+    target_cmd($ho, <<END, 100);
+	set -xe
+	cd $builddir/dist/boot
+	for f in vmlinuz System.map config; do
+		mv \$f \$f-$kernver
+	done
+END
+}
+
+build();
+kinstall();
+built_stash($ho, $builddir, 'dist', 'kerndist');

@@ -1,0 +1,22 @@
+#!/usr/bin/perl -w
+
+use strict qw(vars);
+use DBI;
+use Osstest;
+
+readconfig();
+opendb_state();
+our $ho= selecthost($r{host});
+
+my $gn= 'guest';
+our $gho;
+
+sub stop () {
+    guest_xmrunning($ho,$gn) or die $gn;
+    target_cmd_root($ho, "xm shutdown -w $r{$gn.'_hostname'}", 200);
+    guest_xmrunning($ho,$gn) and die $gn;
+}
+
+my $gho= guest_await(5,5,$gn);
+stop();
+target_ping_check_down($gho);

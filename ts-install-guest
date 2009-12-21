@@ -1,0 +1,45 @@
+#!/usr/bin/perl -w
+
+use strict qw(vars);
+use DBI;
+use Osstest;
+
+readconfig();
+opendb_state();
+our $ho= selecthost($r{host});
+
+our $ram_mb=    512;
+our $swap_mb=  1000;
+our $disk_mb= 10000;
+
+our $guesthost= 'one.guest.osstest';
+
+sub prep () {
+    target_install_packages_norec($ho, qw(lvm2 xen-tools));
+
+    store_runvar('guest_vg', '');
+    if (!length $r{guest_vg}) {
+        store_runvar('guest_vg',
+                     target_choose_vg($ho, $swap_mb + $disk_mb + 2));
+    }
+    store_runvar('guest_hostname', $guesthost);
+    store_runvar('guest_disk_lv', "$r{guest_hostname}-disk");
+
+    target_cmd_root($ho, "umount /dev/$r{guest_vg}/$r{guest_disk_lv} ||:");
+}
+
+sub ginstall () {
+    target_cmd_root($ho, <<END, 1000);
+        xen-create-image --dhcp --host=$r{guest_hostname} \\
+            --kernel $r{xen_kernel_path} \\
+            --initrd /boot/initrd.img-$r{xen_kernel_ver} \\
+            --lvm $r{guest_vg} --force \\
+            --memory 512M --swap 1G \\
+            --dist $c{GuestSuite} \\
+            --mirror http://$c{DebianMirrorHost}/$c{DebianMirrorSubpath}
+END
+    store_runvar('guest_cfgpath', "/etc/xen/$r{guest_hostname}.cfg");
+}
+
+prep();
+ginstall();

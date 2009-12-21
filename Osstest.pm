@@ -26,7 +26,13 @@ BEGIN {
                       target_cmd_root target_cmd
                       target_cmd_output_root target_cmd_output
                       target_getfile target_putfile target_putfile_root
-                      target_install_packages target_reboot target_choose_vg
+                      target_install_packages target_install_packages_norec
+                      target_reboot target_choose_vg
+                      target_umount_lv
+                      target_ping_check_down target_ping_check_up
+                      selectguest
+                      guest_umount_lv guest_await guest_await_dhcp_ssh
+                      guest_xmrunning
                       );
     %EXPORT_TAGS = ( );
 
@@ -168,14 +174,29 @@ sub target_install_packages {
     my ($ho, @packages) = @_;
     target_cmd_root($ho, "apt-get -y install @packages", 100 * @packages);
 }
+sub target_install_packages_norec {
+    my ($ho, @packages) = @_;
+    target_cmd_root($ho,
+                    "apt-get --no-install-recommends -y install @packages",
+                    100 * @packages);
+}
+
+sub target_ping_check_core {
+    my ($ho, $exp) = @_;
+    my $out= `ping -c 5 $ho->{Ip} 2>&1`;
+    logm("ping $ho->{Ip} ".(!$? ? 'up' : $?==256 ? 'down' : "$? ?"));
+    return undef if $?==$exp;
+    $out =~ s/\n/ | /g;
+    return "ping gave ($?): $out";
+}
+sub target_ping_check_down ($) { return target_ping_check_core(@_,256); }
+sub target_ping_check_up ($) { return target_ping_check_core(@_,0); }
+
 sub target_reboot ($) {
     my ($ho) = @_;
     target_cmd_root($ho, "init 6");
     poll_loop($timeout{RebootDown},5,'reboot-down', sub {
-        my $out= `ping -c 5 $ho->{Ip} 2>&1`;
-        return undef if $?==256;
-        $out =~ s/\n/ | /g;
-        return "ping gave ($?): $out";
+        return target_ping_check_down($ho);
     });
     await_sshd($timeout{RebootUp},5,$ho);
 }
@@ -183,14 +204,14 @@ sub target_reboot ($) {
 sub store_runvar ($$) {
     my ($param,$value) = @_;
     logm("runvar store: $param=$value");
-    $r{$param}= $value;
-    $dbh_tests->do(<<END, $flight, $job, $param);
+    $dbh_tests->do(<<END, undef, $flight, $job, $param);
 	DELETE FROM runvars WHERE flight=? AND job=? AND name=? AND synth
 END
     my $q= $dbh_tests->prepare(<<END);
-        INSERT OR IGNORE INTO runvars VALUES (?,?,?,?,'t')
+        INSERT INTO runvars VALUES (?,?,?,?,'t')
 END
     $q->execute($flight,$job, $param,$value);
+    $r{$param}= get_runvar($param, "$flight.$job");
 }
 
 sub get_runvar ($$$) {
@@ -241,16 +262,16 @@ sub target_cmd_output_root ($$;$) { tcmdout('root',@_); }
 
 sub target_choose_vg ($$) {
     my ($ho, $mbneeded) = @_;
-    my $vgs= target_cmd_output_root($ho, 'vgdisplay -colon');
+    my $vgs= target_cmd_output_root($ho, 'vgdisplay --colon');
     my $bestkb= 1e9;
     my $bestvg;
     foreach my $l (split /\n/, $vgs) {
         $l =~ s/^\s+//; $l =~ s/\s+$//;
         my @l= split /\:/, $l;
         my $tvg= $l[0];
-        my $tkb= $l[12];
+        my $tkb= $l[11];
         if ($tkb < $mbneeded*1024) {
-            logm("vg $tvg ${tkb}kb too small");
+            logm("vg $tvg ${tkb}kb free - too small");
             next;
         }
         if ($tkb < $bestkb) {
@@ -259,8 +280,8 @@ sub target_choose_vg ($$) {
         }
     }
     die "no vg of sufficient size"
-        unless defined $bestkb;
-    logm("vg $bestvg ${bestkb}kb - will use");
+        unless defined $bestvg;
+    logm("vg $bestvg ${bestkb}kb free - will use");
     return $bestvg;
 }
 
@@ -282,6 +303,70 @@ sub selecthost ($) {
     logm("host: selected $ho->{Name} $ho->{Asset} $ho->{Ether} $ho->{Ip}");
     return $ho;
     $dbh->disconnect();
+}
+
+sub selectguest_core ($) {
+    my ($gn) = @_;
+    my $gho= {
+        Name => $r{"${gn}_hostname"},
+        Ether => $r{"${gn}_ether"}
+    };
+    my $q= $dbh_state->prepare('select * from ips where mac=?');
+    $q->execute($gho->{Ether});
+    my $row;
+    my $worst= "no entry in statedb::ips";
+    my @ips;
+    while ($row= $q->fetchrow_hashref()) {
+        if (!$row->{state}) {
+            $worst= "statedb::ips.state=$row->{state}";
+            next;
+        }
+        push @ips, $row->{ip};
+    }
+    if (!@ips) {
+        return $worst;
+    }
+    if (@ips>1) {
+        return "multiple addrs @ips";
+    }
+    $gho->{Ip}= $ips[0];
+    $gho->{Ip} =~ m/^[0-9.]+$/ or die "$gn $gho->{Ether} $gho->{Ip} ?";
+    logm("guest $gn: $gho->{Ether} $gho->{Ip}");
+    return $gho;
+}
+
+sub selectguest ($) {
+    my ($gn) = @_;
+    my $gho= selectguest_core($gn);
+    return $gho if ref $gho;
+}
+
+sub guest_xmrunning ($$) {
+    my ($ho,$gn) = @_;
+    my $domains= target_cmd_output_root($ho, "xm list");
+    $domains =~ s/^Name.*\n//;
+    foreach my $l (split /\n/, $domains) {
+        $l =~ m/^(\S+)\s/ or die "$l ?";
+        return 1 if $1 eq $r{"${gn}_hostname"};
+    }
+    return 0;
+}
+
+sub guest_await_dhcp_ssh ($$) {
+    my ($gn,$timeout) = @_;
+    my $gho;
+    poll_loop($timeout,1, "guest $gn: link up", sub {
+        $gho= selectguest_core($gn);
+        return $gho unless ref $gho;
+
+        return
+            target_ping_check_up($gho)
+            ||
+            target_sshd_check($gho,5)
+            ||
+            undef;
+    });
+    return $gho;
 }
 
 sub need_runvars {
@@ -389,6 +474,24 @@ default local
 END
 }
 
+sub target_umount_lv ($$$) {
+    my ($ho,$vg,$lv) = @_;
+    my $dev= "/dev/$vg/$lv";
+    for (;;) {
+        $lv= target_cmd_output_root($ho, "lvdisplay --colon $dev");
+        $lv =~ s/^\s+//;  $lv =~ s/\s+$//;
+        my @lv = split /:/, $lv;
+        die "@lv ?" unless $lv[0] eq $dev;
+        return unless $lv[5]; # "open"
+        target_cmd_root($ho, "umount $dev");
+    }
+}
+
+sub guest_umount_lv ($$) {
+    my ($ho,$gn) = @_;
+    target_umount_lv($ho, $r{"${gn}_vg"}, $r{"${gn}_disk_lv"});
+}
+
 sub await_webspace_fetch_byleaf ($$$$$) {
     my ($maxwait,$interval,$logtailer, $ho, $url) = @_;
     my $leaf= $url;
@@ -409,14 +512,26 @@ sub await_webspace_fetch_byleaf ($$$$$) {
     });
 }
 
+sub target_sshd_check ($$) {
+    my ($ho,$interval) = @_;
+    my $ncout= `nc -n -v -z -w $interval $ho->{Ip} 22 2>&1`;
+    return undef if !$?;
+    $ncout =~ s/\n/ | /g;
+    return "nc: $? $ncout";
+}
+
 sub await_sshd ($$$) {
     my ($maxwait,$interval,$ho) = @_;
-    poll_loop($maxwait,$interval, "await sshd", sub {
-        my $ncout= `nc -n -v -z -w $interval $ho->{Ip} 22 2>&1`;
-        return undef if !$?;
-        $ncout =~ s/\n/ | /g;
-        return "nc: $? $ncout";
+    poll_loop($maxwait,$interval, "await sshd $ho->{Name}", sub {
+        return target_sshd_check($ho,$interval);
     });
+}
+
+sub guest_await ($$$) {
+    my ($dhcpwait,$sshwait,$gn) = @_;
+    my $gho= guest_await_dhcp_ssh($gn,$dhcpwait);
+    target_cmd_root($gho, "echo guest $gn: ok");
+    return $gho;
 }
 
 sub create_webfile ($$$) {

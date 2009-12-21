@@ -14,7 +14,7 @@ my $distpath;
 
 sub packages () {
     target_install_packages($ho,
-                            qw(bridge-utils));
+                            qw(bridge-utils libc6-xen));
 }
 
 sub extract_one ($$) {
@@ -97,12 +97,16 @@ sub setupboot () {
 
     my $kernver= $kern;
     $kernver =~ s,^/?(?:boot/)?(?:vmlinu[xz]-)?,, or die "$kernver ?";
+
+    my $kernpath= $kern;
+    $kernpath =~ s,^(?:boot/)?,/boot/,;
+
     target_cmd_root($ho,
                     "update-initramfs -k $kernver -c ||".
                     " update-initramfs -k $kernver -u",
                     200);
     target_cmd_root($ho, "update-grub");
-    store_runvar('xen_kernel_path',$kern);
+    store_runvar('xen_kernel_path',$kernpath);
     store_runvar('xen_kernel_ver',$kernver);
 
     logm("ready to boot Xen");
