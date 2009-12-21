@@ -7,14 +7,12 @@ use Osstest;
 readconfig();
 opendb_state();
 our $ho= selecthost($r{host});
-
-my $gn= 'guest';
-our $gho;
+our $gho= selectguest('guest');
 
 sub save () {
-    guest_xmrunning($ho,$gn) or die $gn;
-    $gho= selectguest($gn);
-    target_cmd_root($ho, "xm save $r{$gn.'_hostname'} image", 200);
+    guest_xmrunning($ho,$gho) or die $gho->{Name};
+    my $err= guest_check_ip($gho);  die "$err $gho->{Name}" if defined $err;
+    target_cmd_root($ho, "xm save $gho->{Name} image", 200);
     target_ping_check_down($gho);
 }
 sub restore () {
@@ -22,11 +20,11 @@ sub restore () {
     target_ping_check_up($gho);
 }
 sub checkok () {
-    await_sshd(5,1,$gho);
-    target_cmd_root($gho, "echo guest $gn: restored");
+    await_sshd(5,1, $gho);
+    target_cmd_root($gho, "echo guest $gho->{Name}: restored");
 }
 
-my $gho= guest_await(5,5,$gn);
+guest_await($gho, 5,5);
 save();
 restore();
 checkok();

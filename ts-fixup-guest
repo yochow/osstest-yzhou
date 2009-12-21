@@ -7,10 +7,7 @@ use Osstest;
 readconfig();
 opendb_state();
 our $ho= selecthost($r{host});
-
-my $gn= 'guest';
-our $guestname= "one.$gn.osstest";
-our $ether= 'f4:fe:1b:60:78:c9';
+our $gho= selectguest('guest');
 
 our ($cfgfile,$cfgstash,$cfg);
 
@@ -29,16 +26,15 @@ sub ether () {
           [^\n\'\"]* \b mac= ) [0-9a-fA-F:]+ \b ( [^\n\'\"]* [\'\"]
           [^\n\'\"]* )
           /
-            my $n= $1.$ether.$2;
+            my $n= $1.$gho->{Ether}.$2;
             logm("changed vif to $n");
             $n;
           /mxe
         or die "no ether?";
-    store_runvar("${gn}_ether", $ether);
 }
 
 sub access () {
-    guest_umount_lv($ho, $gn);
+    guest_umount_lv($ho, $gho);
     target_cmd_root($ho, <<END);
         set -ex
         mount /dev/$r{"${gn}_vg"}/$r{"${gn}_disk_lv"} /mnt
@@ -82,7 +78,7 @@ END
 }
 
 sub unmount () {
-    guest_umount_lv($ho, $gn);
+    guest_umount_lv($ho, $gho);
 }
 
 sub writecfg () {

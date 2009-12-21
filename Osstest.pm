@@ -30,9 +30,9 @@ BEGIN {
                       target_reboot target_choose_vg
                       target_umount_lv
                       target_ping_check_down target_ping_check_up
-                      selectguest
+                      selectguest prepareguest
                       guest_umount_lv guest_await guest_await_dhcp_ssh
-                      guest_xmrunning
+                      guest_xmrunning guest_check_ip guest_find_ether
                       );
     %EXPORT_TAGS = ( );
 
@@ -144,31 +144,42 @@ sub cmd {
 
 sub sshuho ($$) { my ($user,$ho)= @_; return "$user\@$ho->{Ip}"; }
 
+sub sshopts () {
+    return [ qw(-o UserKnownHostsFile=known_hosts) ];
+}
+
 sub tcmdex {
-    my ($timeout,$stdout,$cmd,@args) = @_;
-    my @opts= qw(-o UserKnownHostsFile=known_hosts);
+    my ($timeout,$stdout,$cmd,$optsref,@args) = @_;
     logm("executing $cmd ... @args");
-    my $r= cmd($timeout,$stdout, $cmd,@opts,@args);
+    my $r= cmd($timeout,$stdout, $cmd,@$optsref,@args);
     $r and die "status $r";
 }
 
 sub target_getfile ($$$$) {
     my ($ho,$timeout, $rsrc,$ldst) = @_;
     tcmdex($timeout,undef,
-           'scp',
+           'scp', sshopts(),
            sshuho('osstest',$ho).":$rsrc", $ldst);
 }
-sub target_putfile ($$$$) {
-    my ($ho,$timeout, $lsrc,$rdst) = @_;
-    tcmdex($timeout,undef,
-           'scp',
-           $lsrc, sshuho('osstest',$ho).":$rdst");
+sub tputfileex {
+    my ($ruser, $ho,$timeout, $lsrc,$rdst, $rsync) = @_;
+    my @args= ($lsrc, sshuho($ruser,$ho).":$rdst");
+    if (!defined $rsync) {
+        tcmdex($timeout,undef,
+               'scp', sshopts(),
+               @args);
+    } else {
+        unshift @args, $rsync if length $rsync;
+        tcmdex($timeout,undef,
+               'rsync', [ '-e', 'ssh '.join(' ',@{ sshopts() }) ],
+               @args);
+    }
+}    
+sub target_putfile ($$$$;$) {
+    tputfileex('osstest', @_);
 }
-sub target_putfile_root ($$$$) {
-    my ($ho,$timeout, $lsrc,$rdst) = @_;
-    tcmdex($timeout,undef,
-           'scp',
-           $lsrc, sshuho('root',$ho).":$rdst");
+sub target_putfile_root ($$$$;$) {
+    tputfileex('root', @_);
 }
 sub target_install_packages {
     my ($ho, @packages) = @_;
@@ -239,7 +250,7 @@ sub tcmd { # $tcmd will be put between '' but not escaped
     my ($stdout,$user,$ho,$tcmd,$timeout) = @_;
     $timeout=10 if !defined $timeout;
     tcmdex($timeout,$stdout,
-           'ssh',
+           'ssh', sshopts(),
            sshuho($user,$ho), $tcmd);
 }
 sub target_cmd ($$;$) { tcmd(undef,'osstest',@_); }
@@ -305,12 +316,35 @@ sub selecthost ($) {
     $dbh->disconnect();
 }
 
-sub selectguest_core ($) {
+sub selectguest ($) {
     my ($gn) = @_;
     my $gho= {
-        Name => $r{"${gn}_hostname"},
-        Ether => $r{"${gn}_ether"}
+        Guest => $gn,
+        Name => $r{"${gn}_hostname"}
     };
+    guest_find_lv($gho);
+    return $gho;
+}
+
+sub guest_find_lv ($) {
+    my ($gho) = @_;
+    my $gn= $gho->{Guest};
+    $gho->{Vg}= $r{"${gn}_vg"};
+    $gho->{Lv}= $r{"${gn}_disk_lv"};
+    $gho->{Lvdev}= (defined $gho->{Vg} && defined $gho->{Lv})
+        ? '/dev/'.$gho->{Vg}.'/'.$gho->{Lv} : undef;
+}
+
+sub guest_find_ether ($) {
+    my ($gho) = @_;
+    $gho->{Ether}= $r{"$gho->{Guest}_ether"};
+}
+
+sub guest_check_ip ($) {
+    my ($gho) = @_;
+
+    guest_find_ether($gho);
+    
     my $q= $dbh_state->prepare('select * from ips where mac=?');
     $q->execute($gho->{Ether});
     my $row;
@@ -330,35 +364,48 @@ sub selectguest_core ($) {
         return "multiple addrs @ips";
     }
     $gho->{Ip}= $ips[0];
-    $gho->{Ip} =~ m/^[0-9.]+$/ or die "$gn $gho->{Ether} $gho->{Ip} ?";
-    logm("guest $gn: $gho->{Ether} $gho->{Ip}");
+    $gho->{Ip} =~ m/^[0-9.]+$/ or
+        die "$gho->{Name} $gho->{Ether} $gho->{Ip} ?";
+    logm("guest $gho->{Name}: $gho->{Ether} $gho->{Ip}");
+
+    return undef;
+}
+
+sub prepareguest ($$$$$) {
+    my ($ho, $gn, $hostname, $ether, $mb) = @_;
+
+    store_runvar("${gn}_ether", $ether);
+    store_runvar("${gn}_hostname", $hostname);
+    store_runvar("${gn}_disk_lv", $r{"${gn}_hostname"}.'-disk');
+    
+    my $gho= selectguest($gn);
+
+    store_runvar("${gn}_vg", '');
+    if (!length $r{"${gn}_vg"}) {
+        store_runvar("${gn}_vg", target_choose_vg($ho, $mb));
+    }
+
+    guest_find_ether($gho);
+    guest_find_lv($gho);
     return $gho;
 }
 
-sub selectguest ($) {
-    my ($gn) = @_;
-    my $gho= selectguest_core($gn);
-    return $gho if ref $gho;
-    die "guest $gn: $gho";
-}
-
 sub guest_xmrunning ($$) {
-    my ($ho,$gn) = @_;
+    my ($ho,$gho) = @_;
     my $domains= target_cmd_output_root($ho, "xm list");
     $domains =~ s/^Name.*\n//;
     foreach my $l (split /\n/, $domains) {
         $l =~ m/^(\S+)\s/ or die "$l ?";
-        return 1 if $1 eq $r{"${gn}_hostname"};
+        return 1 if $1 eq $gho->{Name};
     }
     return 0;
 }
 
 sub guest_await_dhcp_ssh ($$) {
-    my ($gn,$timeout) = @_;
-    my $gho;
-    poll_loop($timeout,1, "guest $gn: link up", sub {
-        $gho= selectguest_core($gn);
-        return $gho unless ref $gho;
+    my ($gho,$timeout) = @_;
+    poll_loop($timeout,1, "guest $gho->{Name}: await link", sub {
+        my $err= guest_check_ip($gho);
+        return $err if defined $err;
 
         return
             target_ping_check_up($gho)
@@ -367,7 +414,6 @@ sub guest_await_dhcp_ssh ($$) {
             ||
             undef;
     });
-    return $gho;
 }
 
 sub need_runvars {
@@ -489,8 +535,8 @@ sub target_umount_lv ($$$) {
 }
 
 sub guest_umount_lv ($$) {
-    my ($ho,$gn) = @_;
-    target_umount_lv($ho, $r{"${gn}_vg"}, $r{"${gn}_disk_lv"});
+    my ($ho,$gho) = @_;
+    target_umount_lv($ho, $gho->{Vg}, $gho->{Lv});
 }
 
 sub await_webspace_fetch_byleaf ($$$$$) {
@@ -529,9 +575,9 @@ sub await_sshd ($$$) {
 }
 
 sub guest_await ($$$) {
-    my ($dhcpwait,$sshwait,$gn) = @_;
-    my $gho= guest_await_dhcp_ssh($gn,$dhcpwait);
-    target_cmd_root($gho, "echo guest $gn: ok");
+    my ($gho,$dhcpwait,$sshwait) = @_;
+    guest_await_dhcp_ssh($gho,$dhcpwait);
+    target_cmd_root($gho, "echo guest $gho->{Name}: ok");
     return $gho;
 }
 

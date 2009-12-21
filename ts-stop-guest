@@ -7,16 +7,14 @@ use Osstest;
 readconfig();
 opendb_state();
 our $ho= selecthost($r{host});
-
-my $gn= 'guest';
-our $gho;
+our $gho= selectguest('guest');
 
 sub stop () {
-    guest_xmrunning($ho,$gn) or die $gn;
-    target_cmd_root($ho, "xm shutdown -w $r{$gn.'_hostname'}", 200);
-    guest_xmrunning($ho,$gn) and die $gn;
+    guest_xmrunning($ho, $gho) or die $gho->{Name};
+    target_cmd_root($ho, "xm shutdown -w $gho->{Name}", 200);
+    guest_xmrunning($ho, $gho) and die $gho->{Name};
 }
 
-my $gho= guest_await(5,5,$gn);
+guest_await($gho, 5,5);
 stop();
 target_ping_check_down($gho);

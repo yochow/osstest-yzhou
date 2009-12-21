@@ -1,0 +1,88 @@
+#!/usr/bin/perl -w
+
+use strict qw(vars);
+use DBI;
+use Osstest;
+
+readconfig();
+opendb_state();
+our $ho= selecthost($r{host});
+our $gho;
+
+our $ram_mb=    512;
+our $disk_mb= 10000;
+
+our $guesthost= 'win.guest.osstest';
+our $ether= 'f4:fe:1b:f4:5f:67';
+
+sub prep () {
+    target_install_packages_norec($ho, qw(lvm2 rsync));
+
+    $gho= prepareguest($ho, 'win', $guesthost, $ether, $disk_mb + 1);
+
+    target_cmd_root($ho, "lvremove -f $gho->{Lvdev} ||:");
+    target_cmd_root($ho, "lvcreate -L ${disk_mb}M -n $gho->{Lv} $gho->{Vg}");
+    target_cmd_root($ho, "dd if=/dev/zero of=$gho->{Lvdev} count=10");
+}
+
+sub image () {
+    my $imageleaf= $r{"$gho->{Guest}_image"};
+    my $limage= "$c{Images}/$imageleaf";
+    $gho->{Rimage}= "/root/$imageleaf";
+    target_putfile_root($ho,200, $limage,$gho->{Rimage}, '-p');
+}
+
+sub config () {
+    my $cfgleaf= "$gho->{Name}.cfg";
+    store_runvar("$gho->{Guest}_cfgpath", "/etc/xen/$cfgleaf");
+
+    my $eth2= $gho->{Ether};
+    $eth2 =~ s/^[0-9a-f]//;
+    my $chr= $&;
+    $chr =~ y/0-9a-f/89a-f0-7/;
+    $eth2= "$chr$eth2";
+
+    my $h= new IO::File "$stash/$cfgleaf", 'w' or die "$cfgleaf $!";
+    print $h <<END or die $!;
+name        = '$gho->{Name}'
+
+kernel      = 'hvmloader'
+builder     = 'hvm'
+
+disk        = [
+            'phy:$gho->{Lvdev},hda,w',
+            'file:$gho->{Rimage},hdc:cdrom,r'
+            ]
+
+memory = ${ram_mb}
+
+usb=1
+usbdevice='tablet'
+
+#stdvga=1
+keymap='en-gb';
+
+vfb = [ 'type=vnc,vncunused=0,vncdisplay=0,vnclisten=$ho->{Ip},vncpasswd=xenvnc' ]
+
+boot = 'dc'
+
+vif         = [ 'type=ioemu,mac=$gho->{Ether}',
+                'type=vif,mac=$eth2' ]
+
+on_poweroff = 'destroy'
+on_reboot   = 'restart'
+on_crash    = 'preserve'
+vcpus = 2
+END
+    target_putfile_root($ho,10, "$stash/$cfgleaf",
+                        $r{"$gho->{Guest}_cfgpath"});
+}
+
+sub start () {
+    target_cmd_root($ho, "xm create $r{$gho->{Guest}.'_cfgpath'}", 100);
+}
+
+prep();
+image();
+config();
+start();

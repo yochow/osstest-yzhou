@@ -7,19 +7,17 @@ use Osstest;
 readconfig();
 opendb_state();
 our $ho= selecthost($r{host});
-
-my $gn= 'guest';
-our $gho;
+our $gho= selectguest('guest');
 
 sub start () {
-    guest_umount_lv($ho, $gn);
-    target_cmd_root($ho, "xm create $r{$gn.'_cfgpath'}", 100);
+    guest_umount_lv($ho, $gho);
+    target_cmd_root($ho, "xm create $r{$gho->{Guest}.'_cfgpath'}", 100);
 }
 
 sub checkstart () {
-    guest_xmrunning($ho,$gn) or die $gn;
+    guest_xmrunning($ho, $gho) or die $gho->{Name};
 }
 
 start();
 checkstart();
-guest_await(100,100,$gn);
+guest_await($gho, 100,100);

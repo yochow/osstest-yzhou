@@ -8,6 +8,7 @@ $c{WebspaceCommon}= 'osstest/';
 $c{WebspaceLog}= '/var/log/apache2/access.log';
 
 $c{Stash}= '/home/xc_osstest/stash';
+$c{Images}= '/home/xc_osstest/images';
 
 $c{Tftp}= '/tftpboot/pxe';
 
