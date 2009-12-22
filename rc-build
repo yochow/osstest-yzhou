@@ -1,0 +1,10 @@
+# -*- Tcl -*-
+
+select-host-parallel 3 build-prep
+
+main {
+    rt xen-build
+    if {[runvar-exists tree_linux]} {
+        rt kernel-build
+    }
+}

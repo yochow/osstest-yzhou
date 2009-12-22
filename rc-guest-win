@@ -1,0 +1,14 @@
+# -*- Tcl -*-
+
+select-host-reserve
+
+#need-job [runvar-get build ]
+
+main {
+    rt host-install
+    rt xen-install
+    rt win-install
+    rt guest-start        win
+    rt guest-saverestore  win
+    rt guest-stop         win
+}

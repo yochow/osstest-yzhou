@@ -1,0 +1,15 @@
+# -*- Tcl -*-
+
+select-host-reserve
+
+#need-job [runvar-get build ] { build }
+
+main {
+    rt host-install
+    rt xen-install
+    rt debian-install
+    rt debian-fixup
+    rt guest-start        debian
+    rt guest-saverestore  debian
+    rt guest-stop         debian
+}

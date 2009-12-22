@@ -1,0 +1,8 @@
+# -*- Tcl -*-
+
+select-host-reserve
+
+main {
+    rt host-install
+    rt xen-build-prep
+}
