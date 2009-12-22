@@ -1,0 +1,16 @@
+#!/usr/bin/perl -w
+
+use strict qw(vars);
+use DBI;
+use Osstest;
+
+csreadconfig();
+
+my ($flight) = 
+    db_retry($dbh_tests, sub {
+        $dbh_tests->do('INSERT INTO flights VALUES (DEFAULT)');
+        return $dbh_tests->
+            selectrow_array('SELECT MAX(flight) FROM flights');
+    });
+
+printf "%s\n", $flight;

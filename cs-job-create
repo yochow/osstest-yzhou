@@ -1,0 +1,31 @@
+#!/usr/bin/perl -w
+#
+# args:
+#   <flight> <job> <recipe> <runvar>=<value> ...
+
+use strict qw(vars);
+use DBI;
+use Osstest;
+
+csreadconfig();
+
+die unless @ARGV >= 2;
+my ($flight,$job,$recipe,@runvars) = @ARGV;
+
+-f "$c{TestingLib}/rc-${recipe}" or die $!;
+
+$dbh_tests->
+    selectrow_arrayref("SELECT * FROM flights where flight= $flight")
+    or die "$flight ?";
+
+db_retry($dbh_tests, sub {
+    $dbh_tests->do(<<END);
+        INSERT INTO jobs VALUES ($flight,'$job','$recipe','queued')
+END
+    my $q= $dbh_tests->
+        prepare("INSERT INTO runvars VALUES ($flight,'$job',?,?,'f')");
+    foreach my $rv (@runvars) {
+        $rv =~ m/^([a-z][0-9a-z_]*)\=(.*)$/ or die "$rv ?";
+        $q->execute($1,$2);
+    }
+});
