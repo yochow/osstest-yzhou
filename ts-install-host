@@ -1,0 +1,214 @@
+#!/usr/bin/perl -w
+
+use strict qw(vars);
+use DBI;
+use Osstest;
+
+readconfig();
+opendb_state();
+our $ho= selecthost($r{host});
+
+our %timeout= qw(ReadPreseed 100
+                 Sshd        800);
+
+sub install () {
+    power_state($ho, 0);
+    my ($ps_url,$ps_file)= create_preseed();
+    setup_pxeboot_firstboot($ps_url);
+    sleep(1);
+
+    my $logtailer= Osstest::Logtailer->new($c{WebspaceLog});
+    power_state($ho, 1);
+
+    await_webspace_fetch_byleaf($timeout{ReadPreseed},1,
+                                $logtailer, $ho, $ps_url);
+    setup_pxeboot_local($ho);
+
+    await_tcp($timeout{Sshd},14,$ho);
+
+    my $lvs= target_cmd_output_root($ho, 'lvdisplay --colon');
+    foreach my $l (split /\n/, $lvs) {
+        logm("| $l");
+        next unless $l =~ m,^\s*(/dev/[^:]+/dummy):,;
+        target_cmd_root($ho, "lvremove -f $1");
+    }
+
+    logm('OK: install completed');
+}   
+
+sub setup_pxeboot_firstboot($) {
+    my ($ps_url) = @_;
+    
+    my $d_i= $c{PxeDiBase}.'/'.$r{arch};
+    $ps_url =~ s,^http://,,;
+    
+    my @installcmdline= qw(vga=normal auto=true preseed);
+    
+    push @installcmdline, ("initrd=$d_i/initrd.gz",
+                           "hostname=$ho->{Name}",
+                           "url=$ps_url",
+                           "domain=$c{TestHostDomain}"
+                           );
+
+    push @installcmdline, qw(DEBCONF_DEBUG=5 DEBIAN_FRONTEND=text --);
+    push @installcmdline, "console=ttyS0,$c{Baud}n8";
+
+    my $installcmdline= join ' ', @installcmdline;
+
+    setup_pxeboot($ho, <<END);
+serial 0 $c{Baud}
+timeout 5
+label overwrite
+	menu label ^Overwrite
+	menu default
+	kernel $d_i/linux
+	append $installcmdline
+default overwrite
+END
+}
+
+sub create_preseed ($) {
+
+    my $authkeys= '';
+    my @akf= map {
+        "$ENV{'HOME'}/.ssh/$_"
+        } qw(authorized_keys id_dsa.pub id_rsa.pub);
+    push @akf, split ':', $c{AuthorizedKeysFiles};
+    foreach my $akf (@akf) {
+        next unless $akf =~ m/\S/;
+        $authkeys .= get_filecontents($akf, "# $akf ENOENT\n"). "\n";
+    }
+    $authkeys .= $c{AuthorizedKeysAppend};
+    my $authkeys_url= create_webfile($ho, 'authkeys', $authkeys);
+
+    my $overlay_url= create_webfile($ho, 'overlay.tar', sub {
+        my ($fh) = @_;
+        my $child= fork;  defined $child or die $!;
+        if (!$child) {
+            postfork();
+            chdir('overlay') or die $!;
+            open STDIN, 'find ! -name "*~" ! -name "#*" -type f -print0 |'
+                or die $!;
+            open STDOUT, '>&', $fh or die $!;
+            system 'cpio -Hustar -o --quiet -0 -R 1000:1000'; $? and die $?;
+            $!=0; close STDIN; die "$! $?" if $! or $?;
+            exit 0;
+        }
+        waitpid($child, 0) == $child or die $!;
+        $? and die $?;
+    });
+    
+    my $latecmd_url= create_webfile($ho, 'latecmd', <<END);
+#!/bin/sh
+set -ex
+
+r=/target/root
+cd \$r
+
+umask 022
+mkdir .ssh
+wget -O .ssh/authorized_keys '$authkeys_url'
+
+u=osstest
+h=/home/\$u
+mkdir /target\$h/.ssh
+cp .ssh/authorized_keys /target\$h/.ssh
+chroot /target chown -R \$u.\$u \$h/.ssh
+
+wget -O overlay.tar '$overlay_url'
+cd /target
+tar xf \$r/overlay.tar
+rm \$r/overlay.tar
+
+
+echo latecmd done.
+END
+
+    my $latecmdcmd=
+"wget -O /tmp/latecmd '$latecmd_url' && chmod +x /tmp/latecmd && /tmp/latecmd";
+
+    return create_webfile($ho, 'preseed', <<END);
+d-i mirror/suite string $c{Suite}
+
+d-i debian-installer/locale string en_GB
+d-i console-keymaps-at/keymap select gb
+
+#d-i debconf/frontend string readline
+
+d-i mirror/country string manual
+d-i mirror/http/proxy string
+
+d-i clock-setup/utc boolean true
+d-i time/zone string Europe/London
+d-i clock-setup/ntp boolean true
+
+d-i partman-auto/method string lvm
+#d-i partman-auto/method string regular
+
+d-i partman-md/device_remove_md boolean true
+d-i partman-lvm/device_remove_lvm boolean true
+d-i partman-partitioning/confirm_write_new_label boolean true
+d-i partman/choose_partition select finish
+d-i partman/confirm boolean true
+d-i partman-lvm/confirm boolean true
+
+#d-i partman-auto/init_automatically_partition select regular
+d-i partman-auto/disk string /dev/sda
+
+d-i partman-ext3/no_mount_point boolean false
+d-i partman-basicmethods/method_only boolean false
+
+d-i partman-auto/expert_recipe string					\\
+	boot-root ::							\\
+		$c{HostDiskBoot} 50 $c{HostDiskBoot} ext3		\\
+			\$primary{ } \$bootable{ }			\\
+			method{ format } format{ }			\\
+			use_filesystem{ } filesystem{ ext3 }		\\
+			mountpoint{ /boot }				\\
+		.							\\
+		$c{HostDiskRoot} 50 $c{HostDiskRoot} ext3		\\
+			method{ format } format{ } \$lvmok{ }		\\
+			use_filesystem{ } filesystem{ ext3 }		\\
+			mountpoint{ / }					\\
+		.							\\
+		$c{HostDiskSwap} 40 100% linux-swap			\\
+			method{ swap } format{ } \$lvmok{ }		\\
+		.							\\
+		1 30 1000000000 ext3					\\
+			method{ keep } \$lvmok{ }			\\
+			lv_name{ dummy }				\\
+		.
+
+d-i passwd/root-password password xenroot
+d-i passwd/root-password-again password xenroot
+d-i passwd/user-fullname string FLOSS Xen Test
+d-i passwd/username string osstest
+d-i passwd/user-password password osstest
+d-i passwd/user-password-again password osstest
+
+console-common  console-data/keymap/policy      select  Don't touch keymap
+console-data    console-data/keymap/policy      select  Don't touch keymap
+console-data    console-data/keymap/family      select  qwerty
+console-data console-data/keymap/template/layout select British
+
+popularity-contest popularity-contest/participate boolean false
+tasksel tasksel/first multiselect standard, web-server
+
+d-i pkgsel/include string openssh-server
+
+d-i grub-installer/only_debian boolean true
+
+d-i finish-install/keep-consoles boolean true
+d-i finish-install/reboot_in_progress note
+d-i cdrom-detect/eject boolean false
+
+d-i preseed/late_command string $latecmdcmd
+
+d-i mirror/http/hostname string $c{DebianMirrorHost}
+d-i mirror/http/directory string /$c{DebianMirrorSubpath}
+
+$c{Preseed}
+END
+}
+
+install();
