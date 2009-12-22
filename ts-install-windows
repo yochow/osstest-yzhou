@@ -36,12 +36,6 @@ sub config () {
     my $cfgleaf= "$gho->{Name}.cfg";
     store_runvar("$gho->{Guest}_cfgpath", "/etc/xen/$cfgleaf");
 
-    my $eth2= $gho->{Ether};
-    $eth2 =~ s/^[0-9a-f]//;
-    my $chr= $&;
-    $chr =~ y/0-9a-f/89a-f0-7/;
-    $eth2= "$chr$eth2";
-
     my $h= new IO::File "$stash/$cfgleaf", 'w' or die "$cfgleaf $!";
     print $h <<END or die $!;
 name        = '$gho->{Name}'
@@ -66,8 +60,7 @@ vfb = [ 'type=vnc,vncunused=0,vncdisplay=0,vnclisten=$ho->{Ip},vncpasswd=xenvnc'
 
 boot = 'dc'
 
-vif         = [ 'type=ioemu,mac=$gho->{Ether}',
-                'type=vif,mac=$eth2' ]
+vif         = [ 'type=ioemu,mac=$gho->{Ether}' ]
 
 on_poweroff = 'destroy'
 on_reboot   = 'restart'
