@@ -12,7 +12,7 @@ csreadconfig();
 die unless @ARGV >= 2;
 my ($flight,$job,$recipe,@runvars) = @ARGV;
 
--f "$c{TestingLib}/rc-${recipe}" or die $!;
+#-f "$c{TestingLib}/rc-${recipe}" or die $!;
 
 $dbh_tests->
     selectrow_arrayref("SELECT * FROM flights where flight= $flight")

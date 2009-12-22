@@ -1,0 +1,68 @@
+#!/usr/bin/tclsh8.4
+# -*- Tcl -*- 
+# usage: ./sg-run-builds <flight>
+
+source osstestlib.tcl
+
+readconfig
+
+proc main {} {
+    global flight jobinfo builds
+
+    set-flight
+    db-open
+
+    pg_execute -array jobinfo dbh "
+        SELECT job, recipe FROM jobs
+			WHERE	flight=$flight
+			AND	job like 'build%'
+			AND   ( status = 'queued'
+			  OR	status = 'preparing' )
+    " start-job
+
+    foreach reap $builds {
+        reap-ts $reap
+    }
+}
+
+proc prepare-host {} {
+    global prepared jobinfo
+    if {[info exists prepared]} return
+
+    run-ts ts-host-install
+    run-ts xen-build-prep
+
+    set prepared 1
+}
+
+proc setstatus {st} {
+    global flight jobinfo
+    pg_execute dbh "
+        UPDATE jobs SET status='$st'
+            WHERE flight=$flight AND job='$jobinfo(job)'
+    "
+}
+
+proc start-job {} {
+    global jobinfo c builds flight
+
+    pg_execute dbh "
+        INSERT INTO runvars VALUES
+             ($flight, '$jobinfo(job)', 'host', '$c(host)', 'f')
+    "
+
+    setstatus preparing
+    prepare-host
+
+    setstatus running
+    lappend builds [spawn-job/$jobinfo(recipe)]
+}
+
+proc spawn-job/build {} {
+    return [spawn-ts ts-xen-build]
+}
+proc spawn-job/build-kern {} {
+    return [spawn-ts ts-kernel-build]
+}
+
+main
