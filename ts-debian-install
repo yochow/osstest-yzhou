@@ -12,7 +12,6 @@ our $ram_mb=    512;
 our $swap_mb=  1000;
 our $disk_mb= 10000;
 
-our $gn= 'guest';
 our $guesthost= 'one.guest.osstest';
 our $gho;
 
@@ -21,7 +20,7 @@ our $ether= 'f4:fe:1b:60:78:c9';
 sub prep () {
     target_install_packages_norec($ho, qw(lvm2 xen-tools));
 
-    $gho= prepareguest($ho, 'guest', $guesthost, $ether,
+    $gho= prepareguest($ho, 'debian', $guesthost, $ether,
                        $swap_mb + $disk_mb + 2);
     target_cmd_root($ho, "umount $gho->{Lvdev} ||:");
 }

@@ -25,6 +25,8 @@ $c{HostDiskSwap}=  '2000'; #Mby
 $c{DebianMirrorHost}= 'debian.uk.xensource.com';
 $c{DebianMirrorSubpath}= 'debian';
 
+$c{TestingLib}= '.';
+
 $c{Preseed}= <<END;
 d-i clock-setup/ntp-server string ntp.uk.xensource.com
 END
