@@ -20,4 +20,4 @@ sub checkstart () {
 
 start();
 checkstart();
-guest_await($gho, 100,100);
+guest_await($gho, 100);

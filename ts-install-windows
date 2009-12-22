@@ -23,6 +23,9 @@ sub prep () {
     target_cmd_root($ho, "lvremove -f $gho->{Lvdev} ||:");
     target_cmd_root($ho, "lvcreate -L ${disk_mb}M -n $gho->{Lv} $gho->{Vg}");
     target_cmd_root($ho, "dd if=/dev/zero of=$gho->{Lvdev} count=10");
+
+    store_runvar("$gho->{Guest}_pingbroken", 1);
+    store_runvar("$gho->{Guest}_tcpcheckport", 8936);
 }
 
 sub image () {
@@ -79,3 +82,4 @@ prep();
 image();
 config();
 start();
+guest_await_dhcp_tcp($gho,5000);

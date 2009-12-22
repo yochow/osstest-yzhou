@@ -24,7 +24,7 @@ sub install () {
                                 $logtailer, $ho, $ps_url);
     setup_pxeboot_local($ho);
 
-    await_sshd($timeout{Sshd},14,$ho);
+    await_tcp($timeout{Sshd},14,$ho);
 
     my $lvs= target_cmd_output_root($ho, 'lvdisplay --colon');
     foreach my $l (split /\n/, $lvs) {

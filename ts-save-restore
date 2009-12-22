@@ -7,7 +7,7 @@ use Osstest;
 readconfig();
 opendb_state();
 our $ho= selecthost($r{host});
-our $gho= selectguest('guest');
+our $gho= selectguest(@ARGV ? $ARGV[0] : 'guest');
 
 sub save () {
     guest_xmrunning($ho,$gho) or die $gho->{Name};
@@ -20,11 +20,12 @@ sub restore () {
     target_ping_check_up($gho);
 }
 sub checkok () {
-    await_sshd(5,1, $gho);
-    target_cmd_root($gho, "echo guest $gho->{Name}: restored");
+    await_tcp(5,1, $gho);
+    target_cmd_root($gho, "echo guest $gho->{Name}: restored")
+        if $r{"$gho->{Guest}_tcpcheckport"} == 22;
 }
 
-guest_await($gho, 5,5);
+guest_await_dhcp_tcp($gho, 5);
 save();
 restore();
 checkok();

@@ -31,6 +31,8 @@ sub ether () {
             $n;
           /mxe
         or die "no ether?";
+
+    store_runvar("$gho->{Name}_tcpcheckport", 22);
 }
 
 sub access () {

@@ -17,12 +17,13 @@ BEGIN {
                       %c %r $dbh_state $dbh_tests $flight $job $stash
                       get_runvar get_runvar_maybe store_runvar get_stashed
                       built_stash
+                      csreadconfig
                       readconfig opendb_state selecthost need_runvars
-                      get_filecontents ensuredir postfork
+                      get_filecontents ensuredir postfork db_retry
                       poll_loop logm link_file_contents create_webfile
                       power_state
                       setup_pxeboot setup_pxeboot_local
-                      await_webspace_fetch_byleaf await_sshd
+                      await_webspace_fetch_byleaf await_tcp
                       target_cmd_root target_cmd
                       target_cmd_output_root target_cmd_output
                       target_getfile target_putfile target_putfile_root
@@ -31,7 +32,7 @@ BEGIN {
                       target_umount_lv
                       target_ping_check_down target_ping_check_up
                       selectguest prepareguest
-                      guest_umount_lv guest_await guest_await_dhcp_ssh
+                      guest_umount_lv guest_await guest_await_dhcp_tcp
                       guest_xmrunning guest_check_ip guest_find_ether
                       );
     %EXPORT_TAGS = ( );
@@ -48,9 +49,14 @@ our $dbh_tests;
 our %timeout= qw(RebootDown   100
                  RebootUp     200);
 
-sub readconfig () {
+sub csreadconfig () {
     require 'config.pl';
     $dbh_tests= opendb('osstestdb');
+}
+
+sub readconfig () {
+    csreadconfig();
+
     $flight= $ENV{'OSSTEST_FLIGHT'};
     $job=    $ENV{'OSSTEST_JOB'};
     die unless defined $flight and defined $job;
@@ -78,6 +84,20 @@ END
     ensuredir($stash);
 }
 
+sub db_retry ($$) {
+    my ($dbh, $code) = @_;
+    my $retries= 20;
+    my $r;
+    for (;;) {
+        $dbh->begin_work();
+        $r= &$code;
+        last if eval { $dbh->commit(); 1; };
+        die "$dbh $code $@ ?" unless $retries-- > 0;
+        sleep(1);
+    }
+    return $r;
+}
+
 sub otherflightjob ($) {
     my ($otherflightjob) = @_;    
     return $otherflightjob =~ m/^([^.]+)\.([^.]+)$/ ? ($1,$2) :
@@ -103,7 +123,8 @@ sub ensuredir ($) {
 sub opendb ($) {
     my ($dbname) = @_;
     my $src= "dbi:Pg:dbname=$dbname";
-    my $dbh= DBI->connect($src, 'osstest','', {
+    my $whoami= `whoami`;  chomp $whoami;
+    my $dbh= DBI->connect($src, $whoami,'', {
         AutoCommit => 1,
         RaiseError => 1,
         ShowErrorStatement => 1,
@@ -209,7 +230,7 @@ sub target_reboot ($) {
     poll_loop($timeout{RebootDown},5,'reboot-down', sub {
         return target_ping_check_down($ho);
     });
-    await_sshd($timeout{RebootUp},5,$ho);
+    await_tcp($timeout{RebootUp},5,$ho);
 }
 
 sub store_runvar ($$) {
@@ -301,7 +322,10 @@ sub opendb_state () {
 }
 sub selecthost ($) {
     my ($name) = @_;
-    my $ho= { Name => $name };
+    my $ho= {
+        Name => $name,
+        TcpCheckPort => 22,
+    };
     my $dbh= opendb('configdb');
     my $selname= "$name.$c{TestHostDomain}";
     my $sth= $dbh->prepare('SELECT * FROM ips WHERE reverse_dns = ?');
@@ -316,6 +340,12 @@ sub selecthost ($) {
     $dbh->disconnect();
 }
 
+sub guest_find_tcpcheckport ($) {
+    my ($gho) = @_;
+    $gho->{TcpCheckPort}= $r{"$gho->{Guest}_tcpcheckport"};
+    $gho->{PingBroken}= $r{"$gho->{Guest}_pingbroken"};
+}
+
 sub selectguest ($) {
     my ($gn) = @_;
     my $gho= {
@@ -323,6 +353,7 @@ sub selectguest ($) {
         Name => $r{"${gn}_hostname"}
     };
     guest_find_lv($gho);
+    guest_find_tcpcheckport($gho);
     return $gho;
 }
 
@@ -385,8 +416,9 @@ sub prepareguest ($$$$$) {
         store_runvar("${gn}_vg", target_choose_vg($ho, $mb));
     }
 
-    guest_find_ether($gho);
     guest_find_lv($gho);
+    guest_find_ether($gho);
+    guest_find_tcpcheckport($gho);
     return $gho;
 }
 
@@ -401,16 +433,19 @@ sub guest_xmrunning ($$) {
     return 0;
 }
 
-sub guest_await_dhcp_ssh ($$) {
+sub guest_await_dhcp_tcp ($$) {
     my ($gho,$timeout) = @_;
-    poll_loop($timeout,1, "guest $gho->{Name}: await link", sub {
+    poll_loop($timeout,1,
+              "guest $gho->{Name} $gho->{Ether} $gho->{TcpCheckPort}".
+              " link/ip/tcp",
+              sub {
         my $err= guest_check_ip($gho);
         return $err if defined $err;
 
         return
-            target_ping_check_up($gho)
+            ($gho->{PingBroken} ? undef : target_ping_check_up($gho))
             ||
-            target_sshd_check($gho,5)
+            target_tcp_check($gho,5)
             ||
             undef;
     });
@@ -559,24 +594,26 @@ sub await_webspace_fetch_byleaf ($$$$$) {
     });
 }
 
-sub target_sshd_check ($$) {
+sub target_tcp_check ($$) {
     my ($ho,$interval) = @_;
-    my $ncout= `nc -n -v -z -w $interval $ho->{Ip} 22 2>&1`;
+    my $ncout= `nc -n -v -z -w $interval $ho->{Ip} $ho->{TcpCheckPort} 2>&1`;
     return undef if !$?;
     $ncout =~ s/\n/ | /g;
     return "nc: $? $ncout";
 }
 
-sub await_sshd ($$$) {
+sub await_tcp ($$$) {
     my ($maxwait,$interval,$ho) = @_;
-    poll_loop($maxwait,$interval, "await sshd $ho->{Name}", sub {
-        return target_sshd_check($ho,$interval);
+    poll_loop($maxwait,$interval,
+              "await tcp $ho->{Name} $ho->{TcpCheckPort}",
+              sub {
+        return target_tcp_check($ho,$interval);
     });
 }
 
-sub guest_await ($$$) {
-    my ($gho,$dhcpwait,$sshwait) = @_;
-    guest_await_dhcp_ssh($gho,$dhcpwait);
+sub guest_await ($$) {
+    my ($gho,$dhcpwait) = @_;
+    guest_await_dhcp_tcp($gho,$dhcpwait);
     target_cmd_root($gho, "echo guest $gho->{Name}: ok");
     return $gho;
 }

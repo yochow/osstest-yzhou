@@ -7,7 +7,7 @@ use Osstest;
 readconfig();
 opendb_state();
 our $ho= selecthost($r{host});
-our $gho= selectguest('guest');
+our $gho= selectguest(@ARGV ? $ARGV[0] : 'guest');
 
 sub stop () {
     guest_xmrunning($ho, $gho) or die $gho->{Name};
@@ -15,6 +15,6 @@ sub stop () {
     guest_xmrunning($ho, $gho) and die $gho->{Name};
 }
 
-guest_await($gho, 5,5);
+guest_await_dhcp_tcp($gho, 5);
 stop();
 target_ping_check_down($gho);
