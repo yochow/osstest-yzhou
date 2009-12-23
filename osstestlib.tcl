@@ -19,14 +19,15 @@ proc set-flight {} {
 
 proc run-ts {args} {
     set reap [eval spawn-ts $args]
-    reap-ts $reap
+    if {![reap-ts $reap]} { error "test script failed" }
 }
 
 proc spawn-ts {ts args} {
     global flight c jobinfo reap_details
 
-    set details "$flight.$jobinfo(job) $ts $args"
-    puts "starting $details"
+    set detstr "$flight.$jobinfo(job) $ts $args"
+    set details [list $flight $jobinfo(job) $detstr]
+    puts "starting $detstr"
     
     set logdir $c(logs)/$flight.$jobinfo(job)
     file mkdir $logdir
@@ -46,9 +47,36 @@ proc spawn-ts {ts args} {
     return $fh
 }
 
+proc setstatus {st} {
+    global flight jobinfo
+    job-set-status $flight $jobinfo(job) $st
+}
+
+proc job-set-host {flight job host} {
+    pg_execute dbh "
+        INSERT INTO runvars VALUES
+             ($flight, '$job', 'host', '$host', 'f')
+    "
+}
+
+proc job-set-status {flight job st} {
+    pg_execute dbh "
+        UPDATE jobs SET status='$st'
+            WHERE flight=$flight AND job='$job'
+    "
+}
+
 proc reap-ts {reap} {
     upvar #0 reap_details($reap) details
-    puts "awaiting $details"
-    close $reap
-    puts "finished $details ok"
+    set detstr [lindex $details 2]
+    puts "awaiting $detstr"
+    if {[catch { close $reap } emsg]} {
+        set result fail
+    } else {
+        set result pass
+    }
+
+    eval job-set-status [lrange $details 0 1] $result
+    puts "finished $detstr $result $emsg"
+    return [string compare $result fail]
 }

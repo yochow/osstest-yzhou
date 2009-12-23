@@ -1,3 +1,5 @@
 tcpcheckport => tcpcheckproto
 
 check windows guests' RPC thingy
+
+sg-run-builds report failures of already-run jobs

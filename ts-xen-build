@@ -14,6 +14,9 @@ my $leaf= "build.$flight.$job";
 my $builddir= "/home/osstest/$leaf";
 
 sub build () {
+    my $kerns= $r{xen_kernels};
+    $kerns =~ s/,/ /g;
+    
     target_cmd($ho, "rm -rf $builddir && mkdir $builddir", 60);
     target_cmd($ho, <<END.
 	set -xe
@@ -28,8 +31,8 @@ END
                (length($r{revision_qemu}) ? <<END : '').
 	echo >>.config QEMU_TAG='$r{revision_qemu}'
 END
-               (length($r{xen_kernels}) ? <<END : '')
-	echo >>.config KERNELS='$r{xen_kernels}'
+               (length($kerns) ? <<END : '')
+	echo >>.config KERNELS='$kerns'
 END
                , 300);
     target_cmd($ho, <<END, 3000);
@@ -43,11 +46,32 @@ END
 END
 }  
 
+sub divide () {
+    target_cmd($ho, <<END, 100);
+        set -xe
+        cd $builddir/xen-unstable/dist
+        mkdir kerninstall xeninstall
+        if test -d install/boot; then
+            mv install/boot kerninstall/.
+            if test -f kerninstall/boot/xen.gz; then
+                mkdir xeninstall/boot
+                mv kerninstall/boot/xen* xeninstall/boot/.
+            fi
+        fi
+END
+}
+
 sub stash () {
+    foreach my $part ('', 'kern', 'xen') {
+        built_stash($ho, $builddir,
+                    "xen-unstable/dist/${part}install",
+                    "${part}dist");
+    }
 }
 
 need_runvars(qw(tree_xen revision_xen
                 tree_qemu revision_qemu));
 
 build();
-built_stash($ho, $builddir, 'xen-unstable/dist/install', 'dist');
+divide();
+stash();

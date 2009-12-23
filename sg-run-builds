@@ -7,10 +7,12 @@ source osstestlib.tcl
 readconfig
 
 proc main {} {
-    global flight jobinfo builds
+    global flight jobinfo builds anyfailed
 
     set-flight
     db-open
+    
+    set builds {}
 
     pg_execute -array jobinfo dbh "
         SELECT job, recipe FROM jobs
@@ -18,10 +20,18 @@ proc main {} {
 			AND	job like 'build%'
 			AND   ( status = 'queued'
 			  OR	status = 'preparing' )
+		ORDER BY job
     " start-job
 
+    set anyfailed 0
     foreach reap $builds {
-        reap-ts $reap
+        if {![reap-ts $reap]} {
+            set anyfailed 1
+        }
+    }
+
+    if {$anyfailed} {
+        error "something failed"
     }
 }
 
@@ -30,26 +40,15 @@ proc prepare-host {} {
     if {[info exists prepared]} return
 
     run-ts ts-host-install
-    run-ts xen-build-prep
+    run-ts ts-xen-build-prep
 
     set prepared 1
-}
-
-proc setstatus {st} {
-    global flight jobinfo
-    pg_execute dbh "
-        UPDATE jobs SET status='$st'
-            WHERE flight=$flight AND job='$jobinfo(job)'
-    "
 }
 
 proc start-job {} {
     global jobinfo c builds flight
 
-    pg_execute dbh "
-        INSERT INTO runvars VALUES
-             ($flight, '$jobinfo(job)', 'host', '$c(host)', 'f')
-    "
+    job-set-host $flight $jobinfo(job) $c(host)
 
     setstatus preparing
     prepare-host

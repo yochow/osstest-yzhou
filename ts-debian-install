@@ -31,7 +31,7 @@ sub ginstall () {
             --dhcp --memory ${ram_mb}M --swap ${swap_mb}M \\
             --dist $c{GuestSuite} \\
             --mirror http://$c{DebianMirrorHost}/$c{DebianMirrorSubpath}
-            --host=$gho->{Name} \\
+            --hostname $gho->{Name} \\
             --lvm $gho->{Lv} --force \\
             --kernel $r{xen_kernel_path} \\
             --initrd /boot/initrd.img-$r{xen_kernel_ver} \\

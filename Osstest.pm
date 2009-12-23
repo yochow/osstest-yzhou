@@ -500,7 +500,8 @@ sub power_state ($$) {
 }
 sub logm ($) {
     my ($m) = @_;
-    print "LOG $m\n";
+    print "LOG $m\n" or die $!;
+    STDOUT->flush or die $!;
 }
 sub file_link_contents ($$) {
     my ($fn, $contents) = @_;

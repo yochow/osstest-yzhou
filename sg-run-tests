@@ -1,0 +1,69 @@
+#!/usr/bin/tclsh8.4
+# -*- Tcl -*- 
+# usage: ./sg-run-tests <flight>
+
+source osstestlib.tcl
+
+readconfig
+
+proc main {} {
+    global flight jobinfo builds anyfailed
+
+    set-flight
+    db-open
+    
+    set tests {}
+    set anyfailed 0
+
+    pg_execute -array jobinfo dbh "
+        SELECT job, recipe FROM jobs
+			WHERE	flight=$flight
+			AND	job like 'test%'
+			AND   ( status = 'queued'
+			  OR	status = 'preparing' )
+		ORDER BY job
+    " start-job
+
+    if {$anyfailed} {
+        error "something failed"
+    }
+}
+
+proc start-job {} {
+    global jobinfo c builds flight
+
+    puts "prepping $flight.$jobinfo(job)"
+
+    job-set-host $flight $jobinfo(job) $c(host)
+    if {[catch { run-job/$jobinfo(recipe) } emsg]} {
+        puts stderr "$flight.$jobinfo(job) run-job failed: $emsg"
+        set anyfailed 1
+    }
+}
+
+proc prepare-host {} {
+    run-ts ts-host-install
+    run-ts ts-xen-install
+    run-ts ts-host-reboot
+}
+
+proc run-job/test-debian {} {
+    prepare-host
+    run-ts ts-debian-install
+    run-ts ts-debian-fixup
+    test-guest
+}
+
+proc run-job/test-win {} {
+    prepare-host
+    run-ts ts-windows-install
+    test-guest
+}
+
+proc test-guest {} {
+    run-ts ts-guest-start
+    run-ts ts-guest-saverestore
+    run-ts ts-guest-stop
+}
+
+main

@@ -10,26 +10,25 @@ readconfig();
 opendb_state();
 our $ho= selecthost($r{host});
 
-my $distpath;
+my %distpath;
 
 sub packages () {
     target_install_packages($ho,
                             qw(bridge-utils libc6-xen));
 }
 
-sub extract_one ($$) {
-    my ($path, $job) = @_;
-    $distpath= get_stashed($path, $job);
+sub extract_one ($$$) {
+    my ($part, $path, $job) = @_;
+    $distpath{$part}= get_stashed($path, $job);
     my $local= $path;  $local =~ s/path_//;
     my $distcopy= "/root/extract_$local.tar.gz";
-    target_putfile_root($ho, 300, $distpath, $distcopy);
+    target_putfile_root($ho, 300, $distpath{$part}, $distcopy);
     target_cmd_root($ho, "cd / && tar zxf $distcopy", 300);
 }
 
 sub extract () {
-    extract_one('path_dist', $r{buildjob});
-    if (length $r{kernbuildjob}) {
-        extract_one('path_kerndist',$r{kernbuildjob});
+    foreach my $part ('', 'kern', 'xen') {
+        extract_one($part, "path_${part}dist", $r{"${part}buildjob"});
     }
 }
 
@@ -93,7 +92,7 @@ sub setupboot () {
         }
     }
     die "$def $ix" unless defined $kern;
-    system "tar zvtf $distpath boot/$kern"; $? and die $?;
+    system "tar zvtf $distpath{kern} boot/$kern"; $? and die $?;
 
     my $kernver= $kern;
     $kernver =~ s,^/?(?:boot/)?(?:vmlinu[xz]-)?,, or die "$kernver ?";
