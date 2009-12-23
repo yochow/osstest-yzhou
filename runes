@@ -4,3 +4,6 @@ flight=`./cs-flight-create `
 
 ./cs-job-create $flight build-i386-kern build-kern arch=i386 tree_linux=http://hg.uk.xensource.com/carbon/trunk/kernels/dom0.hg treepq_linux=http://hg.uk.xensource.com/carbon/trunk/kernels/dom0.pq.hg
 
+./cs-job-create $flight test-i386 test-debian arch=i386 buildjob=build-i386 kernbuildjob=build-i386-kern xenbuildjob=build-i386
+
+./cs-job-create $flight test-win test-win arch=i386 buildjob=build-i386 kernbuildjob=build-i386-kern xenbuildjob=build-i386

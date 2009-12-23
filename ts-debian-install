@@ -30,7 +30,7 @@ sub ginstall () {
         xen-create-image \\
             --dhcp --memory ${ram_mb}M --swap ${swap_mb}M \\
             --dist $c{GuestSuite} \\
-            --mirror http://$c{DebianMirrorHost}/$c{DebianMirrorSubpath}
+            --mirror http://$c{DebianMirrorHost}/$c{DebianMirrorSubpath} \\
             --hostname $gho->{Name} \\
             --lvm $gho->{Lv} --force \\
             --kernel $r{xen_kernel_path} \\
