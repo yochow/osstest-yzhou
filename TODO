@@ -1,5 +1,3 @@
-do not rely on dhcp in host, as it doesn't work with crazy xen bridge transplant stuff
-
 make every log line have a timestamp
 
 tcpcheckport => tcpcheckproto

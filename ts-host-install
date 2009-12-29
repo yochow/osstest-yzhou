@@ -152,6 +152,16 @@ d-i partman/choose_partition select finish
 d-i partman/confirm boolean true
 d-i partman-lvm/confirm boolean true
 
+d-i netcfg/disable_dhcp boolean true
+d-i netcfg/get_nameservers string $c{NetNameservers}
+d-i netcfg/get_ipaddress string $ho->{Ip}
+d-i netcfg/get_netmask string $c{NetNetmask}
+d-i netcfg/get_gateway string $c{NetGateway}
+d-i netcfg/confirm_static boolean true
+d-i netcfg/get_hostname string $ho->{Name}
+d-i netcfg/get_domain string $c{TestHostDomain}
+d-i netcfg/wireless_wep string
+
 #d-i partman-auto/init_automatically_partition select regular
 d-i partman-auto/disk string /dev/sda
 
