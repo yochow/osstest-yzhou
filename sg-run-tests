@@ -51,19 +51,19 @@ proc run-job/test-debian {} {
     prepare-host
     run-ts ts-debian-install
     run-ts ts-debian-fixup
-    test-guest
+    run-ts ts-guest-start debian
+    test-guest g
 }
 
 proc run-job/test-win {} {
     prepare-host
     run-ts ts-windows-install
-    test-guest
+    test-guest win
 }
 
-proc test-guest {} {
-    run-ts ts-guest-start
-    run-ts ts-guest-saverestore
-    run-ts ts-guest-stop
+proc test-guest {g} {
+    run-ts ts-guest-saverestore $g
+    run-ts ts-guest-stop $g
 }
 
 main

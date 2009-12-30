@@ -15,7 +15,7 @@ my $builddir= "/home/osstest/$leaf";
 
 sub build () {
     my $kerns= $r{xen_kernels};
-    $kerns =~ s/,/ /g;
+    $kerns =~ s/,/ /g if defined $kerns;
     
     target_cmd($ho, "rm -rf $builddir && mkdir $builddir", 60);
     target_cmd($ho, <<END.

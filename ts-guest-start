@@ -7,7 +7,7 @@ use Osstest;
 readconfig();
 opendb_state();
 our $ho= selecthost($r{host});
-our $gho= selectguest('guest');
+our $gho= selectguest(@ARGV ? $ARGV[0] : 'guest');
 
 sub start () {
     guest_umount_lv($ho, $gho);

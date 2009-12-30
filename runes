@@ -6,4 +6,4 @@ flight=`./cs-flight-create `
 
 ./cs-job-create $flight test-i386 test-debian arch=i386 buildjob=build-i386 kernbuildjob=build-i386-kern xenbuildjob=build-i386
 
-./cs-job-create $flight test-win test-win arch=i386 buildjob=build-i386 kernbuildjob=build-i386-kern xenbuildjob=build-i386
+./cs-job-create $flight test-win test-win arch=i386 buildjob=build-i386 kernbuildjob=build-i386-kern xenbuildjob=build-i386 win_image=winxpsp2.iso

@@ -21,7 +21,7 @@ proc main {} {
 			AND   ( status = 'queued'
 			  OR	status = 'preparing' )
 		ORDER BY job
-    " start-job
+    " perhaps-start-job
 
     set anyfailed 0
     foreach reap $builds {
@@ -45,8 +45,19 @@ proc prepare-host {} {
     set prepared 1
 }
 
-proc start-job {} {
-    global jobinfo c builds flight
+proc perhaps-start-job {} {
+    global jobinfo c builds flight doingarch
+
+    pg_execute -array archinfo dbh "
+        SELECT * FROM runvars
+            WHERE flight=$flight AND job='$jobinfo(job)' AND name='arch'
+    "
+    if {[info exists doingarch]} {
+        if {[string compare $doingarch $archinfo(val)]} continue
+    } else {
+        puts "selected arch $archinfo(val)"
+        set doingarch $archinfo(val)
+    }
 
     job-set-host $flight $jobinfo(job) $c(host)
 

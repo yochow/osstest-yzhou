@@ -26,15 +26,18 @@ sub prep () {
 }
 
 sub ginstall () {
+    my $arch= $r{"$gho->{Guest}_arch"};
+    my $archarg= defined($arch) ? "--arch $arch" : '';
     target_cmd_root($ho, <<END, 1000);
         xen-create-image \\
             --dhcp --memory ${ram_mb}M --swap ${swap_mb}M \\
             --dist $c{GuestSuite} \\
             --mirror http://$c{DebianMirrorHost}/$c{DebianMirrorSubpath} \\
             --hostname $gho->{Name} \\
-            --lvm $gho->{Lv} --force \\
+            --lvm $gho->{Vg} --force \\
             --kernel $r{xen_kernel_path} \\
             --initrd /boot/initrd.img-$r{xen_kernel_ver} \\
+            $archarg
 END
     store_runvar("$gho->{Guest}_cfgpath", "/etc/xen/$gho->{Name}.cfg");
 }
