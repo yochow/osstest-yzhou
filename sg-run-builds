@@ -25,8 +25,12 @@ proc main {} {
 
     set anyfailed 0
     foreach reap $builds {
-        if {![reap-ts $reap]} {
+	set job [lindex $reap 0]
+        if {![reap-ts [lindex $reap 1]]} {
             set anyfailed 1
+	    job-set-status $flight $job fail
+	} else {
+	    job-set-status $flight $job pass
         }
     }
 
@@ -53,7 +57,10 @@ proc perhaps-start-job {} {
             WHERE flight=$flight AND job='$jobinfo(job)' AND name='arch'
     "
     if {[info exists doingarch]} {
-        if {[string compare $doingarch $archinfo(val)]} continue
+        if {[string compare $doingarch $archinfo(val)]} {
+	    puts "skipping $jobinfo(job) (arch $doingarch)"
+	    return
+	}
     } else {
         puts "selected arch $archinfo(val)"
         set doingarch $archinfo(val)
@@ -65,7 +72,7 @@ proc perhaps-start-job {} {
     prepare-host
 
     setstatus running
-    lappend builds [spawn-job/$jobinfo(recipe)]
+    lappend builds [list $jobinfo(job) [spawn-job/$jobinfo(recipe)]]
 }
 
 proc spawn-job/build {} {

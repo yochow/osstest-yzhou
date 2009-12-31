@@ -14,7 +14,10 @@ my %distpath;
 
 sub packages () {
     target_install_packages($ho,
-                            qw(bridge-utils libc6-xen));
+                            qw(bridge-utils));
+    if ($r{arch} eq 'i386') {
+	target_install_packages($ho, 'libc6-xen');
+    }
 }
 
 sub extract_one ($$$) {

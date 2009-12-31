@@ -22,22 +22,31 @@ proc main {} {
 			AND   ( status = 'queued'
 			  OR	status = 'preparing' )
 		ORDER BY job
-    " start-job
+    " run-job
 
     if {$anyfailed} {
         error "something failed"
     }
 }
 
-proc start-job {} {
+proc run-job {} {
     global jobinfo c builds flight
 
     puts "prepping $flight.$jobinfo(job)"
 
     job-set-host $flight $jobinfo(job) $c(host)
-    if {[catch { run-job/$jobinfo(recipe) } emsg]} {
+
+    setstatus running
+
+    if {[catch {
+	prepare-host
+	run-job/$jobinfo(recipe)
+    } emsg]} {
         puts stderr "$flight.$jobinfo(job) run-job failed: $emsg"
         set anyfailed 1
+	setstatus fail
+    } else {
+	setstatus pass
     }
 }
 
@@ -48,15 +57,13 @@ proc prepare-host {} {
 }
 
 proc run-job/test-debian {} {
-    prepare-host
     run-ts ts-debian-install
-    run-ts ts-debian-fixup
+    run-ts ts-debian-fixup debian
     run-ts ts-guest-start debian
     test-guest g
 }
 
 proc run-job/test-win {} {
-    prepare-host
     run-ts ts-windows-install
     test-guest win
 }

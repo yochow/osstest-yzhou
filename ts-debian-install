@@ -20,7 +20,7 @@ our $ether= 'f4:fe:1b:60:78:c9';
 sub prep () {
     target_install_packages_norec($ho, qw(lvm2 xen-tools));
 
-    $gho= prepareguest($ho, 'debian', $guesthost, $ether,
+    $gho= prepareguest($ho, 'debian', $guesthost, $ether, 22,
                        $swap_mb + $disk_mb + 2);
     target_cmd_root($ho, "umount $gho->{Lvdev} ||:");
 }
@@ -30,7 +30,8 @@ sub ginstall () {
     my $archarg= defined($arch) ? "--arch $arch" : '';
     target_cmd_root($ho, <<END, 1000);
         xen-create-image \\
-            --dhcp --memory ${ram_mb}M --swap ${swap_mb}M \\
+            --dhcp --mac $ether \\
+	    --memory ${ram_mb}M --swap ${swap_mb}M \\
             --dist $c{GuestSuite} \\
             --mirror http://$c{DebianMirrorHost}/$c{DebianMirrorSubpath} \\
             --hostname $gho->{Name} \\

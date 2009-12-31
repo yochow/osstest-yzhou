@@ -7,12 +7,12 @@ use Osstest;
 readconfig();
 opendb_state();
 our $ho= selecthost($r{host});
-our $gho= selectguest('guest');
+our $gho= selectguest(@ARGV ? $ARGV[0] : 'guest');
 
 our ($cfgfile,$cfgstash,$cfg);
 
 sub savecfg () {
-    $cfgfile= $r{"${gn}_cfgpath"};
+    $cfgfile= $r{"$gho->{Guest}_cfgpath"};
     $cfgfile =~ m,([^/]+)$, or die "$cfgfile";
     my $cfgleaf= $1;
     $cfgstash= "$stash/$cfgleaf";
@@ -21,17 +21,17 @@ sub savecfg () {
 }
 
 sub ether () {
-    $cfg =~ s/^ [ \t]*
-        ( vif [ \t]* \= [ \t]* \[ [ \t]* [\'\"]
-          [^\n\'\"]* \b mac= ) [0-9a-fA-F:]+ \b ( [^\n\'\"]* [\'\"]
-          [^\n\'\"]* )
-          /
-            my $n= $1.$gho->{Ether}.$2;
-            logm("changed vif to $n");
-            $n;
-          /mxe
-        or die "no ether?";
-
+#    $cfg =~ s/^ [ \t]*
+#        ( vif [ \t]* \= [ \t]* \[ [ \t]* [\'\"]
+#          [^\n\'\"]* \b mac= ) [0-9a-fA-F:]+ \b ( [^\n\'\"]* [\'\"]
+#          [^\n\'\"]* )
+#          /
+#            my $n= $1.$gho->{Ether}.$2;
+#            logm("changed vif to $n");
+#            $n;
+#          /mxe
+#        or die "no ether?";
+#
     store_runvar("$gho->{Name}_tcpcheckport", 22);
 }
 
@@ -39,7 +39,7 @@ sub access () {
     guest_umount_lv($ho, $gho);
     target_cmd_root($ho, <<END);
         set -ex
-        mount /dev/$r{"${gn}_vg"}/$r{"${gn}_disk_lv"} /mnt
+        mount /dev/$gho->{Vg}/$gho->{Lv} /mnt
         perl -i~ -pe "s/^root:[^:]+:/root::/" /etc/shadow
         mkdir -p /mnt/root/.ssh /mnt/etc/ssh
         cp -a /root/.ssh/* /mnt/root/.ssh/.
@@ -48,7 +48,7 @@ END
 }
 
 sub console () {
-    my $console= $r{guests_console};
+    my $console= $r{"$gho->{Guest}_console"};
     return unless length $console;
 
     target_cmd_root($ho, <<END);
@@ -79,6 +79,18 @@ END
     $cfg .= "\n$extra\n";
 }
 
+sub filesystems () {
+    my $rootdev= $r{"$gho->{Guest}_rootdev"};
+    $cfg =~ s,^(root \s* = \s* /dev/)sda(\d+ \s* )$, $1.$rootdev.$2 ,xe;
+
+    target_cmd_root($ho, <<END);
+        set -ex
+        perl -i~ -pe "
+            s,^(/dev/)sda(\\\d+),\\\${1}$rootdev\\\$2,;
+        " /mnt/etc/fstab
+END
+}
+
 sub unmount () {
     guest_umount_lv($ho, $gho);
 }
@@ -90,9 +102,19 @@ sub writecfg () {
     target_putfile_root($ho,10, $cfgstash, $cfgfile);
 }
 
+sub kernkind () {
+    my $kernkind= $r{"$gho->{Guest}_kernkind"};
+    if ($kernkind eq 'pvops') {
+	store_runvar("$gho->{Guest}_console", 'hvc0');
+	store_runvar("$gho->{Guest}_rootdev", 'xvda');
+    }
+}
+
 savecfg();
 ether();
+kernkind();
 access();
 console();
+filesystems();
 writecfg();
 unmount();

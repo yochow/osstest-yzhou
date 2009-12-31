@@ -216,7 +216,8 @@ sub target_install_packages_norec {
 sub target_ping_check_core {
     my ($ho, $exp) = @_;
     my $out= `ping -c 5 $ho->{Ip} 2>&1`;
-    logm("ping $ho->{Ip} ".(!$? ? 'up' : $?==256 ? 'down' : "$? ?"));
+    report_once($ho, 'ping_checka',
+		"ping $ho->{Ip} ".(!$? ? 'up' : $?==256 ? 'down' : "$? ?"));
     return undef if $?==$exp;
     $out =~ s/\n/ | /g;
     return "ping gave ($?): $out";
@@ -353,6 +354,7 @@ sub selectguest ($) {
         Name => $r{"${gn}_hostname"}
     };
     guest_find_lv($gho);
+    guest_find_ether($gho);
     guest_find_tcpcheckport($gho);
     return $gho;
 }
@@ -369,6 +371,14 @@ sub guest_find_lv ($) {
 sub guest_find_ether ($) {
     my ($gho) = @_;
     $gho->{Ether}= $r{"$gho->{Guest}_ether"};
+}
+
+sub report_once ($$$) {
+    my ($ho, $what, $msg) = @_;
+    my $k= "Lastmsg_$what";
+    return if defined($ho->{$k}) and $ho->{$k} eq $msg;
+    logm($msg);
+    $ho->{$k}= $msg;
 }
 
 sub guest_check_ip ($) {
@@ -397,17 +407,19 @@ sub guest_check_ip ($) {
     $gho->{Ip}= $ips[0];
     $gho->{Ip} =~ m/^[0-9.]+$/ or
         die "$gho->{Name} $gho->{Ether} $gho->{Ip} ?";
-    logm("guest $gho->{Name}: $gho->{Ether} $gho->{Ip}");
+    report_once($gho, 'guest_check_ip', 
+		"guest $gho->{Name}: $gho->{Ether} $gho->{Ip}");
 
     return undef;
 }
 
-sub prepareguest ($$$$$) {
-    my ($ho, $gn, $hostname, $ether, $mb) = @_;
+sub prepareguest ($$$$$$) {
+    my ($ho, $gn, $hostname, $ether, $tcpcheckport, $mb) = @_;
 
     store_runvar("${gn}_ether", $ether);
     store_runvar("${gn}_hostname", $hostname);
     store_runvar("${gn}_disk_lv", $r{"${gn}_hostname"}.'-disk');
+    store_runvar("${gn}_tcpcheckport", $tcpcheckport);
     
     my $gho= selectguest($gn);
 
@@ -465,11 +477,16 @@ sub poll_loop ($$$&) {
     my $start= time;  die $! unless defined $start;
     my $wantwaited= 0;
     my $waited= 0;
+    my $reported= '';
     for (;;) {
         my $bad= $code->();
         my $now= time;  die $! unless defined $now;
         $waited= $now - $start;
         last if !defined $bad;
+	if ($reported ne $bad) {
+	    logm("$what: $bad (waiting) ...");
+	    $reported= $bad;
+	}
         $waited <= $maxwait or die "$what: wait timed out: $bad.\n";
         $wantwaited += $interval;
         my $needwait= $wantwaited - $waited;

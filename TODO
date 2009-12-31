@@ -1,7 +1,10 @@
 make every log line have a timestamp
 
-tcpcheckport => tcpcheckproto
-
 check windows guests' RPC thingy
 
 sg-run-builds report failures of already-run jobs
+
+OSSTEST_FLIGHT=1027 OSSTEST_JOB=test-amd64-amd64-pv ./ts-guest-start debian
+liberator:~> ssh -t davenant ssh -t iwj@mariner.not ssh root@10.80.249.210  
+PTY allocation request failed on channel 0
+stdin: is not a tty

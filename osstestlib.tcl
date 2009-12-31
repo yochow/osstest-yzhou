@@ -26,12 +26,37 @@ proc spawn-ts {ts args} {
     global flight c jobinfo reap_details
 
     set detstr "$flight.$jobinfo(job) $ts $args"
-    set details [list $flight $jobinfo(job) $detstr]
+    set details [list $flight $jobinfo(job) $ts $detstr]
     puts "starting $detstr"
     
     set logdir $c(logs)/$flight.$jobinfo(job)
     file mkdir $logdir
     set log $logdir/$ts.log
+
+    pg_execute dbh BEGIN
+    if {[catch {
+	pg_execute -array stepinfo dbh "
+            SELECT max(stepno) AS maxstep FROM steps
+                WHERE flight=$flight AND job='$jobinfo(job)'
+        "
+	if {[string length $stepinfo(maxstep)]} {
+	    incr stepinfo(maxstep)
+	} else {
+	    set stepinfo(maxstep) 1
+	}
+	pg_execute dbh "
+            INSERT INTO steps
+                VALUES ($flight, '$jobinfo(job)', $stepinfo(maxstep),
+                        '$ts', 'running')
+        "
+	pg_execute dbh COMMIT
+    } emsg]} {
+	global errorInfo errorCode
+	set ei $errorInfo
+	set ec $errorCode
+	catch { pg_execute dbh ROLLBACK }
+	error $emsg $ei $ec
+    }
 
     set cmd [concat \
                  [list sh -xec "
@@ -66,9 +91,16 @@ proc job-set-status {flight job st} {
     "
 }
 
+proc step-set-status {flight job ts st} {
+    pg_execute dbh "
+        UPDATE steps SET status='$st'
+            WHERE flight=$flight AND job='$job' AND step='$ts'
+    "
+}
+
 proc reap-ts {reap} {
     upvar #0 reap_details($reap) details
-    set detstr [lindex $details 2]
+    set detstr [lindex $details 3]
     puts "awaiting $detstr"
     if {[catch { close $reap } emsg]} {
         set result fail
@@ -76,7 +108,7 @@ proc reap-ts {reap} {
         set result pass
     }
 
-    eval job-set-status [lrange $details 0 1] $result
+    eval step-set-status [lrange $details 0 2] $result
     puts "finished $detstr $result $emsg"
     return [string compare $result fail]
 }
