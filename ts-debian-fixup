@@ -32,7 +32,7 @@ sub ether () {
 #          /mxe
 #        or die "no ether?";
 #
-    store_runvar("$gho->{Name}_tcpcheckport", 22);
+    store_runvar("$gho->{Guest}_tcpcheckport", 22);
 }
 
 sub access () {
@@ -71,7 +71,7 @@ END
         $orgextra.= ' ';
     } elsif ($cfg =~ m/^extra\b.*/) {
         die "$& ?";
-    } else {
+r    } else {
         $orgextra= '';
     }
     my $extra= "extra='$orgextra$xextra'";
@@ -81,7 +81,9 @@ END
 
 sub filesystems () {
     my $rootdev= $r{"$gho->{Guest}_rootdev"};
-    $cfg =~ s,^(root \s* = \s* /dev/)sda(\d+ \s* )$, $1.$rootdev.$2 ,xe;
+    return unless defined($rootdev) && length($rootdev);
+    logm("adjusting root: $rootdev");
+    $cfg =~ s,^(root \s* = \s* ['"] /dev/)sda(\d+ \s .*)$, $1.$rootdev.$2 ,mxe;
 
     target_cmd_root($ho, <<END);
         set -ex
@@ -105,8 +107,10 @@ sub writecfg () {
 sub kernkind () {
     my $kernkind= $r{"$gho->{Guest}_kernkind"};
     if ($kernkind eq 'pvops') {
-	store_runvar("$gho->{Guest}_console", 'hvc0');
 	store_runvar("$gho->{Guest}_rootdev", 'xvda');
+    }
+    if ($kernkind !~ m/2618/) {
+	store_runvar("$gho->{Guest}_console", 'hvc0');
     }
 }
 

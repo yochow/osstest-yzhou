@@ -60,7 +60,7 @@ proc run-job/test-debian {} {
     run-ts ts-debian-install
     run-ts ts-debian-fixup debian
     run-ts ts-guest-start debian
-    test-guest g
+    test-guest debian
 }
 
 proc run-job/test-win {} {

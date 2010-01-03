@@ -1,0 +1,87 @@
+#!/bin/sh
+set -e
+
+buildflight=$1
+
+flight=`./cs-flight-create `
+
+if [ x$buildflight = x ]; then
+
+  for arch in i386 amd64; do
+
+    ./cs-job-create $flight build-$arch build \
+		arch=$arch \
+	tree_qemu=git://mariner.uk.xensource.com/qemu-xen-unstable.git \
+	tree_xen=http://hg.uk.xensource.com/xen-unstable.hg \
+		revision_xen= \
+		revision_qemu=
+
+    ./cs-job-create $flight build-$arch-oldkern build \
+		arch=$arch \
+	tree_qemu=git://mariner.uk.xensource.com/qemu-xen-unstable.git \
+	tree_xen=http://hg.uk.xensource.com/xen-unstable.hg \
+		xen_kernels=linux-2.6-xen \
+		revision_xen= \
+		revision_qemu=
+
+    if [ $arch = i386 ]; then
+      # XCP dom0 kernel is 32-bit only
+
+      ./cs-job-create $flight build-$arch-xcpkern build-kern \
+		arch=$arch \
+	tree_linux=http://hg.uk.xensource.com/carbon/trunk/kernels/dom0.hg \
+	treepq_linux=http://hg.uk.xensource.com/carbon/trunk/kernels/dom0.pq.hg
+
+    fi
+
+  done
+
+else
+
+  bfi=$buildflight.
+
+fi
+
+for xenarch in i386 amd64; do
+
+  for kern in '' -xcpkern; do
+	#  -oldkern   does not work on spider
+
+    case $kern in
+    '')		kernkind=pvops	;;
+    -oldkern)	kernkind=2618	;;
+    -xcpkern)	kernkind=2627	;;
+    *)		echo >&2 "kernkind ?  $kern"; exit 1 ;;
+    esac
+
+    for dom0arch in i386 amd64; do
+
+      if [ $dom0arch != $xenarch -a $xenarch != amd64 ]; then continue; fi
+
+      if [ x$kern = x-xcpkern -a $dom0arch != i386 ]; then
+echo "skipping test-$xenarch$kern-$dom0arch..."
+continue; fi
+
+      ./cs-job-create $flight test-$xenarch$kern-$dom0arch-pv test-debian \
+		arch=$dom0arch \
+		xenbuildjob=${bfi}build-$xenarch \
+		kernbuildjob=${bfi}build-$dom0arch$kern \
+		buildjob=${bfi}build-$dom0arch \
+		kernkind=$kernkind \
+		debian_kernkind=$kernkind \
+		debian_arch=$dom0arch
+
+      ./cs-job-create $flight test-$xenarch$kern-$dom0arch-win test-win \
+		arch=$dom0arch \
+		xenbuildjob=${bfi}build-$xenarch \
+		kernbuildjob=${bfi}build-$dom0arch$kern \
+		buildjob=${bfi}build-$dom0arch \
+		kernkind=$kernkind \
+		win_image=winxpsp2.iso
+    done
+
+  done
+
+done
+
+echo $flight
