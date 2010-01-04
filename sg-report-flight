@@ -1,0 +1,114 @@
+#!/usr/bin/perl -w
+
+use strict qw(refs vars);
+
+use DBI;
+use Osstest;
+
+@ARGV==1 or die;
+my ($flight)= @ARGV;
+
+csreadconfig();
+
+my $jobs= $dbh_tests->selectall_arrayref(<<END, { Slice => {} });
+    SELECT * FROM jobs
+        WHERE flight=$flight
+        ORDER BY job
+END
+
+my $toptext= <<END;
+flight $flight
+
+END
+
+my $jl= 30;
+my $sl= 25;
+my $rl= 9;
+my $cols= 2;
+my $cw= 38;
+
+my @jobtexts;
+my %counts;
+
+{
+    my $row= 0;
+    my $col= 0;
+    
+    foreach my $j (@$jobs) {
+	$counts{$j->{status}}++;
+
+	my $sth= $dbh_tests->prepare(<<END);
+	    SELECT * FROM steps
+		WHERE flight=$flight AND job='$j->{job}'
+		ORDER BY stepno
+END
+        $sth->execute();
+
+        $toptext .= sprintf "%-${jl}s %-${rl}s\n", $j->{job}, $j->{status};
+
+	my $jobtext= sprintf "%s:\n", $j->{job};
+	while (my $s= $sth->fetchrow_hashref()) {
+	    $jobtext .= sprintf "%2d %-${sl}s %-${rl}s\n",
+	        $s->{stepno}, $s->{step}, $s->{status};
+	}
+
+	$jobtexts[$row][$col]= [ split /\n/, $jobtext ];
+	$col++;
+	if ($col==$cols) { $row++; $col=0; }
+    }
+}
+
+my $outcomes= join '/', sort keys %counts;
+my $outcome;
+if ($outcomes eq 'pass') {
+    $outcome= 'all pass';
+} elsif ($outcomes eq 'fail') {
+    $outcome= 'ALL FAIL';
+} elsif ($outcomes eq 'fail/pass') {
+    $outcome= 'FAIL';
+} else {
+    $outcome= "trouble: $outcomes";
+}
+print "oss xen test $flight: $outcome\n" or die $!;
+
+print $toptext, "\n" or die $!;
+
+foreach my $row (0..$#jobtexts) {
+    foreach my $col (0..$cols-1) {
+	print '   ' or die $! if $col;
+	print '-'x$cw or die $!;
+    }
+    print "\n" or die $!;
+    my $l= 0;
+    for (;;) {
+	my $al= '';
+	my $any= 0;
+	foreach my $col (0..$cols-1) {
+	    my $tl= $jobtexts[$row][$col][$l];
+	    $al .= ' | ' if $col;
+	    $any ||= defined $tl;
+	    $tl='' unless defined $tl;
+	    $al .= sprintf "%-${cw}s", $tl;
+	}
+	last unless $any;
+	$al =~ s/ +$//;
+	print $al, "\n" or die $!;
+	$l++;
+    }
+}
+
+my $hostname= `hostname -f`;
+$? and die $?;  chomp $hostname;
+
+my $logs= `echo 'source config.tcl; puts \$c(logs)' | tclsh`;
+$? and die $?;  chomp $logs;
+
+print <<END or die $!;
+
+------------------------------------------------------------
+sg-report-flight on $hostname
+logs: $logs
+stash: $c{Stash}
+images: $c{Images}
+
+END
