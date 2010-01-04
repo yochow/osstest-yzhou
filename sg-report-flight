@@ -5,6 +5,9 @@ use strict qw(refs vars);
 use DBI;
 use Osstest;
 
+my $final= ($ARGV[0] eq '--final');
+shift @ARGV if $final;
+
 @ARGV==1 or die;
 my ($flight)= @ARGV;
 
@@ -35,6 +38,7 @@ my %counts;
     my $col= 0;
     
     foreach my $j (@$jobs) {
+        $j->{status}= 'blocked' if $final && $j->{status} eq 'queued';
 	$counts{$j->{status}}++;
 
 	my $sth= $dbh_tests->prepare(<<END);
@@ -64,7 +68,7 @@ if ($outcomes eq 'pass') {
     $outcome= 'all pass';
 } elsif ($outcomes eq 'fail') {
     $outcome= 'ALL FAIL';
-} elsif ($outcomes eq 'fail/pass') {
+} elsif ($outcomes =~ m,^(?:blocked/)?(?:fail/)?pass$,) {
     $outcome= 'FAIL';
 } else {
     $outcome= "trouble: $outcomes";
