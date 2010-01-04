@@ -216,6 +216,7 @@ sub target_install_packages_norec {
 sub target_ping_check_core {
     my ($ho, $exp) = @_;
     my $out= `ping -c 5 $ho->{Ip} 2>&1`;
+    $out =~ s/\b\d+ms\b/XXXms/g;
     report_once($ho, 'ping_checka',
 		"ping $ho->{Ip} ".(!$? ? 'up' : $?==256 ? 'down' : "$? ?"));
     return undef if $?==$exp;
@@ -447,6 +448,7 @@ sub guest_xmrunning ($$) {
 
 sub guest_await_dhcp_tcp ($$) {
     my ($gho,$timeout) = @_;
+    guest_find_tcpcheckport($gho);
     poll_loop($timeout,1,
               "guest $gho->{Name} $gho->{Ether} $gho->{TcpCheckPort}".
               " link/ip/tcp",
