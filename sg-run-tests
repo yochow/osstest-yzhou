@@ -48,6 +48,7 @@ proc run-job {} {
     } else {
 	setstatus pass
     }
+    run-ts ts-logs-capture
 }
 
 proc prepare-host {} {

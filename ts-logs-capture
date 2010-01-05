@@ -1,0 +1,192 @@
+#!/usr/bin/perl -w
+
+use strict qw(vars);
+use Osstest;
+use DBI;
+use IO::File;
+use POSIX;
+
+readconfig();
+opendb_state();
+our $ho= selecthost($r{host});
+
+sub try_fetch_logs ($$) {
+    my ($lho, $logfiles) = @_;
+    my $ok= 0;
+    foreach my $logfile (@$logfiles) {
+        my $llogfile= $logfile;
+        $llogfile =~ s,/,-,g;
+        $llogfile= "$lho->{Name}--$llogfile";
+        logm("fetching $logfile to $llogfile");
+        if (!eval {
+            target_getfile_root($lho,60, $logfile,"$stash/$llogfile");
+            1;
+        }) {
+            logm("logfile $logfile fetch failed: $@");
+            next;
+        }
+        $ok= 1;
+    }
+    return $ok;
+}
+
+sub fetch_logs_serial () {
+    my $logpat= $c{SerialLogPattern};
+    $logpat =~ s/\%(\w*)\%/
+        !length $1 ? '' :
+        !defined $r{$1} ? die "$c{SerialLogPattern} $1 ?" :
+        $r{$1}
+    /ge;
+    my $started= $dbh_tests->selectrow_array(<<END);
+        SELECT started FROM flights WHERE flight=$flight
+END
+    logm("collecting serial logs since $started");
+    my %done;
+    for (;;) {
+        my $anydone= 0;
+        foreach my $logfile (glob $logpat) {
+            my $lh= new IO::File $logfile, 'r';
+            if (!defined $lh) {
+                $!==&ENOENT or warn "$logfile $!";
+                next;
+            }
+            stat $lh or die "$logfile $!";
+            my $inum= (stat _)[1];
+            my $lfage= (stat _)[9];
+            if ($lfage < $started) {
+                next if $done{$inum};
+                logm("$logfile modified $lfage, skipping")
+                    unless $done{$inum};
+                $done{$inum}= 1;
+                next;
+            }
+            next if $done{$inum} < 2;
+            $done{$inum}= 2;
+            my $df= $logfile;
+            $df =~ s,.*/,,;
+            $df = "serial-$df";
+            my $dh= open_unique_stashfile(\$df);
+            logm("stashing $logfile as $df");
+            for (;;) {
+                my $data;
+                my $r= read $lh, $data, 65536;
+                die "$logfile $!" unless defined $r;
+                last unless $r;
+                print $dh $data or die "$df $!";
+            }
+            close $dh or die "$df $!";
+            $anydone= 1;
+        }
+        last unless $anydone;
+    };
+}
+
+sub open_unique_stashfile ($) {
+    my ($dfr) = @_;
+    my $dh;
+    for (;;) {
+        my $df= $$dfr;
+        $dh= new IO::File "$stash/$df", O_WRONLY|O_EXCL|O_CREAT;
+        last if $dh;
+        die "$df $!" unless $!==&EEXIST;
+        $$dfr .= '+';
+    }
+    return $dh;
+}
+
+sub try_cmd_output_save ($;$) {
+    my ($cmd, $dfn) = @_;
+    if (!defined $dfn) {
+        $dfn= $cmd;
+        $dfn =~ s,-,-,g;
+        $dfn =~ s/ /_/g;
+        $dfn =~ s/[^-+._,=0-9a-zA-Z]/#/g;
+        $dfn= "output-$dfn";
+    }
+    my $output;
+    if (!eval {
+        $output= target_cmd_output_root($ho, $cmd);
+        1;
+    }) {
+        logm("failed to run $cmd: $@");
+        return;
+    }
+    my $fh= open_unique_stashfile(\$dfn);
+    print $fh $output or die $!;
+    close $fh or die $!;
+}
+
+sub fetch_logs_host_guests () {
+    my $logs= [qw(
+                  /var/log/kern.log
+                  /var/log/syslog
+                  /var/log/daemon.log
+
+                  /var/log/dmesg
+                  /var/log/user.log
+                  /var/log/dmesg.0
+
+                  /var/log/installer/syslog
+                  /var/log/installer/partman
+
+                  /var/log/xen/xend.log
+                  /var/log/xen/xend-debug.log
+                  /var/log/xen/xen-hotplug.log
+                  /var/log/xen/domain-builder-ng.log
+                  
+                  )];
+    if (!try_fetch_logs($ho, $logs)) {
+        logm("log fetching failed, trying hard host reboot...");
+        if (!eval {
+            target_reboot_hard($ho);
+            1;
+        }) {
+            logm("host reboot failed, abandoning log fetches: $@");
+            return;
+        }
+    }
+
+    foreach my $cmd
+        (
+         'xm list',
+         'xm list --long',
+         'xenstore-ls -fp'
+         ) {
+            try_cmd_output_save($cmd);
+        }
+
+    my $sth= $dbh_tests->prepare(<<END);
+        SELECT name FROM runvars WHERE flight=$flight AND job='$job'
+            AND name LIKE '%_domname'
+            ORDER BY name
+END
+    $sth->execute();
+    foreach my $row ($sth->fetchrow_hashref) {
+        my $gn= $row->{name};
+        $gn =~ s/_domname$//;
+        fetch_logs_guest($gn);
+    }
+}
+
+sub fetch_logs_guest ($) {
+    my ($gn) = @_;
+    logm("saving logs for $gn");
+    my $gho= selectguest($gn);
+    my $domid;
+    if (!eval {
+        my $list= target_cmd_output_root($ho, "xm list $gho->{Name}");
+        $list =~ m/^(?!Name\s)(\S+)\s+(\d+).*$/m
+            or die "domain list: $list";
+        $1 eq $gho->{Name} or die "domain list name $1 expected $gho->{Name}";
+        $domid= $2;
+        1;
+    }) {
+        logm("cannot find domid: $@");
+        return;
+    }
+    try_cmd_output_save("sleep 1 | xm console $gho->{Name} | cat",
+                        "guest-$gho->{Name}-console");
+}    
+
+fetch_logs_serial();
+fetch_logs_host_guests();

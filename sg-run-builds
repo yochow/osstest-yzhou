@@ -69,7 +69,15 @@ proc perhaps-start-job {} {
     job-set-host $flight $jobinfo(job) $c(host)
 
     setstatus preparing
-    prepare-host
+    if {[catch {
+        prepare-host
+    } emsg]} {
+        global errorInfo errorCode
+        set ei $errorInfo
+        set ec $errorCode
+        run-ts ts-logs-capture
+        error $emsg $ei $ec
+    }
 
     setstatus running
     lappend builds [list $jobinfo(job) [spawn-job/$jobinfo(recipe)]]

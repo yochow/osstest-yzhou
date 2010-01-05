@@ -8,6 +8,4 @@ readconfig();
 opendb_state();
 our $ho= selecthost($r{host});
 
-power_state($ho, 0);
-sleep(1);
-power_state($ho, 1);
+power_cycle($ho);

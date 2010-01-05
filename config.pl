@@ -11,6 +11,8 @@ $c{WebspaceUrl}= "http://woking.$c{Domain}/~osstest/";
 $c{WebspaceCommon}= 'osstest/';
 $c{WebspaceLog}= '/var/log/apache2/access.log';
 
+$c{SerialLogPattern}= '/root/sympathy/%host%.log*';
+
 $c{Stash}= '/home/xc_osstest/stash';
 $c{Images}= '/home/xc_osstest/images';
 

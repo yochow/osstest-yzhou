@@ -6,6 +6,7 @@ use warnings;
 
 use POSIX;
 use IO::File;
+use DBI;
 
 BEGIN {
     use Exporter ();
@@ -21,15 +22,16 @@ BEGIN {
                       readconfig opendb_state selecthost need_runvars
                       get_filecontents ensuredir postfork db_retry
                       poll_loop logm link_file_contents create_webfile
-                      power_state
+                      power_state power_cycle
                       setup_pxeboot setup_pxeboot_local
                       await_webspace_fetch_byleaf await_tcp
                       target_cmd_root target_cmd
                       target_cmd_output_root target_cmd_output
-                      target_getfile target_putfile target_putfile_root
+                      target_getfile target_getfile_root
+                      target_putfile target_putfile_root
                       target_install_packages target_install_packages_norec
-                      target_reboot target_choose_vg
-                      target_umount_lv
+                      target_reboot target_reboot_hard
+                      target_choose_vg target_umount_lv
                       target_ping_check_down target_ping_check_up
                       selectguest prepareguest
                       guest_umount_lv guest_await guest_await_dhcp_tcp
@@ -47,7 +49,8 @@ our $dbh_state;
 our $dbh_tests;
 
 our %timeout= qw(RebootDown   100
-                 RebootUp     200);
+                 RebootUp     200
+                 HardRebootUp 300);
 
 sub csreadconfig () {
     require 'config.pl';
@@ -68,6 +71,11 @@ END
     die "$flight.$job $count" unless $count==1;
     $q->finish;
     logm("starting $flight.$job");
+
+    my $now= time;  defined $now or die $!;
+    $dbh_tests->do(<<END);
+        UPDATE flights SET started=$now WHERE flight=$flight AND started=0
+END
 
     $q= $dbh_tests->prepare(<<END);
         SELECT name, val FROM runvars WHERE flight=? AND job=?
@@ -176,12 +184,21 @@ sub tcmdex {
     $r and die "status $r";
 }
 
-sub target_getfile ($$$$) {
-    my ($ho,$timeout, $rsrc,$ldst) = @_;
+sub tgetfileex {
+    my ($ruser, $ho,$timeout, $rsrc,$ldst) = @_;
     tcmdex($timeout,undef,
            'scp', sshopts(),
-           sshuho('osstest',$ho).":$rsrc", $ldst);
+           sshuho($ruser,$ho).":$rsrc", $ldst);
+} 
+sub target_getfile ($$$$) {
+    my ($ho,$timeout, $rsrc,$ldst) = @_;
+    tgetfileex('osstest', @_);
 }
+sub target_getfile_root ($$$$) {
+    my ($ho,$timeout, $rsrc,$ldst) = @_;
+    tgetfileex('root', @_);
+}
+
 sub tputfileex {
     my ($ruser, $ho,$timeout, $lsrc,$rdst, $rsync) = @_;
     my @args= ($lsrc, sshuho($ruser,$ho).":$rdst");
@@ -216,7 +233,7 @@ sub target_install_packages_norec {
 sub target_ping_check_core {
     my ($ho, $exp) = @_;
     my $out= `ping -c 5 $ho->{Ip} 2>&1`;
-    $out =~ s/\b\d+ms\b/XXXms/g;
+    $out =~ s/\b\d+(?:\.\d+)?ms\b/XXXms/g;
     report_once($ho, 'ping_checka',
 		"ping $ho->{Ip} ".(!$? ? 'up' : $?==256 ? 'down' : "$? ?"));
     return undef if $?==$exp;
@@ -233,6 +250,12 @@ sub target_reboot ($) {
         return target_ping_check_down($ho);
     });
     await_tcp($timeout{RebootUp},5,$ho);
+}
+
+sub target_reboot_hard ($) {
+    my ($ho) = @_;
+    power_cycle($ho);
+    await_tcp($timeout{HardRebootUp},5,$ho);
 }
 
 sub store_runvar ($$) {
@@ -423,6 +446,7 @@ sub prepareguest ($$$$$$) {
     store_runvar("${gn}_tcpcheckport", $tcpcheckport);
     
     my $gho= selectguest($gn);
+    store_runvar("${gn}_domname", $gho->{Name});
 
     store_runvar("${gn}_vg", '');
     if (!length $r{"${gn}_vg"}) {
@@ -495,6 +519,13 @@ sub poll_loop ($$$&) {
         sleep($needwait) if $needwait > 0;
     }
     logm("$what: ok. (${waited}s)");
+}
+
+sub power_cycle ($) {
+    my ($ho) = @_;
+    power_state($ho, 0);
+    sleep(1);
+    power_state($ho, 1);
 }
 
 sub power_state ($$) {
