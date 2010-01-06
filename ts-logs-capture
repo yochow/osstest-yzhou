@@ -60,7 +60,7 @@ END
                 $done{$inum}= 1;
                 next;
             }
-            next if $done{$inum} < 2;
+            next if defined $done{$inum} and $done{$inum} >= 2;
             $done{$inum}= 2;
             my $df= $logfile;
             $df =~ s,.*/,,;
@@ -161,7 +161,8 @@ sub fetch_logs_host_guests () {
             ORDER BY name
 END
     $sth->execute();
-    foreach my $row ($sth->fetchrow_hashref) {
+    my $row;
+    while ($row= $sth->fetchrow_hashref) {
         my $gn= $row->{name};
         $gn =~ s/_domname$//;
         fetch_logs_guest($gn);
@@ -190,3 +191,4 @@ sub fetch_logs_guest ($) {
 
 fetch_logs_serial();
 fetch_logs_host_guests();
+logm("logs captured to $stash");

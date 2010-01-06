@@ -115,4 +115,5 @@ logs: $logs
 stash: $c{Stash}
 images: $c{Images}
 
+$c{ReportTrailer}
 END

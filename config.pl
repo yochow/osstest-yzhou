@@ -11,6 +11,11 @@ $c{WebspaceUrl}= "http://woking.$c{Domain}/~osstest/";
 $c{WebspaceCommon}= 'osstest/';
 $c{WebspaceLog}= '/var/log/apache2/access.log';
 
+$c{ReportTrailer}= <<END;
+Logs are also available at
+    http://teravault-1.cam.xci-test.com/xc_osstest/
+END
+
 $c{SerialLogPattern}= '/root/sympathy/%host%.log*';
 
 $c{Stash}= '/home/xc_osstest/stash';
