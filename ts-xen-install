@@ -6,6 +6,13 @@ use Osstest;
 use File::Path;
 use POSIX;
 
+my $checkmode= 0;
+
+if ($ARGV[0] eq '--check') {
+    $checkmode= 1;
+    shift @ARGV;
+}
+
 readconfig();
 opendb_state();
 our $ho= selecthost($r{host});
@@ -23,6 +30,7 @@ sub packages () {
 sub extract_one ($$$) {
     my ($part, $path, $job) = @_;
     $distpath{$part}= get_stashed($path, $job);
+    return if $checkmode;
     my $local= $path;  $local =~ s/path_//;
     my $distcopy= "/root/extract_$local.tar.gz";
     target_putfile_root($ho, 300, $distpath{$part}, $distcopy);
@@ -118,7 +126,11 @@ sub setupinitd () {
     target_cmd_root($ho, "update-rc.d xend start 92 2 .");
 }
 
-packages();
-extract();
-setupboot();
-setupinitd();
+if ($checkmode) {
+    extract();
+} else {
+    packages();
+    extract();
+    setupboot();
+    setupinitd();
+}

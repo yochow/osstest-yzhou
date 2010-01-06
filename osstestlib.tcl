@@ -31,7 +31,6 @@ proc spawn-ts {ts args} {
     
     set logdir $c(logs)/$flight.$jobinfo(job)
     file mkdir $logdir
-    set log $logdir/$ts.log
 
     pg_execute dbh BEGIN
     if {[catch {
@@ -39,15 +38,15 @@ proc spawn-ts {ts args} {
             SELECT max(stepno) AS maxstep FROM steps
                 WHERE flight=$flight AND job='$jobinfo(job)'
         "
-	if {[string length $stepinfo(maxstep)]} {
-	    incr stepinfo(maxstep)
+        set stepno $stepinfo(maxstep)
+	if {[string length $stepno]} {
+	    incr stepno
 	} else {
-	    set stepinfo(maxstep) 1
+	    set stepno 1
 	}
 	pg_execute dbh "
             INSERT INTO steps
-                VALUES ($flight, '$jobinfo(job)', $stepinfo(maxstep),
-                        '$ts', 'running')
+                VALUES ($flight, '$jobinfo(job)', $stepno, '$ts', 'running')
         "
 	pg_execute dbh COMMIT
     } emsg]} {
@@ -57,6 +56,8 @@ proc spawn-ts {ts args} {
 	catch { pg_execute dbh ROLLBACK }
 	error $emsg $ei $ec
     }
+
+    set log $logdir/$stepno.$ts.log
 
     set cmd [concat \
                  [list sh -xec "

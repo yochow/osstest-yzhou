@@ -52,6 +52,7 @@ proc run-job {} {
 }
 
 proc prepare-host {} {
+    run-ts ts-xen-build-check
     run-ts ts-host-install
     run-ts ts-xen-install
     run-ts ts-host-reboot

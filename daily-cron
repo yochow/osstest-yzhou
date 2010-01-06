@@ -1,0 +1,35 @@
+#!/bin/sh
+set -ex
+
+cd /export/home/osstest/testing.git
+
+flight=`./make-flight`
+(
+	set -x
+	exec 2>&1
+	date
+	./sg-run-builds $flight
+	date
+	./sg-run-builds $flight
+	date
+	./sg-run-tests $flight
+	date
+	./sg-run-tests $flight
+	date
+) >tmp/$flight.transcript
+
+exec >tmp/$flight.email
+echo 'To: ian.jackson@eu.citrix.com'
+printf 'Subject: '
+
+./sg-report-flight --final $flight
+
+echo '---'
+cat tmp/$flight.transcript
+rm tmp/$flight.transcript
+
+exec >/dev/null
+
+/usr/sbin/sendmail -odi -oee -oi -t <tmp/$flight.email
+
+rm tmp/$flight.email

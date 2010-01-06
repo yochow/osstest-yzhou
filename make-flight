@@ -58,9 +58,7 @@ for xenarch in i386 amd64; do
 
       if [ $dom0arch != $xenarch -a $xenarch != amd64 ]; then continue; fi
 
-      if [ x$kern = x-xcpkern -a $dom0arch != i386 ]; then
-echo "skipping test-$xenarch$kern-$dom0arch..."
-continue; fi
+      if [ x$kern = x-xcpkern -a $dom0arch != i386 ]; then continue; fi
 
       ./cs-job-create $flight test-$xenarch$kern-$dom0arch-pv test-debian \
 		arch=$dom0arch \
