@@ -751,7 +751,7 @@ sub vcs_dir_revision ($$$) {
 sub hg_dir_revision ($$) {
     my ($ho,$builddir) = @_;
     my $rev= target_cmd_output($ho, "cd $builddir && hg identify -ni");
-    $rev =~ m/^([0-9a-f]{10,}) (\d+)$/ or die "$builddir $rev ?";
+    $rev =~ m/^([0-9a-f]{10,}\+?) (\d+\+?)$/ or die "$builddir $rev ?";
     return "$2:$1";
 }
 
