@@ -22,7 +22,7 @@ exec >tmp/$flight.email
 echo 'To: ian.jackson@eu.citrix.com'
 printf 'Subject: '
 
-./sg-report-flight --final $flight
+./sg-report-flight $flight
 
 echo '---'
 cat tmp/$flight.transcript

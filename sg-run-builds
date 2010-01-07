@@ -35,7 +35,7 @@ proc main {} {
     }
 
     if {$anyfailed} {
-        error "something failed"
+        puts stderr "at least one build failed"
     }
 }
 
@@ -66,7 +66,7 @@ proc perhaps-start-job {} {
         set doingarch $archinfo(val)
     }
 
-    job-set-host $flight $jobinfo(job) $c(host)
+    job-set-host $flight $jobinfo(job) $c(Host)
 
     setstatus preparing
     if {[catch {

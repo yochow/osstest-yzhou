@@ -25,7 +25,7 @@ BEGIN {
                       power_state power_cycle
                       setup_pxeboot setup_pxeboot_local
                       await_webspace_fetch_byleaf await_tcp
-                      target_cmd_root target_cmd
+                      target_cmd_root target_cmd target_cmd_build
                       target_cmd_output_root target_cmd_output
                       target_getfile target_getfile_root
                       target_putfile target_putfile_root
@@ -36,6 +36,8 @@ BEGIN {
                       selectguest prepareguest
                       guest_umount_lv guest_await guest_await_dhcp_tcp
                       guest_xmrunning guest_check_ip guest_find_ether
+                      hg_dir_revision git_dir_revision vcs_dir_revision
+                      store_revision store_vcs_revision
                       );
     %EXPORT_TAGS = ( );
 
@@ -230,6 +232,16 @@ sub target_install_packages_norec {
                     100 * @packages);
 }
 
+sub target_cmd_build ($$$$) {
+    my ($ho,$timeout,$builddir,$script) = @_;
+    target_cmd($ho, <<END.$script, $timeout);
+	set -xe
+        LC_ALL=C; export LC_ALL
+        PATH=/usr/lib/ccache:\$PATH
+        cd $builddir
+END
+}
+
 sub target_ping_check_core {
     my ($ho, $exp) = @_;
     my $out= `ping -c 5 $ho->{Ip} 2>&1`;
@@ -256,6 +268,24 @@ sub target_reboot_hard ($) {
     my ($ho) = @_;
     power_cycle($ho);
     await_tcp($timeout{HardRebootUp},5,$ho);
+}
+
+sub store_revision ($$$) {
+    my ($ho,$which,$dir) = @_;
+    my $vcs= target_cmd_output($ho, <<END);
+        set -e; cd $dir
+        (test -d .git && echo git) ||
+        (test -d .hg && echo hg) ||
+        (echo >&2 'unable to determine vcs'; fail)
+END
+    my $rev= vcs_dir_revision($ho,$dir,$vcs);
+    store_vcs_revision($which,$rev,$vcs);
+}
+
+sub store_vcs_revision ($$$) {
+    my ($which,$rev,$vcs) = @_;
+    store_runvar("built_vcs_$which", $vcs);
+    store_runvar("built_revision_$which", $rev);
 }
 
 sub store_runvar ($$) {
@@ -712,6 +742,26 @@ END
     store_runvar("path_$item", $stashleaf);
 }
 
+sub vcs_dir_revision ($$$) {
+    my ($ho,$builddir,$vcs) = @_;
+    no strict qw(refs);
+    return &{"${vcs}_dir_revision"}($ho,$builddir);
+}
+
+sub hg_dir_revision ($$) {
+    my ($ho,$builddir) = @_;
+    my $rev= target_cmd_output($ho, "cd $builddir && hg identify -ni");
+    $rev =~ m/^([0-9a-f]{10,}) (\d+)$/ or die "$builddir $rev ?";
+    return "$2:$1";
+}
+
+sub git_dir_revision ($$) {
+    my ($ho,$builddir) = @_;
+    my $rev= target_cmd_output($ho, "cd $builddir && git-rev-parse HEAD");
+    $rev =~ m/^([0-9a-f]{10,})$/ or die "$builddir $rev ?";
+    return "$1";
+}
+
 package Osstest::Logtailer;
 use Fcntl qw(:seek);
 
@@ -772,7 +822,7 @@ sub getline ($) {
         $lt->{Handle}= $nfh;
         $lt->{Ino}= $nino;
     }
-}        
+}
 
 sub _close ($) {
     my ($lt) = @_;

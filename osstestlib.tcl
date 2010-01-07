@@ -3,7 +3,27 @@
 package require Pgtcl 1.5
 
 proc readconfig {} {
-    uplevel #0 source config.tcl
+    global c
+    set pl {
+        use Osstest;
+        csreadconfig();
+        foreach my $k (sort keys %c) {
+            my $v= $c{$k};
+            printf "%s\n%d\n%s\n", $k, length($v), $v;
+        }
+    }
+    set ch [open |[list perl -e $pl] r]
+    puts stderr $ch
+    while {[gets $ch k] >= 0} {
+        gets $ch vl
+        puts stderr "got $k $vl"
+        set v [read $ch $vl]
+        if {[eof $ch]} { error "premature eof in $k" }
+        set c($k) $v
+        gets $ch blank
+        if {[string length $blank]} { error "$blank ?" }
+    }
+    close $ch
 }
 
 proc db-open {} {
@@ -29,7 +49,7 @@ proc spawn-ts {ts args} {
     set details [list $flight $jobinfo(job) $ts $detstr]
     puts "starting $detstr"
     
-    set logdir $c(logs)/$flight.$jobinfo(job)
+    set logdir $c(Logs)/$flight.$jobinfo(job)
     file mkdir $logdir
 
     pg_execute dbh BEGIN

@@ -20,6 +20,8 @@ $c{SerialLogPattern}= '/root/sympathy/%host%.log*';
 
 $c{Stash}= '/home/xc_osstest/stash';
 $c{Images}= '/home/xc_osstest/images';
+$c{Logs}= '/home/xc_osstest/logs';
+$c{Host}= 'spider';
 
 $c{Tftp}= '/tftpboot/pxe';
 

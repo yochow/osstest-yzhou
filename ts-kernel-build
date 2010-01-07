@@ -13,9 +13,7 @@ my $builddir= "/home/osstest/$leaf";
 
 sub build () {
     target_cmd($ho, "rm -rf $builddir && mkdir $builddir", 60);
-    target_cmd($ho, <<END.
-	set -xe
-	cd $builddir
+    target_cmd_build($ho, 1000, $builddir, <<END.
 	hg clone $r{tree_linux} linux
 END
                (length($r{treepq_linux}) ? <<END : '')
@@ -23,11 +21,8 @@ END
 	cd linux
 	hg qpush -a
 END
-		, 1000);
-    target_cmd($ho, <<END, 100);
-	set -xe
-	cd $builddir
-        PATH=/usr/lib/ccache:\$PATH
+		);
+    target_cmd_build($ho, 1000, $builddir, <<END);
 	cd linux
 	perl -i.bak -pe '
 		s/^(CONFIG_(?:AGP|DRM|FB)(?:_.*)?)=m\$/# \$1 is not set/;
@@ -36,21 +31,21 @@ END
 	' buildconfigs/linux-defconfig_*[^~]
 	make -f buildconfigs/Rules.mk defconfig </dev/null
 END
-    target_cmd($ho, <<END, 3000);
-	set -xe
-	cd $builddir/linux
-        PATH=/usr/lib/ccache:\$PATH
-	(make -j4 all modules 2>&1 && touch ../build-ok-stamp) |tee ../log
+    target_cmd_build($ho, 3000, $builddir, <<END);
+	cd linux
+        (make -j4 all modules 2>&1 && touch ../build-ok-stamp) |tee ../log
         test -f ../build-ok-stamp
         echo ok.
 END
 }
 
+sub collectversions () {
+    store_revision($ho, 'linux', "$builddir/linux");
+}
+
 sub kinstall () {
     my $kernfile= 'arch/x86/boot/vmlinux-stripped';
-    target_cmd($ho, <<END, 100);
-	set -xe
-	cd $builddir
+    target_cmd_build($ho, 100, $builddir, <<END);
 	mkdir -p dist/boot dist/lib/modules
 	cd linux
 	make -j4 INSTALL_MOD_PATH=$builddir/dist modules_install
@@ -59,15 +54,14 @@ sub kinstall () {
 	cp .config $builddir/dist/boot/config
 END
     my $kernver= target_cmd_output($ho, <<END);
-	set -xe
 	cd $builddir/dist/lib/modules
 	echo *
 END
     die "$kernver ?" unless $kernver =~ m/^\d\S+$/;
     logm("built $kernver");
-    target_cmd($ho, <<END, 100);
-	set -xe
-	cd $builddir/dist/boot
+
+    target_cmd_build($ho, 100, $builddir, <<END);
+	cd dist/boot
 	for f in vmlinuz System.map config; do
 		mv \$f \$f-$kernver
 	done
@@ -75,5 +69,6 @@ END
 }
 
 build();
+collectversions();
 kinstall();
 built_stash($ho, $builddir, 'dist', 'kerndist');

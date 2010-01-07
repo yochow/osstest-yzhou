@@ -25,7 +25,7 @@ proc main {} {
     " run-job
 
     if {$anyfailed} {
-        error "something failed"
+        puts "at least one test failed"
     }
 }
 
@@ -34,25 +34,38 @@ proc run-job {} {
 
     puts "prepping $flight.$jobinfo(job)"
 
-    job-set-host $flight $jobinfo(job) $c(host)
+    job-set-host $flight $jobinfo(job) $c(Host)
 
+    set ok 1
     setstatus running
 
-    if {[catch {
-	prepare-host
-	run-job/$jobinfo(recipe)
-    } emsg]} {
-        puts stderr "$flight.$jobinfo(job) run-job failed: $emsg"
-        set anyfailed 1
-	setstatus fail
-    } else {
-	setstatus pass
-    }
+    catching-otherwise blocked check-not-blocked
+    catching-otherwise broken prepare-host
+    catching-otherwise fail run-job/$jobinfo(recipe)
+
     run-ts ts-logs-capture
 }
 
-proc prepare-host {} {
+proc catching-otherwise {failst script} {
+    global anyfail
+    upvar 1 ok ok
+    if {!$ok} return
+
+    if {[catch {
+        uplevel 1 $script
+    } emsg]} {
+        puts stderr "$flight.$jobinfo(job) $script failed: $emsg"
+        set ok 0
+        set anyfailed 1
+	setstatus blocked
+    }
+}
+
+proc check-not-blocked {} {
     run-ts ts-xen-build-check
+}
+
+proc prepare-host {} {
     run-ts ts-host-install
     run-ts ts-xen-install
     run-ts ts-host-reboot

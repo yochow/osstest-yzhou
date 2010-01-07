@@ -5,9 +5,6 @@ use strict qw(refs vars);
 use DBI;
 use Osstest;
 
-my $final= ($ARGV[0] eq '--final');
-shift @ARGV if $final;
-
 @ARGV==1 or die;
 my ($flight)= @ARGV;
 
@@ -38,8 +35,9 @@ my %counts;
     my $col= 0;
     
     foreach my $j (@$jobs) {
-        $j->{status}= 'blocked' if $final && $j->{status} eq 'queued';
 	$counts{$j->{status}}++;
+
+	my $jobtext= sprintf "%s:\n", $j->{job};
 
 	my $sth= $dbh_tests->prepare(<<END);
 	    SELECT * FROM steps
@@ -50,11 +48,23 @@ END
 
         $toptext .= sprintf "%-${jl}s %-${rl}s\n", $j->{job}, $j->{status};
 
-	my $jobtext= sprintf "%s:\n", $j->{job};
 	while (my $s= $sth->fetchrow_hashref()) {
 	    $jobtext .= sprintf "%2d %-${sl}s %-${rl}s\n",
 	        $s->{stepno}, $s->{step}, $s->{status};
 	}
+
+        my $revh= $dbh_tests->prepare(<<END);
+            SELECT * FROM runvars
+                WHERE flight=$flight AND job='$j->{job}'
+                  AND name like 'built_revision_%'
+                ORDER BY name
+END
+        $revh->execute();
+        while (my $r= $revh->fetchrow_hashref()) {
+            my $br= $r->{name};
+            $br =~ s/^built_revision_// or die "$br ?";
+            $jobtext .= sprintf " %-15s %-.20s\n", $br, $r->{val};
+        }
 
 	$jobtexts[$row][$col]= [ split /\n/, $jobtext ];
 	$col++;

@@ -18,9 +18,7 @@ sub build () {
     $kerns =~ s/,/ /g if defined $kerns;
     
     target_cmd($ho, "rm -rf $builddir && mkdir $builddir", 60);
-    target_cmd($ho, <<END.
-	set -xe
-        cd $builddir
+    target_cmd_build($ho, 300, $builddir, <<END.
 	hg clone '$r{tree_xen}' xen-unstable
 	cd xen-unstable
 	hg update '$r{revision_xen}'
@@ -34,22 +32,41 @@ END
                (length($kerns) ? <<END : '')
 	echo >>.config KERNELS='$kerns'
 END
-               , 300);
-    target_cmd($ho, <<END, 3000);
-	set -xe
-        PATH=/usr/lib/ccache:\$PATH
-	cd $builddir
+               );
+    target_cmd_build($ho, 3000, $builddir, <<END);
         cd xen-unstable
         (make -j4 2>&1 && touch ../build-ok-stamp) |tee ../log
         test -f ../build-ok-stamp
         echo ok.
 END
-}  
+}
+
+sub collectversions () {
+    store_revision($ho, 'xen', "$builddir/xen-unstable");
+    store_revision($ho, 'qemu', "$builddir/xen-unstable/tools/ioemu-dir");
+
+    my $whichkerns= target_cmd_output($ho, <<END);
+        set -e
+        cd $builddir/xen-unstable
+        echo linux*/.{git,hg}
+END
+    my (@kerndirs,@vcss,@revisions);
+    foreach my $kerndir (sort split / /, $whichkerns) {
+        next if $kerndir =~ m/\*/;
+        die "$kerndir ?" unless $kerndir =~ m/^linux.*\.(git|hg)$/;
+        my $vcs= $1;
+        push @kerndirs, $kerndir;
+        push @vcss, $vcs;
+        push @revisions,
+            vcs_dir_revision($ho,"$builddir/xen-unstable/$kerndir", $vcs);
+    }
+    store_vcs_revision('linux',"@revisions","@vcss");
+    store_runvar('built_xen_kerneldirs',"@kerndirs");
+}
 
 sub divide () {
-    target_cmd($ho, <<END, 100);
-        set -xe
-        cd $builddir/xen-unstable/dist
+    target_cmd_build($ho, 100, $builddir, <<END);
+        cd xen-unstable/dist
         mkdir kerninstall xeninstall
         if test -d install/boot; then
             mv install/boot kerninstall/.
@@ -73,5 +90,6 @@ need_runvars(qw(tree_xen revision_xen
                 tree_qemu revision_qemu));
 
 build();
+collectversions();
 divide();
 stash();
