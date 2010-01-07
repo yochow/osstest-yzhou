@@ -12,7 +12,8 @@ sub prep () {
     target_install_packages($ho,
                             qw(mercurial build-essential bin86 bcc ccache
                                libpci-dev libncurses5-dev libssl-dev python-dev
-                               libx11-dev git-core uuid-dev gettext gawk));
+                               libx11-dev git-core uuid-dev gettext gawk
+                               libsdl-dev));
 }
 
 prep();
