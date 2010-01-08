@@ -13,10 +13,8 @@ proc readconfig {} {
         }
     }
     set ch [open |[list perl -e $pl] r]
-    puts stderr $ch
     while {[gets $ch k] >= 0} {
         gets $ch vl
-        puts stderr "got $k $vl"
         set v [read $ch $vl]
         if {[eof $ch]} { error "premature eof in $k" }
         set c($k) $v

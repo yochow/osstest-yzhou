@@ -19,7 +19,10 @@ flight=`./make-flight`
 ) >tmp/$flight.transcript
 
 exec >tmp/$flight.email
-echo 'To: ian.jackson@eu.citrix.com'
+echo \
+'To: ian.jackson@eu.citrix.com,
+    keir.fraser@eu.citrix.com,
+    stefano.stabellini@eu.citrix.com'
 printf 'Subject: '
 
 ./sg-report-flight $flight
