@@ -32,7 +32,20 @@ proc set-flight {} {
     global flight argv env
 
     set flight [lindex $argv 0]
+    set argv [lrange $argv 1 end]
     set env(OSSTEST_FLIGHT) $flight
+}
+
+proc prepare-job {job} {
+    global flight argv c
+    set desc "$flight.$job"
+
+    if {[llength $argv] && [lsearch -exact $argv $job] < 0} {
+        puts "suppress $desc"
+        return 0
+    }
+    puts "prepping $desc"
+    job-set-host $flight $job $c(Host)
 }
 
 proc run-ts {args} {

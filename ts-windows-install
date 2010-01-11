@@ -15,6 +15,8 @@ our $disk_mb= 10000;
 our $guesthost= 'win.guest.osstest';
 our $ether= 'f4:fe:1b:f4:5f:67';
 
+my $passwd= 'xenvnc';
+
 sub prep () {
     target_install_packages_norec($ho, qw(lvm2 rsync));
 
@@ -59,7 +61,13 @@ usbdevice='tablet'
 #stdvga=1
 keymap='en-gb';
 
-vfb = [ 'type=vnc,vncunused=0,vncdisplay=0,vnclisten=$ho->{Ip},vncpasswd=xenvnc' ]
+sdl=0
+opengl=0
+vnc=1
+vncunused=0
+vncdisplay=0
+vnclisten='$ho->{Ip}'
+vncpasswd='$passwd'
 
 boot = 'dc'
 
@@ -75,6 +83,9 @@ END
 }
 
 sub start () {
+    target_cmd_root($ho, <<END);
+        (echo $passwd; echo $passwd) | vncpasswd $gho->{Guest}.vncpw
+END
     target_cmd_root($ho, "xm create $r{$gho->{Guest}.'_cfgpath'}", 100);
 }
 

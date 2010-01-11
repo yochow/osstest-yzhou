@@ -173,13 +173,8 @@ sub fetch_logs_guest ($) {
     my ($gn) = @_;
     logm("saving logs for $gn");
     my $gho= selectguest($gn);
-    my $domid;
     if (!eval {
-        my $list= target_cmd_output_root($ho, "xm list $gho->{Name}");
-        $list =~ m/^(?!Name\s)(\S+)\s+(\d+).*$/m
-            or die "domain list: $list";
-        $1 eq $gho->{Name} or die "domain list name $1 expected $gho->{Name}";
-        $domid= $2;
+        guest_find_domid($ho,$gho);
         1;
     }) {
         logm("cannot find domid: $@");
@@ -187,7 +182,15 @@ sub fetch_logs_guest ($) {
     }
     try_cmd_output_save("sleep 1 | xm console $gho->{Name} | cat",
                         "guest-$gho->{Name}-console");
-}    
+
+    if (!eval {
+        my $vnc= guest_vncsnapshot_begin($ho,$gho);
+        guest_vncsnapshot_stash($ho,$gho,$vnc, "$gho->{Name}--vnc.jpeg");
+        1;
+    }) {
+        logm("cannot get vnc snapshot: $@");
+    }
+}
 
 fetch_logs_serial();
 fetch_logs_host_guests();

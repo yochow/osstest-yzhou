@@ -21,7 +21,8 @@ my %distpath;
 
 sub packages () {
     target_install_packages($ho,
-                            qw(bridge-utils vncsnapshot));
+                            qw(bridge-utils vncsnapshot
+                               libsdl1.2debian));
     if ($r{arch} eq 'i386') {
 	target_install_packages($ho, 'libc6-xen');
     }
@@ -47,14 +48,26 @@ sub setupboot () {
     my $rmenu= "/boot/grub/menu.lst";
     my $lmenu= "$stash/menu.lst";
 
+    target_kernkind_check($ho);
+    target_kernkind_console_inittab($ho,$ho,"/");
+
+    my $xenhopt= "com1=$c{Baud},8n1 console=com1,vga gdb=com1 conswitch=x";
+
+    my $console= $r{console};
+    if (defined $console && length $console) {
+        $console= "console=$console";
+    } else {
+        $console= "xencons=ttyS console=ttyS0,$c{Baud}n8";
+    }
+
     target_getfile($ho, 60, $rmenu, $lmenu);
     open M, "$lmenu" or die "$lmenu: $!";
     open N, "> $lmenu.new" or die "$lmenu.new: $!";
     while (<M>) {
         if (m/^## ## Start Default/ ..
             m/^## ## End Default/) {
-            s/^# xenhopt=.*/# xenhopt= com1=$c{Baud},8n1 console=com1,vga gdb=com1 conswitch=x/;
-            s/^# xenkopt=.*/# xenkopt= xencons=ttyS console=ttyS0,$c{Baud}n8/;
+            s/^# xenhopt=.*/# xenhopt= $xenhopt/;
+            s/^# xenkopt=.*/# xenkopt= $console/;
         }
         print N or die $!;
     }

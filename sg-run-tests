@@ -30,20 +30,18 @@ proc main {} {
 }
 
 proc run-job {} {
-    global jobinfo c builds flight
+    global jobinfo builds flight
 
-    puts "prepping $flight.$jobinfo(job)"
-
-    job-set-host $flight $jobinfo(job) $c(Host)
+    if {![prepare-job $jobinfo(job)]} return
 
     set ok 1
     setstatus running
 
     catching-otherwise blocked check-not-blocked
-    catching-otherwise broken prepare-host
-    catching-otherwise fail run-job/$jobinfo(recipe)
-
-    run-ts ts-logs-capture
+    catching-otherwise broken  prepare-host
+    catching-otherwise fail    run-job/$jobinfo(recipe)
+    catching-otherwise broken  capture-logs
+    if {$ok} { setstatus pass }
 }
 
 proc catching-otherwise {failst script} {
@@ -57,8 +55,12 @@ proc catching-otherwise {failst script} {
         puts stderr "$flight.$jobinfo(job) $script failed: $emsg"
         set ok 0
         set anyfailed 1
-	setstatus blocked
+	setstatus $failst
     }
+}
+
+proc capture-logs {} {
+    run-ts ts-logs-capture
 }
 
 proc check-not-blocked {} {

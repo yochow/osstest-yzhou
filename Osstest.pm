@@ -33,9 +33,13 @@ BEGIN {
                       target_reboot target_reboot_hard
                       target_choose_vg target_umount_lv
                       target_ping_check_down target_ping_check_up
+                      target_kernkind_check target_kernkind_console_inittab
+                      target_var target_var_prefix
                       selectguest prepareguest
                       guest_umount_lv guest_await guest_await_dhcp_tcp
                       guest_xmrunning guest_check_ip guest_find_ether
+                      guest_find_domid
+                      guest_vncsnapshot_begin guest_vncsnapshot_stash
                       hg_dir_revision git_dir_revision vcs_dir_revision
                       store_revision store_vcs_revision
                       );
@@ -760,6 +764,90 @@ sub git_dir_revision ($$) {
     my $rev= target_cmd_output($ho, "cd $builddir && git-rev-parse HEAD");
     $rev =~ m/^([0-9a-f]{10,})$/ or die "$builddir $rev ?";
     return "$1";
+}
+
+sub guest_kernkind_check ($) {
+    my ($gho) = @_;
+    target_process_kernkind("$gho->{Guest}_");
+}    
+
+sub target_var_prefix ($) {
+    my ($ho) = @_;
+    if (exists $ho->{Guest}) { return $ho->{Guest}.'_'; }
+    return '';
+}
+
+sub target_var ($$) {
+    my ($ho,$vn) = @_;
+    return $r{ target_var_prefix($ho). $vn };
+}
+
+sub target_kernkind_check ($) {
+    my ($gho) = @_;
+    my $pfx= target_var_prefix($gho);
+    my $kernkind= $r{$pfx."kernkind"};
+    if (length $pfx && $kernkind eq 'pvops') {
+	store_runvar($pfx."rootdev", 'xvda');
+    }
+    if (length($pfx) ? $kernkind !~ m/2618/ : $kernkind eq 'pvops') {
+	store_runvar($pfx."console", 'hvc0');
+    }
+}
+
+sub target_kernkind_console_inittab ($$$) {
+    my ($ho, $gho, $root) = @_;
+
+    my $inittabpath= "$root/etc/inittab";
+    my $console= target_var($gho,'console');
+
+    target_cmd_root($ho, <<END);
+        set -ex
+        perl -i~ -ne "
+            next if m/^xc:/;
+            print \\\$_ or die \\\$!;
+            next unless s/^1:/xc:/;
+            s/tty1/$console/;
+            print \\\$_ or die \\\$!;
+        " $inittabpath
+END
+    return $console;
+}
+
+sub guest_find_domid ($$) {
+    my ($ho,$gho) = @_;
+    return if defined $gho->{Domid};
+    my $list= target_cmd_output_root($ho, "xm list $gho->{Name}");
+    $list =~ m/^(?!Name\s)(\S+)\s+(\d+).*$/m
+        or die "domain list: $list";
+    $1 eq $gho->{Name} or die "domain list name $1 expected $gho->{Name}";
+    $gho->{Domid}= $2;
+}
+
+sub guest_vncsnapshot_begin ($$) {
+    my ($ho,$gho) = @_;
+    my $domid= $gho->{Domid};
+
+    my $backend= target_cmd_output_root($ho,
+        "xenstore-read /local/domain/$domid/device/vfb/0/backend");
+    $backend =~ m,^/local/domain/\d+/backend/vfb/\d+/\d+$,
+        or die "$backend ?";
+
+    my $v = {};
+    foreach my $k (qw(vnclisten vncdisplay)) {
+        $v->{$k}= target_cmd_output_root($ho,
+                "xenstore-read $backend/$k");
+    }
+    return $v;
+}
+sub guest_vncsnapshot_stash ($$$$) {
+    my ($ho,$gho,$v,$leaf) = @_;
+    my $rfile= "/root/$leaf";
+    target_cmd_root($ho,
+        "vncsnapshot -passwd $gho->{Guest}.vncpw".
+                   " -nojpeg".
+                   " $v->{vnclisten}:$v->{vncdisplay}".
+                   " $rfile", 100);
+    target_getfile_root($ho,100, "$rfile", "$stash/$leaf");
 }
 
 package Osstest::Logtailer;

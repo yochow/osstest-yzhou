@@ -61,12 +61,14 @@ proc perhaps-start-job {} {
 	    puts "skipping $jobinfo(job) (arch $doingarch)"
 	    return
 	}
-    } else {
+    }
+
+    if {![prepare-job $jobinfo(job)]} return
+
+    if {![info exists doingarch]} {
         puts "selected arch $archinfo(val)"
         set doingarch $archinfo(val)
     }
-
-    job-set-host $flight $jobinfo(job) $c(Host)
 
     setstatus preparing
     if {[catch {

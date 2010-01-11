@@ -51,17 +51,9 @@ sub console () {
     my $console= $r{"$gho->{Guest}_console"};
     return unless length $console;
 
-    target_cmd_root($ho, <<END);
-        set -ex
-        perl -i~ -ne "
-            next if m/^xc:/;
-            print \\\$_ or die \\\$!;
-            next unless s/^1:/xc:/;
-            s/tty1/$console/;
-            print \\\$_ or die \\\$!;
-        " /mnt/etc/inittab;
-END
-
+    my $console=
+        target_kernkind_console_inittab($ho,$gho,"/mnt");
+    
     my $xextra= "console=$console";
     my $orgextra;
     if ($cfg =~ s/^(extra=[ \t]*[\'\"](.*)[\'\"][ \t]*)\n/\n/m) {
@@ -71,7 +63,7 @@ END
         $orgextra.= ' ';
     } elsif ($cfg =~ m/^extra\b.*/) {
         die "$& ?";
-r    } else {
+    } else {
         $orgextra= '';
     }
     my $extra= "extra='$orgextra$xextra'";
@@ -104,19 +96,9 @@ sub writecfg () {
     target_putfile_root($ho,10, $cfgstash, $cfgfile);
 }
 
-sub kernkind () {
-    my $kernkind= $r{"$gho->{Guest}_kernkind"};
-    if ($kernkind eq 'pvops') {
-	store_runvar("$gho->{Guest}_rootdev", 'xvda');
-    }
-    if ($kernkind !~ m/2618/) {
-	store_runvar("$gho->{Guest}_console", 'hvc0');
-    }
-}
-
 savecfg();
 ether();
-kernkind();
+target_kernkind_check($gho);
 access();
 console();
 filesystems();
