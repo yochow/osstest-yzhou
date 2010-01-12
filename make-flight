@@ -13,16 +13,16 @@ if [ x$buildflight = x ]; then
 		arch=$arch \
 	tree_qemu=git://mariner.uk.xensource.com/qemu-xen-unstable.git \
 	tree_xen=http://hg.uk.xensource.com/xen-unstable.hg \
-		revision_xen= \
-		revision_qemu=
+		revision_xen=$REVISION_XEN \
+		revision_qemu=$REVISION_QEMU
 
     ./cs-job-create $flight build-$arch-oldkern build \
 		arch=$arch \
 	tree_qemu=git://mariner.uk.xensource.com/qemu-xen-unstable.git \
 	tree_xen=http://hg.uk.xensource.com/xen-unstable.hg \
 		xen_kernels=linux-2.6-xen \
-		revision_xen= \
-		revision_qemu=
+		revision_xen=$REVISION_XEN \
+		revision_qemu=$REVISION_QEMU
 
     if [ $arch = i386 ]; then
       # XCP dom0 kernel is 32-bit only
