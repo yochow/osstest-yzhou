@@ -471,10 +471,40 @@ sub guest_check_ip ($) {
     return undef;
 }
 
-sub prepareguest ($$$$$$) {
-    my ($ho, $gn, $hostname, $ether, $tcpcheckport, $mb) = @_;
+sub select_ether ($) {
+    my ($vn) = @_;
+    my $ether= $r{$vn};
+    return $ether if defined $ether;
+    my $prefix= sprintf "%s:%02x", $c{GenEtherPrefix}, $flight & 0xff;
+    db_retry($dbh_tests, sub {
+        my $previous= $dbh_tests->selectrow_array(<<END, {}, $flight,$job);
+            SELECT max(val) FROM runvars WHERE flight=? AND job=?
+                AND name LIKE '%_ether'
+                AND val LIKE '$prefix:%'
+END
+        if (defined $previous) {
+            $previous =~ m/^\w+:\w+:\w+:\w+:([0-9a-f]+):([0-9a-f]+)$/i
+                or die "$previous ?";
+            my $val= (hex($1)<<8) | hex($2);
+            $val++;  $val &= 0xffff;
+            $ether= sprintf "%s:%02x:%02x", $prefix, $val >> 8, $val & 0xff;
+            logm("select_ether $prefix:... $ether (previous $previous)");
+        } else {
+            $ether= "$prefix:00:01";
+            logm("select_ether $prefix:... $ether (first in flight)");
+        }
+        $dbh_tests->do(<<END, {}, $flight,$job,$vn,$ether);
+            INSERT INTO runvars VALUES (?,?,?,?,'t')
+END
+    });
+    $r{$vn}= $ether;
+    return $ether;
+}
 
-    store_runvar("${gn}_ether", $ether);
+sub prepareguest ($$$$$) {
+    my ($ho, $gn, $hostname, $tcpcheckport, $mb) = @_;
+
+    select_ether("${gn}_ether");
     store_runvar("${gn}_hostname", $hostname);
     store_runvar("${gn}_disk_lv", $r{"${gn}_hostname"}.'-disk');
     store_runvar("${gn}_tcpcheckport", $tcpcheckport);

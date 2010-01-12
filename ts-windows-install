@@ -13,14 +13,13 @@ our $ram_mb=    512;
 our $disk_mb= 10000;
 
 our $guesthost= 'win.guest.osstest';
-our $ether= 'f4:fe:1b:f4:5f:67';
 
 my $passwd= 'xenvnc';
 
 sub prep () {
     target_install_packages_norec($ho, qw(lvm2 rsync));
 
-    $gho= prepareguest($ho, 'win', $guesthost, $ether, 8936,
+    $gho= prepareguest($ho, 'win', $guesthost, 8936,
 		       $disk_mb + 1);
 
     target_cmd_root($ho, "lvremove -f $gho->{Lvdev} ||:");
