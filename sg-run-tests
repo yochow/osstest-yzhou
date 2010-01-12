@@ -20,7 +20,8 @@ proc main {} {
 			WHERE	flight=$flight
 			AND	job like 'test%'
 			AND   ( status = 'queued'
-			  OR	status = 'preparing' )
+			  OR	status = 'preparing'
+			  OR	status = 'retriable' )
 		ORDER BY job
     " run-job
 

@@ -45,7 +45,10 @@ proc prepare-job {job} {
         return 0
     }
     puts "prepping $desc"
-    job-set-host $flight $job $c(Host)
+    if {![job-set-host $flight $job $c(Host)]} {
+        return 0
+    }
+    return 1
 }
 
 proc run-ts {args} {
@@ -110,10 +113,25 @@ proc setstatus {st} {
 }
 
 proc job-set-host {flight job host} {
+    pg_execute dbh BEGIN
+    pg_execute -array hostinfo dbh "
+        SELECT * FROM runvars WHERE
+            flight=$flight AND job='$job' AND name='host'
+    "
+    if {[info exists hostinfo(val)]} {
+        if {[string compare $hostinfo(val) $host]} {
+            puts "wronghost $flight.$job $hostinfo(val)"
+            return 0
+        }
+        pg_execute dbh ROLLBACK
+        return 1
+    }
     pg_execute dbh "
         INSERT INTO runvars VALUES
              ($flight, '$job', 'host', '$host', 'f')
     "
+    pg_execute dbh COMMIT
+    return 1
 }
 
 proc job-set-status {flight job st} {

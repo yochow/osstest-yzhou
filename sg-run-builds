@@ -19,7 +19,8 @@ proc main {} {
 			WHERE	flight=$flight
 			AND	job like 'build%'
 			AND   ( status = 'queued'
-			  OR	status = 'preparing' )
+			  OR	status = 'preparing'
+			  OR	status = 'retriable' )
 		ORDER BY job
     " perhaps-start-job
 
@@ -78,7 +79,8 @@ proc perhaps-start-job {} {
         set ei $errorInfo
         set ec $errorCode
         run-ts ts-logs-capture
-        error $emsg $ei $ec
+        setstatus retriable
+        return
     }
 
     setstatus running
