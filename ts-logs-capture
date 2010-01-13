@@ -11,19 +11,33 @@ opendb_state();
 our $ho= selecthost($r{host});
 
 sub try_fetch_logs ($$) {
-    my ($lho, $logfiles) = @_;
+    my ($lho, $logfilepats) = @_;
     my $ok= 0;
-    foreach my $logfile (@$logfiles) {
-        my $llogfile= $logfile;
-        $llogfile =~ s,/,-,g;
-        $llogfile= "$lho->{Name}--$llogfile";
-        logm("fetching $logfile to $llogfile");
-        if (!eval {
-            target_getfile_root($lho,60, $logfile,"$stash/$llogfile");
-            1;
-        }) {
-            logm("logfile $logfile fetch failed: $@");
-            next;
+    foreach my $logfilepat (@$logfilepats) {
+        my $logfileslist= $logfilepat;
+        if ($logfileslist =~ m/[*?]/) {
+            if (!eval {
+                $logfileslist=
+                    target_cmd_output_root($lho, "echo $logfilepat");
+                1;
+            }) {
+                logm("logfile $logfilepat pattern expansion failed: $@");
+                next;
+            }
+            next if $logfileslist eq $logfilepat;
+        }
+        foreach my $logfile (split / /, $logfileslist) {
+            my $llogfile= $logfile;
+            $llogfile =~ s,/,-,g;
+            $llogfile= "$lho->{Name}--$llogfile";
+            logm("fetching $logfile to $llogfile");
+            if (!eval {
+                target_getfile_root($lho,60, $logfile,"$stash/$llogfile");
+                1;
+            }) {
+                logm("logfile $logfile fetch failed: $@");
+                next;
+            }
         }
         $ok= 1;
     }
@@ -118,22 +132,22 @@ sub try_cmd_output_save ($;$) {
 
 sub fetch_logs_host_guests () {
     my $logs= [qw(
-                  /var/log/kern.log
-                  /var/log/syslog
-                  /var/log/daemon.log
+                  /var/log/kern.log*
+                  /var/log/syslog*
+                  /var/log/daemon.log*
 
-                  /var/log/dmesg
-                  /var/log/user.log
-                  /var/log/dmesg.0
+                  /var/log/dmesg*
+                  /var/log/user.log*
 
-                  /var/log/installer/syslog
-                  /var/log/installer/partman
+                  /var/log/installer/syslog*
+                  /var/log/installer/partman*
 
-                  /var/log/xen/xend.log
-                  /var/log/xen/xend-debug.log
-                  /var/log/xen/xen-hotplug.log
-                  /var/log/xen/domain-builder-ng.log
-                  
+                  /var/log/xen/xend.log*
+                  /var/log/xen/xend-debug.log*
+                  /var/log/xen/xen-hotplug.log*
+                  /var/log/xen/domain-builder-ng.log*
+                  /var/log/xen/qemu-dm*
+
                   )];
     if (!try_fetch_logs($ho, $logs)) {
         logm("log fetching failed, trying hard host reboot...");
@@ -148,6 +162,7 @@ sub fetch_logs_host_guests () {
 
     foreach my $cmd
         (
+         'xc list',
          'xm list',
          'xm list --long',
          'xenstore-ls -fp'
