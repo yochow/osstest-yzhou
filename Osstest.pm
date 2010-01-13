@@ -830,16 +830,18 @@ sub target_kernkind_console_inittab ($$$) {
     my $inittabpath= "$root/etc/inittab";
     my $console= target_var($gho,'console');
 
-    target_cmd_root($ho, <<END);
-        set -ex
-        perl -i~ -ne "
-            next if m/^xc:/;
-            print \\\$_ or die \\\$!;
-            next unless s/^1:/xc:/;
-            s/tty1/$console/;
-            print \\\$_ or die \\\$!;
-        " $inittabpath
+    if (length $console) {
+        target_cmd_root($ho, <<END);
+            set -ex
+            perl -i~ -ne "
+                next if m/^xc:/;
+                print \\\$_ or die \\\$!;
+                next unless s/^1:/xc:/;
+                s/tty1/$console/;
+                print \\\$_ or die \\\$!;
+            " $inittabpath
 END
+    }
     return $console;
 }
 
