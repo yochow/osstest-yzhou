@@ -119,11 +119,11 @@ proc job-set-host {flight job host} {
             flight=$flight AND job='$job' AND name='host'
     "
     if {[info exists hostinfo(val)]} {
-        if {[string compare $hostinfo(val) $host]} {
+        pg_execute dbh ROLLBACK
+        if {[string length $host] && [string compare $hostinfo(val) $host]} {
             puts "wronghost $flight.$job $hostinfo(val)"
             return 0
         }
-        pg_execute dbh ROLLBACK
         return 1
     }
     pg_execute dbh "
