@@ -33,7 +33,7 @@ END
 	echo >>.config KERNELS='$kerns'
 END
                );
-    target_cmd_build($ho, 3000, $builddir, <<END);
+    target_cmd_build($ho, 6000, $builddir, <<END);
         cd xen-unstable
         (make -j4 2>&1 && touch ../build-ok-stamp) |tee ../log
         test -f ../build-ok-stamp
