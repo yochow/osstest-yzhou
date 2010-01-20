@@ -8,7 +8,7 @@ readconfig();
 opendb_state();
 our $ho= selecthost($r{host});
 
-our %timeout= qw(ReadPreseed 100
+our %timeout= qw(ReadPreseed 250
                  Sshd        800);
 
 sub install () {
@@ -47,7 +47,8 @@ sub setup_pxeboot_firstboot($) {
     push @installcmdline, ("initrd=$d_i/initrd.gz",
                            "hostname=$ho->{Name}",
                            "url=$ps_url",
-                           "domain=$c{TestHostDomain}"
+                           "domain=$c{TestHostDomain}",
+                           "netcfg/dhcp_timeout=150"
                            );
 
     push @installcmdline, qw(DEBCONF_DEBUG=5 DEBIAN_FRONTEND=text --);
