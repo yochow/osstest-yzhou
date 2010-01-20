@@ -15,6 +15,10 @@ flight=`./make-flight`
 	date
 	./sg-run-builds $flight
 	date
+	./sg-run-builds $flight
+	date
+	./sg-run-tests $flight
+	date
 	./sg-run-tests $flight
 	date
 	./sg-run-tests $flight
