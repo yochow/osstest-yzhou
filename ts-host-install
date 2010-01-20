@@ -48,6 +48,12 @@ sub setup_pxeboot_firstboot($) {
                            "hostname=$ho->{Name}",
                            "url=$ps_url",
                            "domain=$c{TestHostDomain}",
+
+                           "acpi=off",
+
+                           "noapic",
+#                           "nolapic",
+
                            "netcfg/dhcp_timeout=150"
                            );
 
