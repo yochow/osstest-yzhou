@@ -48,7 +48,6 @@ proc run-job {} {
 proc catching-otherwise {failst script} {
     global anyfail flight jobinfo
     upvar 1 ok ok
-    if {!$ok} return
 
     if {[catch {
         uplevel 1 $script
