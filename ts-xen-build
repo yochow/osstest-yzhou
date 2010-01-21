@@ -15,13 +15,19 @@ my $builddir= "/home/osstest/$leaf";
 
 sub build () {
     my $kerns= $r{xen_kernels};
-    $kerns =~ s/,/ /g if defined $kerns;
+    $kerns='' unless defined $kerns;
+    $kerns =~ s/,/ /g;
     
     target_cmd($ho, "rm -rf $builddir && mkdir $builddir", 60);
-    target_cmd_build($ho, 300, $builddir, <<END.
+    target_cmd_build($ho, 300, $builddir,
+               <<END.
 	hg clone '$r{tree_xen}' xen-unstable
 	cd xen-unstable
+END
+               (length($r{revision_xen}) ? <<END : '').
 	hg update '$r{revision_xen}'
+END
+               <<END.
 	>.config
 	echo >>.config GIT_HTTP=y
 	echo >>.config QEMU_REMOTE='$r{tree_qemu}'
