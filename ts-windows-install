@@ -92,4 +92,4 @@ prep();
 image();
 config();
 start();
-guest_await_dhcp_tcp($gho,5000);
+guest_await_dhcp_tcp($gho,7000);
