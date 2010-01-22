@@ -76,6 +76,10 @@ sub divide () {
         mkdir kerninstall xeninstall
         if test -d install/boot; then
             mv install/boot kerninstall/.
+            if test -d install/lib/modules; then
+                mkdir kerninstall/lib
+                mv install/lib/modules kerninstall/lib/.
+            fi
             if test -f kerninstall/boot/xen.gz; then
                 mkdir xeninstall/boot
                 mv kerninstall/boot/xen* xeninstall/boot/.
