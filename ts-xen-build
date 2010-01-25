@@ -39,6 +39,13 @@ END
 	echo >>.config KERNELS='$kerns'
 END
                );
+    target_cmd_build($ho, 1000, $builddir, <<END);
+        cd xen-unstable
+        perl -i.bak -pe '
+		next unless m/^exit 0/;
+                print "setopt CONFIG_HIGHPTE n\\n" or die \$!;
+        ' buildconfigs/enable-xen-config
+END
     target_cmd_build($ho, 6000, $builddir, <<END);
         cd xen-unstable
         (make -j4 2>&1 && touch ../build-ok-stamp) |tee ../log
