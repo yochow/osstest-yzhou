@@ -1,0 +1,3 @@
+#!/bin/sh
+set -ex
+./ts-host-install "$@" || ./ts-host-install "$@"
