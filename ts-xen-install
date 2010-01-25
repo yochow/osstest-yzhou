@@ -8,7 +8,7 @@ use POSIX;
 
 my $checkmode= 0;
 
-if ($ARGV[0] eq '--check') {
+if (@ARGV and $ARGV[0] eq '--check') {
     $checkmode= 1;
     shift @ARGV;
 }
@@ -139,9 +139,34 @@ sub setupinitd () {
     target_cmd_root($ho, "update-rc.d xend start 92 2 .");
 }
 
+sub nodhcp () {
+    my $rifs= "/etc/network/interfaces";
+    my $lifs= "$stash/etc-network-interfaces";
+
+    target_getfile($ho, 60, $rifs, $lifs);
+    open M, "$lifs" or die "$lifs: $!";
+    open N, "> $lifs.new" or die "$lifs.new: $!";
+    while (<M>) {
+        if (m/^\s* iface \s+ eth0 \s+ inet \s+ dhcp \s/x) {
+            $_= <<END;
+iface eth0 inet static
+    address $ho->{Ip}
+    netmask $c{NetNetmask}
+    gateway $c{NetGateway}
+END
+        }
+        print N or die $!;
+    }
+    M->error and die $!;
+    close M or die $!;
+    close N or die $!;
+    target_putfile_root($ho, 60, "$lifs.new", $rifs);
+}    
+
 if ($checkmode) {
     extract();
 } else {
+    nodhcp();
     packages();
     extract();
     setupboot();
