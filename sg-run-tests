@@ -68,7 +68,7 @@ proc check-not-blocked {} {
 }
 
 proc prepare-host {} {
-    run-ts ts-host-install
+    run-ts ts-host-install-twice
     run-ts ts-xen-install
     run-ts ts-host-reboot
 }

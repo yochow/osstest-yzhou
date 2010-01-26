@@ -44,7 +44,7 @@ proc prepare-host {} {
     global prepared jobinfo
     if {[info exists prepared]} return
 
-    run-ts ts-host-install
+    run-ts ts-host-install-twice
     run-ts ts-xen-build-prep
 
     set prepared 1
