@@ -614,7 +614,10 @@ sub power_state ($$) {
 }
 sub logm ($) {
     my ($m) = @_;
-    print "LOG $m\n" or die $!;
+    my @t= gmtime or die $!;
+    printf "%d-%02d-%02d %02d:%02d:%02d Z %s\n",
+        $t[5]+1900,$t[4],$t[3], $t[2],$t[1],$t[0],
+        $m or die $!;
     STDOUT->flush or die $!;
 }
 sub file_link_contents ($$) {
