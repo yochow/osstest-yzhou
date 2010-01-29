@@ -29,6 +29,7 @@ BEGIN {
                       target_cmd_output_root target_cmd_output
                       target_getfile target_getfile_root
                       target_putfile target_putfile_root
+                      target_editfile_root
                       target_install_packages target_install_packages_norec
                       target_reboot target_reboot_hard
                       target_choose_vg target_umount_lv
@@ -42,6 +43,7 @@ BEGIN {
                       guest_vncsnapshot_begin guest_vncsnapshot_stash
                       hg_dir_revision git_dir_revision vcs_dir_revision
                       store_revision store_vcs_revision
+                      toolstack
                       );
     %EXPORT_TAGS = ( );
 
@@ -234,6 +236,45 @@ sub target_install_packages_norec {
     target_cmd_root($ho,
                     "apt-get --no-install-recommends -y install @packages",
                     100 * @packages);
+}
+
+sub target_editfile_root ($$$;$$) {
+    my $code= pop @_;
+    my ($ho,$rfile,$lleaf,$rdest) = @_;
+
+    if (!defined $rdest) {
+        $rdest= $rfile;
+    }
+    if (!defined $lleaf) {
+        $lleaf= $rdest;
+        $lleaf =~ s,.*/,,;
+    }
+    my $lfile;
+    
+    for (;;) {
+        $lfile= "$stash/$lleaf";
+        if (!lstat $lfile) {
+            $! == &ENOENT or die "$lfile $!";
+            last;
+        }
+        $lleaf .= '+';
+    }
+    if ($rdest eq $rfile) {
+        logm("editing $rfile as $lfile".'{,.new}');
+    } else {
+        logm("editing $rfile to $rdest as $lfile".'{,.new}');
+    }
+
+    target_getfile($ho, 60, $rfile, $lfile);
+    open '::EI', "$lfile" or die "$lfile: $!";
+    open '::EO', "> $lfile.new" or die "$lfile.new: $!";
+
+    &$code;
+
+    '::EI'->error and die $!;
+    close '::EI' or die $!;
+    close '::EO' or die $!;
+    target_putfile_root($ho, 60, "$lfile.new", $rdest);
 }
 
 sub target_cmd_build ($$$$) {
@@ -883,6 +924,27 @@ sub guest_vncsnapshot_stash ($$$$) {
                    " $v->{vnclisten}:$v->{vncdisplay}".
                    " $rfile", 100);
     target_getfile_root($ho,100, "$rfile", "$stash/$leaf");
+}
+
+our %toolstacks=
+    ('xend' => {
+        Daemon => 'xend'
+        },
+     'xl' => {
+        Daemon => 'xenstored'
+        }
+     );
+
+sub toolstack () {
+    my $tsname= $r{toolstack};
+    $tsname= 'xend' if !defined $tsname;
+    my $ts= $toolstacks{$tsname};
+    die "$tsname ?" unless defined $ts;
+    if (!exists $ts->{Name}) {
+        logm("toolstack $tsname");
+        $ts->{Name}= $tsname;
+    }
+    return $ts;
 }
 
 package Osstest::Logtailer;

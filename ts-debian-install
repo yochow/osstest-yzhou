@@ -38,7 +38,8 @@ sub ginstall () {
             --initrd /boot/initrd.img-$r{xen_kernel_ver} \\
             $archarg
 END
-    store_runvar("$gho->{Guest}_cfgpath", "/etc/xen/$gho->{Name}.cfg");
+    my $cfg_xend= "/etc/xen/$gho->{Name}.cfg";
+    store_runvar("$gho->{Guest}_cfgpath", $cfg_xend);
 }
 
 prep();

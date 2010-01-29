@@ -80,7 +80,7 @@ sub filesystems () {
     target_cmd_root($ho, <<END);
         set -ex
         perl -i~ -pe "
-            s,^(/dev/)sda(\\\d+),\\\${1}$rootdev\\\$2,;
+            s,^(/dev/)sda(\\\\d+),\\\${1}$rootdev\\\$2,;
         " /mnt/etc/fstab
 END
 }
@@ -96,6 +96,20 @@ sub writecfg () {
     target_putfile_root($ho,10, $cfgstash, $cfgfile);
 }
 
+#sub xledit {
+#        local ($/)= undef;
+#        $_= <EI>;
+#        s/([[,])\s*\n/$1/g;
+#        s/,\s*\]/\]/g;
+#        print EO or die $!;
+#    }
+#sub xlcfg () {
+#    my $cfg_xl= "/etc/xen/$gho->{Name}.xl";
+#    store_runvar("$gho->{Guest}_xlpath", $cfg_xl);
+#
+#    target_editfile_root($ho, $cfg_xend, undef, $cfg_xl, \&xledit);
+#}
+
 savecfg();
 ether();
 target_kernkind_check($gho);
@@ -103,4 +117,5 @@ access();
 console();
 filesystems();
 writecfg();
+#xlcfg();
 unmount();

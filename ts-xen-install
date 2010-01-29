@@ -46,7 +46,6 @@ sub extract () {
 
 sub setupboot () {
     my $rmenu= "/boot/grub/menu.lst";
-    my $lmenu= "$stash/menu.lst";
 
     target_kernkind_check($ho);
     target_kernkind_console_inittab($ho,$ho,"/");
@@ -60,30 +59,25 @@ sub setupboot () {
         $console= "xencons=ttyS console=ttyS0,$c{Baud}n8";
     }
 
-    target_getfile($ho, 60, $rmenu, $lmenu);
-    open M, "$lmenu" or die "$lmenu: $!";
-    open N, "> $lmenu.new" or die "$lmenu.new: $!";
-    while (<M>) {
-        if (m/^## ## Start Default/ ..
-            m/^## ## End Default/) {
-            s/^# xenhopt=.*/# xenhopt= $xenhopt/;
-            s/^# xenkopt=.*/# xenkopt= $console/;
+    target_editfile_root($ho, $rmenu, sub {
+        while (<EI>) {
+            if (m/^## ## Start Default/ ..
+                m/^## ## End Default/) {
+                s/^# xenhopt=.*/# xenhopt= $xenhopt/;
+                s/^# xenkopt=.*/# xenkopt= $console/;
+            }
+            print EO or die $!;
         }
-        print N or die $!;
-    }
-    M->error and die $!;
-    close M or die $!;
-    close N or die $!;
-    target_putfile_root($ho, 60, "$lmenu.new", $rmenu);
+    });
 
     target_cmd_root($ho, "update-grub");
 
-    $lmenu .= ".out";
+    my $lmenu= "$stash/menu.lst.out";
     target_getfile($ho, 60, $rmenu, $lmenu);
     my $f= new IO::File $lmenu, 'r' or die "$lmenu $?";
     my $def;
     while (<$f>) {
-        die if m/^\s*title\b/;
+        last if m/^\s*title\b/;
         next unless m/^\s*default\b/;
         die "$_ ?" unless m/^\s*default\s+(\d+)\s*$/;
         $def= $1;
@@ -136,31 +130,29 @@ sub setupboot () {
 }
 
 sub setupinitd () {
-    target_cmd_root($ho, "update-rc.d xend start 92 2 .");
+    my $daemon= toolstack()->{Daemon};
+    target_cmd_root($ho, "update-rc.d $daemon start 92 2 .")
+        if defined $daemon;
 }
 
 sub nodhcp () {
-    my $rifs= "/etc/network/interfaces";
+    my $rifs= 
     my $lifs= "$stash/etc-network-interfaces";
 
-    target_getfile($ho, 60, $rifs, $lifs);
-    open M, "$lifs" or die "$lifs: $!";
-    open N, "> $lifs.new" or die "$lifs.new: $!";
-    while (<M>) {
-        if (m/^\s* iface \s+ eth0 \s+ inet \s+ dhcp \s/x) {
-            $_= <<END;
+    target_editfile_root($ho, "/etc/network/interfaces",
+                         "etc-network-interfaces", sub {
+        while (<EI>) {
+            if (m/^\s* iface \s+ eth0 \s+ inet \s+ dhcp \s/x) {
+                $_= <<END;
 iface eth0 inet static
     address $ho->{Ip}
     netmask $c{NetNetmask}
     gateway $c{NetGateway}
 END
+            }
+            print EO or die $!;
         }
-        print N or die $!;
-    }
-    M->error and die $!;
-    close M or die $!;
-    close N or die $!;
-    target_putfile_root($ho, 60, "$lifs.new", $rifs);
+    });
 }    
 
 if ($checkmode) {

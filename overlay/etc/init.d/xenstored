@@ -1,0 +1,64 @@
+#!/bin/bash
+#
+# xenstored	Script to start and stop xenstored
+#               FOR USE WITH LIBXL, not xend
+#
+# Author:       Ian Jackson <ian.jackson@eu.citrix.com>
+#
+# chkconfig: 2345
+# description: Starts and stops the Xen control daemon.
+### BEGIN INIT INFO
+# Provides:          xenstored
+# Required-Start:    $syslog $remote_fs
+# Should-Start:
+# Required-Stop:     $syslog $remote_fs
+# Should-Stop:
+# Default-Start:     3 4 5
+# Default-Stop:      
+# Default-Enabled:   yes
+# Short-Description: Start/stop xenstored
+# Description:       Starts and stops the Xenstore/Xenbus daemon
+### END INIT INFO
+
+shopt -s extglob
+test -f /etc/sysconfig/xend && . /etc/sysconfig/xend
+
+if   test "x$1" = xstart && \
+     test -d /proc/xen && \
+   ! test -d /proc/xen/capabilities && \
+     grep '	xenfs$' /proc/filesystems >/dev/null && \
+   ! grep '^xenfs ' /proc/mounts >/dev/null;
+then
+	mount -t xenfs xenfs /proc/xen
+fi
+
+if ! grep -q "control_d" /proc/xen/capabilities ; then
+	exit 0
+fi
+
+case "$1" in
+  start)
+	test -z "$XENSTORED_ROOTDIR" || export XENSTORED_ROOTDIR
+	test -z "$XENCONSOLED_TRACE" || export XENCONSOLED_TRACE
+	[[ "$XENSTORED_TRACE" == @(yes|on|1) ]] && export XENSTORED_TRACE
+	xenstored
+	;;
+  status)
+        xenstore-read -s /
+	;;
+  stop)
+        echo >&2 'Not stopping xenstored'
+	;;
+  reload|force-reload)
+        ;;
+  restart)
+        echo >&2 'Not restarting xenstored'
+	;;
+  *)
+	# do not advertise unreasonable commands that there is no reason
+	# to use with this device
+	echo $"Usage: $0 {start|stop|status|reload|force-reload}"
+	exit 1
+esac
+
+exit $?
