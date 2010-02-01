@@ -19,7 +19,7 @@ sub build () {
     $kerns =~ s/,/ /g;
     
     target_cmd($ho, "rm -rf $builddir && mkdir $builddir", 60);
-    target_cmd_build($ho, 300, $builddir,
+    target_cmd_build($ho, 1000, $builddir,
                <<END.
 	hg clone '$r{tree_xen}' xen-unstable
 	cd xen-unstable

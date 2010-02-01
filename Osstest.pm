@@ -173,9 +173,11 @@ sub cmd {
     };
     if ($@) {
         die unless $@ eq "alarm\n";
+        logm("command timed out [$timeout]: @cmd");
         return '(timed out)';
     }
     die "$r $child $!" unless $r == $child;
+    logm("command nonzero waitstatus $?: @cmd") if $?;
     return $?;
 }
 
@@ -931,7 +933,8 @@ our %toolstacks=
         Daemon => 'xend'
         },
      'xl' => {
-        Daemon => 'xenstored'
+        Daemon => 'xenstored',
+        Dom0MemFixed => 1,
         }
      );
 
