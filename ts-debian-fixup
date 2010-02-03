@@ -101,6 +101,8 @@ sub xlcfg () {
     target_editfile_root($ho, $cfg_xend, undef, $cfg_xl, sub {
         local ($/)= undef;
         $_= <EI>;
+        s/^ [ \t]* memory [ \t]* \= [ \t]* ['"] (.+) ['"] [ \t]*
+          $/memory=$1/mx;
         s/([[,])\s*\n/$1/g;
         s/,\s*\]/\]/g;
         s/([^#\n].*)\n/$1;\n/mg;
