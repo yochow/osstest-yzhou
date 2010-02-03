@@ -930,10 +930,10 @@ sub guest_vncsnapshot_stash ($$$$) {
 
 our %toolstacks=
     ('xend' => {
-        Daemon => 'xend'
+        DaemonInitd => 'xend'
         },
      'xl' => {
-        Daemon => 'xenstored',
+        DaemonInitd => 'xenlightdaemons',
         Dom0MemFixed => 1,
         }
      );

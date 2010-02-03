@@ -133,9 +133,9 @@ sub setupboot () {
 }
 
 sub setupinitd () {
-    my $daemon= toolstack()->{Daemon};
-    target_cmd_root($ho, "update-rc.d $daemon start 92 2 .")
-        if defined $daemon;
+    my $initd= toolstack()->{DaemonInitd};
+    target_cmd_root($ho, "update-rc.d $initd start 92 2 .")
+        if defined $initd;
 }
 
 sub nodhcp () {
