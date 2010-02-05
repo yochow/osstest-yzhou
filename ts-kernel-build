@@ -13,7 +13,7 @@ my $builddir= "/home/osstest/$leaf";
 
 sub build () {
     target_cmd($ho, "rm -rf $builddir && mkdir $builddir", 60);
-    target_cmd_build($ho, 1000, $builddir, <<END.
+    target_cmd_build($ho, 2000, $builddir, <<END.
 	hg clone $r{tree_linux} linux
 END
                (length($r{treepq_linux}) ? <<END : '')

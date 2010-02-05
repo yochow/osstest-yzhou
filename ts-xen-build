@@ -19,7 +19,7 @@ sub build () {
     $kerns =~ s/,/ /g;
     
     target_cmd($ho, "rm -rf $builddir && mkdir $builddir", 60);
-    target_cmd_build($ho, 300, $builddir,
+    target_cmd_build($ho, 1000, $builddir,
                <<END.
 	hg clone '$r{tree_xen}' xen-unstable
 	cd xen-unstable
@@ -39,6 +39,14 @@ END
 	echo >>.config KERNELS='$kerns'
 END
                );
+    target_cmd_build($ho, 1000, $builddir, <<END);
+        cd xen-unstable
+        perl -i.bak -pe '
+		next unless m/^exit 0/;
+                print "setopt CONFIG_HIGHPTE n\\n" or die \$!;
+                print "setopt CONFIG_TUN y\\n" or die \$!;
+        ' buildconfigs/enable-xen-config
+END
     target_cmd_build($ho, 6000, $builddir, <<END);
         cd xen-unstable
         (make -j4 2>&1 && touch ../build-ok-stamp) |tee ../log

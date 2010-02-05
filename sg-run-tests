@@ -39,7 +39,7 @@ proc run-job {} {
     setstatus running
 
     if {$ok} { catching-otherwise blocked   check-not-blocked             }
-    if {$ok} { catching-otherwise broken  { run-ts ts-host-install }      }
+    if {$ok} { catching-otherwise broken  { run-ts ts-host-install-twice } }
     if {$ok} { catching-otherwise fail      prepare-host                  }
     if {$ok} { catching-otherwise fail      run-job/$jobinfo(recipe)      }
                catching-otherwise broken    capture-logs
