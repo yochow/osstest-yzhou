@@ -1,0 +1,80 @@
+#! /bin/sh
+### BEGIN INIT INFO
+# Provides:          xenbridge
+# Required-Start:    checkroot
+# Required-Stop:
+# Default-Start:     S
+# Default-Stop:
+# Short-Description: Create the Xen bridge
+# Description:       Rename the physical ethernet interface and create
+#                    a bridge in its place.
+### END INIT INFO
+
+. /lib/init/vars.sh
+. /lib/lsb/init-functions
+
+set -e
+
+defs=/etc/default/xen
+# Settings in /etc/default/xen:
+#  xen_pif       Physical interface name to enslave
+#  		 to the bridge and thus use for Xen guests
+#  	         defaults to eth0
+#
+#  xen_bridge    Name of bridge to create
+#  	         defaults to $xen_pif
+#
+#  xen_physpif	 Name to rename the interface $xen_pif to;
+#  		 if $xen_bridge = $xen_pif defaults to p$xen_pif
+#  		 otherwise defaults to '' meaning do not rename
+#  xen_bridge_fd
+#                brctl setfd  (defaults to 1)
+#  xen_bridge_hook
+#                run after creation and setup as
+#                  $xen_bridge_hook $xen_bridge <physical interface> <mac address>
+
+xen_pif=eth0
+xen_bridge_fd=1
+xen_bridge_hook=:
+
+test ! -f "$defs" || . "$defs"
+
+: ${xen_bridge:=$xen_pif}
+if [ "x$xen_pif" = "x$xen_bridge" ] && [ "x$xen_bridge" != x ]; then
+   : ${xen_physpif:=p$xen_pif}
+fi
+
+case "$1" in
+  start)
+	if [ "x$xen_bridge" != x ]; then
+		printf "Creating the Xen bridge..."
+		printf 'using %s ' $xen_pif
+		ifconf="`LANG=C ifconfig $xen_pif`"
+		if [ "x$xen_physpif" != x ]; then
+		        printf '%s ' "->$xen_physpif"
+			mac="`expr \"x$ifconf\" : '.*HWaddr \([0-9a-f:][0-9a-f:]*\)[ \n]'`"
+			nameif $xen_physpif $mac
+			enslave=$xen_physpif
+		else
+			enslave=$xen_pif
+		fi
+		printf "%s:%s " $xen_bridge $enslave
+		brctl addbr $xen_bridge
+		brctl addif $xen_bridge $enslave
+		brctl setfd $xen_bridge $xen_bridge_fd
+		ifconfig $enslave up
+		$xen_bridge_hook $xen_bridge $enslave $mac
+		echo .
+	fi
+	;;
+  restart|reload|force-reload|stop)
+	echo "Error: argument '$1' not supported" >&2
+	exit 3
+	;;
+  *)
+	echo "Usage: xenbridge [start|stop]" >&2
+	exit 3
+	;;
+esac
+
+:
