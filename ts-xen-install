@@ -137,6 +137,7 @@ sub setupboot () {
 
 sub setupinitd () {
     target_cmd_root($ho, "update-rc.d xend start 92 2 .");
+#    target_cmd_root($ho, "update-rc.d xenbridge start 38 S .");
 }
 
 if ($checkmode) {
