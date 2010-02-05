@@ -3,7 +3,8 @@ set -ex
 
 cd /export/home/osstest/testing.git
 
-RUNVARS='host=bedbug'
+: ${OSSTEST_HOST:=bedbug}
+: ${RUNVARS:="host=$OSSTEST_HOST"}
 export RUNVARS
 
 flight=`./make-flight`
