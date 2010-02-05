@@ -136,7 +136,8 @@ sub setupinitd () {
     my $initd= toolstack()->{DaemonInitd};
     target_cmd_root($ho, "update-rc.d $initd start 92 2 .")
         if defined $initd;
-#    target_cmd_root($ho, "update-rc.d xenbridge start 38 S .");
+    target_cmd_root($ho, "update-rc.d xenbridge start 38 S .")
+        if toolstack()->{SeparateBridgeInitd};
 }
 
 sub nodhcp () {

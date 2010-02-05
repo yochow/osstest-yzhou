@@ -935,6 +935,7 @@ our %toolstacks=
         },
      'xl' => {
         DaemonInitd => 'xenlightdaemons',
+        SeparateBridgeInitd => 1,
         Dom0MemFixed => 1,
         }
      );
