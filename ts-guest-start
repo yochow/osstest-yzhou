@@ -11,7 +11,9 @@ our $gho= selectguest(@ARGV ? $ARGV[0] : 'guest');
 
 sub start () {
     guest_umount_lv($ho, $gho);
-    target_cmd_root($ho, "xm create $r{$gho->{Guest}.'_cfgpath'}", 100);
+    my $cmd= toolstack()->{Command}." create ".
+        $r{ $gho->{Guest}.'_'. toolstack()->{CfgPathVar} };
+    target_cmd_root($ho, $cmd, 100);
 }
 
 sub checkstart () {

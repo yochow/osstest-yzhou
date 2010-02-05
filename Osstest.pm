@@ -38,7 +38,7 @@ BEGIN {
                       target_var target_var_prefix
                       selectguest prepareguest
                       guest_umount_lv guest_await guest_await_dhcp_tcp
-                      guest_xmrunning guest_check_ip guest_find_ether
+                      guest_checkrunning guest_check_ip guest_find_ether
                       guest_find_domid
                       guest_vncsnapshot_begin guest_vncsnapshot_stash
                       hg_dir_revision git_dir_revision vcs_dir_revision
@@ -566,9 +566,9 @@ sub prepareguest ($$$$$) {
     return $gho;
 }
 
-sub guest_xmrunning ($$) {
+sub guest_checkrunning ($$) {
     my ($ho,$gho) = @_;
-    my $domains= target_cmd_output_root($ho, "xm list");
+    my $domains= target_cmd_output_root($ho, toolstack()->{Command}." list");
     $domains =~ s/^Name.*\n//;
     foreach my $l (split /\n/, $domains) {
         $l =~ m/^(\S+)\s/ or die "$l ?";
@@ -931,12 +931,16 @@ sub guest_vncsnapshot_stash ($$$$) {
 
 our %toolstacks=
     ('xend' => {
-        DaemonInitd => 'xend'
+        DaemonInitd => 'xend',
+        Command => 'xm',
+        CfgPathVar => 'cfgpath',
         },
      'xl' => {
         DaemonInitd => 'xenlightdaemons',
         SeparateBridgeInitd => 1,
         Dom0MemFixed => 1,
+        Command => 'xl',
+        CfgPathVar => 'xlpath',
         }
      );
 

@@ -141,9 +141,6 @@ sub setupinitd () {
 }
 
 sub nodhcp () {
-    my $rifs= 
-    my $lifs= "$stash/etc-network-interfaces";
-
     target_editfile_root($ho, "/etc/network/interfaces",
                          "etc-network-interfaces", sub {
         while (<EI>) {

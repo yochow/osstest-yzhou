@@ -63,23 +63,27 @@ for xenarch in i386 amd64; do
 
       if [ x$kern = x-xcpkern -a $dom0arch != i386 ]; then continue; fi
 
-      ./cs-job-create $flight test-$xenarch$kern-$dom0arch-pv test-debian \
-		$RUNVARS $TEST_RUNVARS \
+      mostvars="
 		arch=$dom0arch \
 		xenbuildjob=${bfi}build-$xenarch \
 		kernbuildjob=${bfi}build-$dom0arch$kern \
 		buildjob=${bfi}build-$dom0arch \
 		kernkind=$kernkind \
+		"
+
+      ./cs-job-create $flight test-$xenarch$kern-$dom0arch-pv test-debian \
+		$RUNVARS $TEST_RUNVARS $most_runvars \
+		debian_kernkind=$kernkind \
+		debian_arch=$dom0arch
+
+      ./cs-job-create $flight test-$xenarch$kern-$dom0arch-pv test-xl \
+		$RUNVARS $TEST_RUNVARS $most_runvars \
+		toolstack=xl \
 		debian_kernkind=$kernkind \
 		debian_arch=$dom0arch
 
       ./cs-job-create $flight test-$xenarch$kern-$dom0arch-win test-win \
-		$RUNVARS $TEST_RUNVARS \
-		arch=$dom0arch \
-		xenbuildjob=${bfi}build-$xenarch \
-		kernbuildjob=${bfi}build-$dom0arch$kern \
-		buildjob=${bfi}build-$dom0arch \
-		kernkind=$kernkind \
+		$RUNVARS $TEST_RUNVARS $most_runvars \
 		win_image=winxpsp2.iso
     done
 

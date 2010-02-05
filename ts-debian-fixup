@@ -87,6 +87,10 @@ sub unmount () {
     guest_umount_lv($ho, $gho);
 }
 
+sub otherfixupcfg () {
+    $cfg =~ s/^dhcp/#$&/mg;
+};
+
 sub writecfg () {
     my $h= new IO::File $cfgstash, 'w' or die "$cfgstash $!";
     print $h $cfg or die $!;
@@ -117,6 +121,7 @@ target_kernkind_check($gho);
 access();
 console();
 filesystems();
+otherfixupcfg();
 writecfg();
 xlcfg();
 unmount();

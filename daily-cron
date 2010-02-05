@@ -3,7 +3,7 @@ set -ex
 
 cd /export/home/osstest/testing.git
 
-RUNVARS='host=bedbug'
+RUNVARS='host=spider'
 export RUNVARS
 
 flight=`./make-flight`

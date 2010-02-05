@@ -10,9 +10,9 @@ our $ho= selecthost($r{host});
 our $gho= selectguest(@ARGV ? $ARGV[0] : 'guest');
 
 sub stop () {
-    guest_xmrunning($ho, $gho) or die $gho->{Name};
+    guest_checkrunning($ho, $gho) or die $gho->{Name};
     target_cmd_root($ho, "xm shutdown -w $gho->{Name}", 200);
-    guest_xmrunning($ho, $gho) and die $gho->{Name};
+    guest_checkrunning($ho, $gho) and die $gho->{Name};
 }
 
 guest_await_dhcp_tcp($gho, 5);

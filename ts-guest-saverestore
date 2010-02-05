@@ -10,7 +10,7 @@ our $ho= selecthost($r{host});
 our $gho= selectguest(@ARGV ? $ARGV[0] : 'guest');
 
 sub save () {
-    guest_xmrunning($ho,$gho) or die $gho->{Name};
+    guest_checkrunning($ho,$gho) or die $gho->{Name};
     my $err= guest_check_ip($gho);  die "$err $gho->{Name}" if defined $err;
     target_cmd_root($ho, "xm save $gho->{Name} image", 200);
     target_ping_check_down($gho);
