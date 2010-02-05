@@ -38,11 +38,12 @@ proc run-job {} {
     set ok 1
     setstatus running
 
-    if {$ok} { catching-otherwise blocked check-not-blocked             }
-    if {$ok} { catching-otherwise broken  prepare-host                  }
-    if {$ok} { catching-otherwise fail    run-job/$jobinfo(recipe)      }
-               catching-otherwise broken  capture-logs
-    if {$ok} { setstatus pass                                           }
+    if {$ok} { catching-otherwise blocked   check-not-blocked             }
+    if {$ok} { catching-otherwise broken  { run-ts ts-host-install }      }
+    if {$ok} { catching-otherwise fail      prepare-host                  }
+    if {$ok} { catching-otherwise fail      run-job/$jobinfo(recipe)      }
+               catching-otherwise broken    capture-logs
+    if {$ok} { setstatus pass                                             }
 }
 
 proc catching-otherwise {failst script} {
@@ -68,7 +69,6 @@ proc check-not-blocked {} {
 }
 
 proc prepare-host {} {
-    run-ts ts-host-install
     run-ts ts-xen-install
     run-ts ts-host-reboot
 }
