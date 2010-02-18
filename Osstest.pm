@@ -863,11 +863,13 @@ sub target_kernkind_check ($) {
     my ($gho) = @_;
     my $pfx= target_var_prefix($gho);
     my $kernkind= $r{$pfx."kernkind"};
-    if (length $pfx && $kernkind eq 'pvops') {
-	store_runvar($pfx."rootdev", 'xvda');
-    }
-    if (length($pfx) ? $kernkind !~ m/2618/ : $kernkind eq 'pvops') {
-	store_runvar($pfx."console", 'hvc0');
+    if (exists $gho->{Guest}) {
+	if ($kernkind eq 'pvops') {
+	    store_runvar($pfx."rootdev", 'xvda');
+	    store_runvar($pfx."console", 'hvc0');
+	} elsif ($kernkind !~ m/2618/) {
+	    store_runvar($pfx."console", 'xvc0');
+	}
     }
 }
 
@@ -941,6 +943,7 @@ our %toolstacks=
         Dom0MemFixed => 1,
         Command => 'xl',
         CfgPathVar => 'xlpath',
+	RestoreNeedsConfig => 1,
         }
      );
 

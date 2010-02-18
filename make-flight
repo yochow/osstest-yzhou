@@ -9,11 +9,15 @@ if [ x$buildflight = x ]; then
 
   for arch in i386 amd64; do
 
+    eval "
+	arch_runvars=\"\$ARCH_RUNVARS_$arch\"
+    "
+
     ./cs-job-create $flight build-$arch build \
 		arch=$arch \
 	tree_qemu=git://mariner.uk.xensource.com/qemu-xen-unstable.git \
 	tree_xen=http://hg.uk.xensource.com/xen-unstable.hg \
-		$RUNVARS $BUILD_RUNVARS \
+		$RUNVARS $BUILD_RUNVARS $arch_runvars \
 		revision_xen=$REVISION_XEN \
 		revision_qemu=$REVISION_QEMU
 
@@ -21,7 +25,7 @@ if [ x$buildflight = x ]; then
 		arch=$arch \
 	tree_qemu=git://mariner.uk.xensource.com/qemu-xen-unstable.git \
 	tree_xen=http://hg.uk.xensource.com/xen-unstable.hg \
-		$RUNVARS $BUILD_RUNVARS \
+		$RUNVARS $BUILD_RUNVARS $arch_runvars \
 		xen_kernels=linux-2.6-xen \
 		revision_xen=$REVISION_XEN \
 		revision_qemu=$REVISION_QEMU
@@ -30,7 +34,7 @@ if [ x$buildflight = x ]; then
       # XCP dom0 kernel is 32-bit only
 
       ./cs-job-create $flight build-$arch-xcpkern build-kern \
-		$RUNVARS $BUILD_RUNVARS \
+		$RUNVARS $BUILD_RUNVARS $arch_runvars \
 		arch=$arch \
 	tree_linux=http://hg.uk.xensource.com/carbon/trunk/kernels/dom0.hg \
 	treepq_linux=http://hg.uk.xensource.com/carbon/trunk/kernels/dom0.pq.hg
@@ -59,16 +63,21 @@ for xenarch in i386 amd64; do
 
     for dom0arch in i386 amd64; do
 
+      eval "
+	  arch_runvars=\"\$ARCH_RUNVARS_$dom0arch\"
+      "
+
       if [ $dom0arch != $xenarch -a $xenarch != amd64 ]; then continue; fi
 
       if [ x$kern = x-xcpkern -a $dom0arch != i386 ]; then continue; fi
 
-      mostvars="
+      most_runvars="
 		arch=$dom0arch \
 		xenbuildjob=${bfi}build-$xenarch \
 		kernbuildjob=${bfi}build-$dom0arch$kern \
 		buildjob=${bfi}build-$dom0arch \
 		kernkind=$kernkind \
+		$arch_runvars
 		"
 
       ./cs-job-create $flight test-$xenarch$kern-$dom0arch-pv test-debian \
@@ -76,7 +85,7 @@ for xenarch in i386 amd64; do
 		debian_kernkind=$kernkind \
 		debian_arch=$dom0arch
 
-      ./cs-job-create $flight test-$xenarch$kern-$dom0arch-pv test-xl \
+      ./cs-job-create $flight test-$xenarch$kern-$dom0arch-xl test-xl \
 		$RUNVARS $TEST_RUNVARS $most_runvars \
 		toolstack=xl \
 		debian_kernkind=$kernkind \

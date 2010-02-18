@@ -12,11 +12,19 @@ our $gho= selectguest(@ARGV ? $ARGV[0] : 'guest');
 sub save () {
     guest_checkrunning($ho,$gho) or die $gho->{Name};
     my $err= guest_check_ip($gho);  die "$err $gho->{Name}" if defined $err;
-    target_cmd_root($ho, "xm save $gho->{Name} image", 200);
+    target_cmd_root($ho,
+		    toolstack()->{Command}
+		    ." save $gho->{Name} image",
+		    200);
     target_ping_check_down($gho);
 }
 sub restore () {
-    target_cmd_root($ho, "xm restore image", 200);
+    target_cmd_root($ho,
+		    toolstack()->{Command}
+		    ." restore "
+		    .(toolstack()->{RestoreNeedsConfig} ?
+		      $r{ $gho->{Guest}.'_'. toolstack()->{CfgPathVar} } : '')
+		    ." image", 200);
     target_ping_check_up($gho);
 }
 sub checkok () {

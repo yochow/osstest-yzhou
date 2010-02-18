@@ -17,7 +17,7 @@ sub start () {
 }
 
 sub checkstart () {
-    guest_xmrunning($ho, $gho) or die $gho->{Name};
+    guest_checkrunning($ho, $gho) or die $gho->{Name};
 }
 
 start();

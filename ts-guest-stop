@@ -11,7 +11,10 @@ our $gho= selectguest(@ARGV ? $ARGV[0] : 'guest');
 
 sub stop () {
     guest_checkrunning($ho, $gho) or die $gho->{Name};
-    target_cmd_root($ho, "xm shutdown -w $gho->{Name}", 200);
+    target_cmd_root($ho,
+		    toolstack()->{Command}
+		    ." shutdown -w "
+		    .$gho->{Name}, 200);
     guest_checkrunning($ho, $gho) and die $gho->{Name};
 }
 
