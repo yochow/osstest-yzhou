@@ -87,6 +87,7 @@ proc run-job/test-win {} {
 
 proc test-guest {g} {
     run-ts ts-guest-saverestore $g
+    run-ts ts-guest-localmigrate $g
     run-ts ts-guest-stop $g
 }
 

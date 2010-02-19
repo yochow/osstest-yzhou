@@ -1,0 +1,29 @@
+#!/usr/bin/perl -w
+
+use strict qw(vars);
+use DBI;
+use Osstest;
+
+readconfig();
+opendb_state();
+our $ho= selecthost($r{host});
+our $gho= selectguest(@ARGV ? $ARGV[0] : 'guest');
+
+sub migrate () {
+    guest_checkrunning($ho,$gho) or die $gho->{Name};
+    my $err= guest_check_ip($gho);  die "$err $gho->{Name}" if defined $err;
+    target_cmd_root($ho,
+		    toolstack()->{Command}
+		    ." migrate $gho->{Name} localhost",
+		    200);
+    target_ping_check_up($gho);
+}
+sub checkok () {
+    await_tcp(5,1, $gho);
+    target_cmd_root($gho, "echo guest $gho->{Name}: migrated")
+        if $r{"$gho->{Guest}_tcpcheckport"} == 22;
+}
+
+guest_await_dhcp_tcp($gho, 5);
+migrate();
+checkok();
