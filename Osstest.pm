@@ -863,13 +863,12 @@ sub target_kernkind_check ($) {
     my ($gho) = @_;
     my $pfx= target_var_prefix($gho);
     my $kernkind= $r{$pfx."kernkind"};
-    if (exists $gho->{Guest}) {
-	if ($kernkind eq 'pvops') {
-	    store_runvar($pfx."rootdev", 'xvda');
-	    store_runvar($pfx."console", 'hvc0');
-	} elsif ($kernkind !~ m/2618/) {
-	    store_runvar($pfx."console", 'xvc0');
-	}
+    my $isguest= exists $gho->{Guest};
+    if ($kernkind eq 'pvops') {
+        store_runvar($pfx."rootdev", 'xvda') if $isguest;
+        store_runvar($pfx."console", 'hvc0');
+    } elsif ($kernkind !~ m/2618/) {
+        store_runvar($pfx."console", 'xvc0') if $isguest;
     }
 }
 
