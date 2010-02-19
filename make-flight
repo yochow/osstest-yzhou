@@ -85,7 +85,7 @@ for xenarch in i386 amd64; do
 		debian_kernkind=$kernkind \
 		debian_arch=$dom0arch
 
-      ./cs-job-create $flight test-$xenarch$kern-$dom0arch-xl test-xl \
+      ./cs-job-create $flight test-$xenarch$kern-$dom0arch-xl test-debian \
 		$RUNVARS $TEST_RUNVARS $most_runvars \
 		toolstack=xl \
 		debian_kernkind=$kernkind \
