@@ -57,8 +57,8 @@ our $dbh_state;
 our $dbh_tests;
 
 our %timeout= qw(RebootDown   100
-                 RebootUp     200
-                 HardRebootUp 300);
+                 RebootUp     400
+                 HardRebootUp 600);
 
 sub csreadconfig () {
     require 'config.pl';
