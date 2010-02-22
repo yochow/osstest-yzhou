@@ -1,4 +1,4 @@
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 # m h dom mon dow command
-20 0	* * *	env OSSTEST_HOST=bedbug testing.git/daily-cron
-8 0	* * *	env OSSTEST_HOST=earwig testing.git/daily-cron
+20 0	* * *	testing.git/daily-cron --real
+8 0	* * *	testing.git/daily-cron --real

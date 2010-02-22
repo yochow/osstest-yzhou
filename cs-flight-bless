@@ -1,0 +1,19 @@
+#!/usr/bin/perl -w
+#
+# args:
+#   <flight> <blessing>
+
+use strict qw(vars);
+use DBI;
+use Osstest;
+
+csreadconfig();
+
+die unless @ARGV == 2;
+my ($flight,$blessing) = @ARGV;
+
+db_retry($dbh_tests, sub {
+    my $q= $dbh_tests->
+        prepare("UPDATE FLIGHTS SET blessing=? WHERE flight=?");
+    $q->execute($blessing, $flight);
+});

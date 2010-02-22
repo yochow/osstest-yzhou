@@ -1,36 +1,77 @@
 #!/bin/sh
 set -ex
 
-cd /export/home/osstest/testing.git
+if [ "x$1" = "--real" ]; then
+	: ${OSSTEST_BLESSING:=real}
+else
+	: ${OSSTEST_BLESSING:=play}
+fi	
 
-: ${OSSTEST_HOST:=spider}
-: ${RUNVARS:="host=$OSSTEST_HOST"}
-export RUNVARS
+if [ x"$OSSTEST_BLESSING" = xreal ]; then
+	cd ${OSSTEST_DIR:=/export/home/osstest/testing.git}
+fi
+: ${OSSTEST_EMAIL_HEADER:=daily-cron-email-$OSSTEST_BLESSING}
+
+. daily-cron-settings-$OSSTEST_BLESSING
+
+: ${ARCH_RUNVARS_i386:="host=$OSSTEST_HOST_i386"}
+: ${ARCH_RUNVARS_amd64:="host=$OSSTEST_HOST_amd64"}
+export ARCH_RUNVARS_i386
+export ARCH_RUNVARS_amd64
+
+if [ "x$OSSTEST_HOST_i386" != x"$OSSTEST_HOST_amd64" ]; then
+	hostlists="$OSSTEST_HOST_i386 $OSSTEST_HOST_amd64"
+else
+	hostlists="$OSSTEST_HOST_i386"
+fi
 
 flight=`./make-flight`
+
+./cs-flight-bless $flight running
+
+trap "
+	set +e
+	./cs-flight-bless $flight crashed
+	exit 1
+" 0
+
 (
 	set -x
 	exec 2>&1
-	date
-	./sg-run-builds $flight
-	date
-	./sg-run-builds $flight
-	date
-	./sg-run-builds $flight
-	date
-	./sg-run-tests $flight
-	date
-	./sg-run-tests $flight
-	date
-	./sg-run-tests $flight
-	date
+	for hostlist in $hostlists; do
+	(
+			date
+			./sg-run-builds $flight --hostlist=$hostlist
+			date
+			./sg-run-builds $flight --hostlist=$hostlist
+			date
+			./sg-run-builds $flight --hostlist=$hostlist
+			date
+	) &
+	done
+	wait
+
+	for hostlist in $hostlists; do
+	(
+		date
+		./sg-run-tests $flight --hostlist=$OSSTEST_HOST_i386
+		date
+		./sg-run-tests $flight --hostlist=$OSSTEST_HOST_i386
+		date
+		./sg-run-tests $flight --hostlist=$OSSTEST_HOST_i386
+		date
+		./sg-run-tests $flight --hostlist=$OSSTEST_HOST_i386
+		date
+	) &
+	done
+	wait
 ) >tmp/$flight.transcript
 
+./cs-flight-bless $flight $OSSTEST_BLESSING
+trap "" 0
+
 exec >tmp/$flight.email
-echo \
-'To: ian.jackson@eu.citrix.com,
-    keir.fraser@eu.citrix.com,
-    stefano.stabellini@eu.citrix.com'
+cat $OSSTEST_EMAIL_HEADER
 printf 'Subject: '
 
 ./sg-report-flight $flight

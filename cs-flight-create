@@ -8,7 +8,8 @@ csreadconfig();
 
 my ($flight) = 
     db_retry($dbh_tests, sub {
-        $dbh_tests->do('INSERT INTO flights VALUES (DEFAULT)');
+        $dbh_tests->do("INSERT INTO flights VALUES".
+                       " (DEFAULT,DEFAULT,'constructing')");
         return $dbh_tests->
             selectrow_array('SELECT MAX(flight) FROM flights');
     });

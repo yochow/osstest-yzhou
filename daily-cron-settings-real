@@ -1,0 +1,2 @@
+OSSTEST_HOST_i386=earwig
+OSSTEST_HOST_amd64=bedbug

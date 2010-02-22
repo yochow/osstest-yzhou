@@ -24,6 +24,13 @@ proc readconfig {} {
     close $ch
 }
 
+proc logputs {f m} {
+    global argv
+    set time [clock format [clock seconds] -gmt true \
+                  -format "%Y-%m-%d %H:%M:%S Z"]
+    puts $f "$time \[$argv] $m"
+}
+
 proc db-open {} {
     pg_connect -conninfo "dbname=osstestdb" -connhandle dbh
 }
@@ -40,11 +47,33 @@ proc prepare-job {job} {
     global flight argv c
     set desc "$flight.$job"
 
-    if {[llength $argv] && [lsearch -exact $argv $job] < 0} {
-        puts "suppress $desc"
-        return 0
+    foreach constraint $argv {
+        if {[regexp {^--jobs=(.*)$} $constraint dummy jobs]} {
+            if {[lsearch -exact [split $jobs ,] $job] < 0} {
+                logputs stdout "suppress $desc (jobs)"
+                return 0
+            }
+        } elseif {[regexp {^--hostlist=(.*)$} $constraint dummy wanthosts]} {
+            set actualhosts {}
+            pg_execute -array hostinfo dbh "
+                SELECT val FROM runvars
+                    WHERE  flight=$flight
+                    AND    job='$job'
+                    AND   (name='host' OR name LIKE '%_host')
+                  ORDER BY name
+            " {
+                lappend actualhosts $hostinfo(val)
+            }
+            if {[string compare $wanthosts [join $actualhosts ,]]} {
+                logputs stdout "suppress $desc (hosts $actualhosts)"
+                return 0
+            }
+        } else {
+            error "unknown constraint $constraint"
+        }
     }
-    puts "prepping $desc"
+
+    logputs stdout "prepping $desc"
     if {![job-set-host $flight $job $c(Host)]} {
         return 0
     }
@@ -61,7 +90,7 @@ proc spawn-ts {ts args} {
 
     set detstr "$flight.$jobinfo(job) $ts $args"
     set details [list $flight $jobinfo(job) $ts $detstr]
-    puts "starting $detstr"
+    logputs stdout "starting $detstr"
     
     set logdir $c(Logs)/$flight.$jobinfo(job)
     file mkdir $logdir
@@ -121,7 +150,7 @@ proc job-set-host {flight job host} {
     if {[info exists hostinfo(val)]} {
         pg_execute dbh ROLLBACK
         if {[string length $host] && [string compare $hostinfo(val) $host]} {
-            puts "wronghost $flight.$job $hostinfo(val)"
+            logputs stdout "wronghost $flight.$job $hostinfo(val)"
             return 0
         }
         return 1
@@ -151,7 +180,7 @@ proc step-set-status {flight job ts st} {
 proc reap-ts {reap} {
     upvar #0 reap_details($reap) details
     set detstr [lindex $details 3]
-    puts "awaiting $detstr"
+    logputs stdout "awaiting $detstr"
     if {[catch { close $reap } emsg]} {
         set result fail
     } else {
@@ -159,6 +188,6 @@ proc reap-ts {reap} {
     }
 
     eval step-set-status [lrange $details 0 2] $result
-    puts "finished $detstr $result $emsg"
+    logputs stdout "finished $detstr $result $emsg"
     return [string compare $result fail]
 }

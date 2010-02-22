@@ -1,0 +1,2 @@
+: ${OSSTEST_HOST_i386:=spider}
+: ${OSSTEST_HOST_amd64:=spider}

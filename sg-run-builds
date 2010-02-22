@@ -36,7 +36,7 @@ proc main {} {
     }
 
     if {$anyfailed} {
-        puts stderr "at least one build failed"
+        logputs stderr "at least one build failed"
     }
 }
 
@@ -59,7 +59,7 @@ proc perhaps-start-job {} {
     "
     if {[info exists doingarch]} {
         if {[string compare $doingarch $archinfo(val)]} {
-	    puts "skipping $jobinfo(job) (arch $doingarch)"
+	    logputs stdout "skipping $jobinfo(job) (arch $doingarch)"
 	    return
 	}
     }
@@ -67,7 +67,7 @@ proc perhaps-start-job {} {
     if {![prepare-job $jobinfo(job)]} return
 
     if {![info exists doingarch]} {
-        puts "selected arch $archinfo(val)"
+        logputs stdout "selected arch $archinfo(val)"
         set doingarch $archinfo(val)
     }
 
