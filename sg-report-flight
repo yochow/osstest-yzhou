@@ -10,25 +10,29 @@ my ($flight)= @ARGV;
 
 csreadconfig();
 
+my $flightinfo= $dbh_tests->selectrow_hashref(<<END);
+    SELECT * FROM flights
+        WHERE flight=$flight
+END
+
 my $jobs= $dbh_tests->selectall_arrayref(<<END, { Slice => {} });
     SELECT * FROM jobs
         WHERE flight=$flight
         ORDER BY job
 END
 
-my $toptext= <<END;
-flight $flight
+my $toptext='';
 
-END
-
-my $jl= 30;
-my $sl= 25;
+my $jl= 28;
+my $sl= 30;
 my $rl= 9;
-my $cols= 2;
-my $cw= 38;
+my $cols= 1;
+my $cw= 75;
 
 my @jobtexts;
 my %counts;
+
+my @fails;
 
 {
     my $row= 0;
@@ -46,11 +50,15 @@ my %counts;
 END
         $sth->execute();
 
-        $toptext .= sprintf "%-${jl}s %-${rl}s\n", $j->{job}, $j->{status};
+        $toptext .= sprintf " %-${jl}s %-${rl}s\n", $j->{job}, $j->{status};
 
 	while (my $s= $sth->fetchrow_hashref()) {
 	    $jobtext .= sprintf "%2d %-${sl}s %-${rl}s\n",
-	        $s->{stepno}, $s->{step}, $s->{status};
+	        $s->{stepno}, $s->{testid}, $s->{status};
+            if ($s->{status} ne 'pass') {
+                push @fails, sprintf " %-${jl}s %2d %-${sl}s %-${rl}s",
+                    $j->{job}, $s->{stepno}, $s->{testid}, $s->{status};
+            }
 	}
 
         my $revh= $dbh_tests->prepare(<<END);
@@ -85,7 +93,19 @@ if ($outcomes eq 'pass') {
 }
 print "oss xen test $flight: $outcome\n" or die $!;
 
-print $toptext, "\n" or die $!;
+print <<END
+
+flight $flight $flightinfo->{blessing}
+
+tests which did not succeed:
+END
+    or die $!;
+
+foreach my $fail (@fails) {
+    print $fail, "\n";
+}
+
+print "\njobs:\n", $toptext, "\n" or die $!;
 
 foreach my $row (0..$#jobtexts) {
     foreach my $col (0..$cols-1) {

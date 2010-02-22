@@ -85,15 +85,8 @@ proc run-ts {args} {
     if {![reap-ts $reap]} { error "test script failed" }
 }
 
-proc spawn-ts {ts args} {
+proc spawn-ts {testid ts args} {
     global flight c jobinfo reap_details
-
-    set detstr "$flight.$jobinfo(job) $ts $args"
-    set details [list $flight $jobinfo(job) $ts $detstr]
-    logputs stdout "starting $detstr"
-    
-    set logdir $c(Logs)/$flight.$jobinfo(job)
-    file mkdir $logdir
 
     pg_execute dbh BEGIN
     if {[catch {
@@ -109,7 +102,8 @@ proc spawn-ts {ts args} {
 	}
 	pg_execute dbh "
             INSERT INTO steps
-                VALUES ($flight, '$jobinfo(job)', $stepno, '$ts', 'running')
+                VALUES ($flight, '$jobinfo(job)', $stepno, '$ts', 'running',
+                        'TBD')
         "
 	pg_execute dbh COMMIT
     } emsg]} {
@@ -120,13 +114,36 @@ proc spawn-ts {ts args} {
 	error $emsg $ei $ec
     }
 
+    regsub {^ts-} [join "$ts $args" /] {} deftestid
+    if {![string compare $testid =]} {
+        set testid deftestid
+    } elseif {![string compare $testid *]} {
+        set testid $deftestid//*
+    }
+    regsub {//\*$} $testid //$stepno testid
+
+    pg_execute dbh "
+        UPDATE steps SET testid=[pg_quote $testid]
+            WHERE flight=$flight and stepno=$stepno
+    "
+
+    set detstr "$flight.$jobinfo(job) $ts $args"
+    set details [list $flight $jobinfo(job) $ts $detstr]
+    logputs stdout "starting $detstr"
+    
+    set logdir $c(Logs)/$flight.$jobinfo(job)
+    file mkdir $logdir
+
     set log $logdir/$stepno.$ts.log
 
     set cmd [concat \
-                 [list sh -xec "
+                 [list sh -xc "
                      OSSTEST_JOB=$jobinfo(job)
                      export OSSTEST_JOB
-                     exec \"$@\" >&2
+                     \"$@\" >&2
+                     rc=\$?
+                     date -u +\"%Y-%m-%d %H:%M:%S Z exit status \$rc\" >&2
+                     exit \$rc
                  " x ./$ts] \
                  $args \
                  [list 2> $log < /dev/null]]

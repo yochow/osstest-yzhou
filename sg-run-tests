@@ -39,7 +39,9 @@ proc run-job {} {
     setstatus running
 
     if {$ok} { catching-otherwise blocked   check-not-blocked             }
-    if {$ok} { catching-otherwise broken  { run-ts ts-host-install-twice } }
+    if {$ok} { catching-otherwise broken  {
+        run-ts host-install//* ts-host-install-twice
+    } }
     if {$ok} { catching-otherwise fail      prepare-host                  }
     if {$ok} { catching-otherwise fail      run-job/$jobinfo(recipe)      }
                catching-otherwise broken    capture-logs
@@ -61,34 +63,34 @@ proc catching-otherwise {failst script} {
 }
 
 proc capture-logs {} {
-    run-ts ts-logs-capture
+    run-ts * ts-logs-capture
 }
 
 proc check-not-blocked {} {
-    run-ts ts-xen-build-check
+    run-ts * ts-xen-build-check
 }
 
 proc prepare-host {} {
-    run-ts ts-xen-install
-    run-ts ts-host-reboot
+    run-ts = ts-xen-install
+    run-ts xen-boot ts-host-reboot
 }
 
 proc run-job/test-debian {} {
-    run-ts ts-debian-install
-    run-ts ts-debian-fixup debian
-    run-ts ts-guest-start debian
+    run-ts = ts-debian-install
+    run-ts = ts-debian-fixup debian
+    run-ts = ts-guest-start debian
     test-guest debian
 }
 
 proc run-job/test-win {} {
-    run-ts ts-windows-install
+    run-ts = ts-windows-install
     test-guest win
 }
 
 proc test-guest {g} {
-    run-ts ts-guest-saverestore $g
-    run-ts ts-guest-localmigrate $g
-    run-ts ts-guest-stop $g
+    run-ts = ts-guest-saverestore $g
+    run-ts = ts-guest-localmigrate $g
+    run-ts = ts-guest-stop $g
 }
 
 main
