@@ -85,8 +85,10 @@ proc run-ts {args} {
     if {![reap-ts $reap]} { error "test script failed" }
 }
 
-proc spawn-ts {testid ts args} {
+proc spawn-ts {iffail testid ts args} {
     global flight c jobinfo reap_details
+
+    if {![string compare . $iffail]} { set iffail fail }
 
     pg_execute dbh BEGIN
     if {[catch {
@@ -118,12 +120,13 @@ proc spawn-ts {testid ts args} {
     if {![string compare $testid =]} {
         set testid $deftestid
     } elseif {![string compare $testid *]} {
-        set testid $deftestid//*
+        set testid $deftestid
+        append testid (*)
     }
-    regsub {//\*$} $testid //$stepno testid
+    regsub {\(\*\)$} $testid ($stepno) testid
 
     set detstr "$flight.$jobinfo(job) $ts $args"
-    set details [list $flight $jobinfo(job) $ts $detstr]
+    set details [list $flight $jobinfo(job) $ts $detstr $iffail]
     logputs stdout "starting $detstr $testid"
     
     pg_execute dbh "
@@ -199,14 +202,15 @@ proc step-set-status {flight job ts st} {
 proc reap-ts {reap} {
     upvar #0 reap_details($reap) details
     set detstr [lindex $details 3]
+    set iffail [lindex $details 4]
     logputs stdout "awaiting $detstr"
     if {[catch { close $reap } emsg]} {
-        set result fail
+        set result $iffail
     } else {
         set result pass
     }
 
     eval step-set-status [lrange $details 0 2] $result
     logputs stdout "finished $detstr $result $emsg"
-    return [string compare $result fail]
+    return [expr {![string compare $result pass]}]
 }

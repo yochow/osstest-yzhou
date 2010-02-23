@@ -44,8 +44,8 @@ proc prepare-host {} {
     global prepared jobinfo
     if {[info exists prepared]} return
 
-    run-ts host-install ts-host-install-twice
-    run-ts host-build-prep ts-xen-build-prep
+    run-ts broken host-install ts-host-install-twice
+    run-ts . host-build-prep ts-xen-build-prep
 
     set prepared 1
 }
@@ -78,7 +78,7 @@ proc perhaps-start-job {} {
         global errorInfo errorCode
         set ei $errorInfo
         set ec $errorCode
-        run-ts * ts-logs-capture
+        run-ts broken * ts-logs-capture
         setstatus retriable
         return
     }
@@ -88,10 +88,10 @@ proc perhaps-start-job {} {
 }
 
 proc spawn-job/build {} {
-    return [spawn-ts = ts-xen-build]
+    return [spawn-ts . = ts-xen-build]
 }
 proc spawn-job/build-kern {} {
-    return [spawn-ts = ts-kernel-build]
+    return [spawn-ts . = ts-kernel-build]
 }
 
 main

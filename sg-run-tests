@@ -31,16 +31,18 @@ proc main {} {
 }
 
 proc run-job {} {
-    global jobinfo builds flight
+    global jobinfo builds flight ok
 
     if {![prepare-job $jobinfo(job)]} return
 
     set ok 1
     setstatus running
 
-    if {$ok} { catching-otherwise blocked   check-not-blocked             }
+               catching-otherwise blocked   check-not-blocked
+    if {!$ok} return
+
     if {$ok} { catching-otherwise broken  {
-        run-ts host-install//* ts-host-install-twice
+        run-ts broken host-install(*) ts-host-install-twice
     } }
     if {$ok} { catching-otherwise fail      prepare-host                  }
     if {$ok} { catching-otherwise fail      run-job/$jobinfo(recipe)      }
@@ -49,8 +51,7 @@ proc run-job {} {
 }
 
 proc catching-otherwise {failst script} {
-    global anyfail flight jobinfo
-    upvar 1 ok ok
+    global anyfail flight jobinfo ok
 
     if {[catch {
         uplevel 1 $script
@@ -63,34 +64,34 @@ proc catching-otherwise {failst script} {
 }
 
 proc capture-logs {} {
-    run-ts * ts-logs-capture
+    run-ts broken * ts-logs-capture
 }
 
 proc check-not-blocked {} {
-    run-ts * ts-xen-build-check
+    run-ts blocked * ts-xen-build-check
 }
 
 proc prepare-host {} {
-    run-ts = ts-xen-install
-    run-ts xen-boot ts-host-reboot
+    run-ts . = ts-xen-install
+    run-ts . xen-boot ts-host-reboot
 }
 
 proc run-job/test-debian {} {
-    run-ts = ts-debian-install
-    run-ts = ts-debian-fixup debian
-    run-ts = ts-guest-start debian
+    run-ts . = ts-debian-install
+    run-ts . = ts-debian-fixup debian
+    run-ts . = ts-guest-start debian
     test-guest debian
 }
 
 proc run-job/test-win {} {
-    run-ts = ts-windows-install
+    run-ts . = ts-windows-install
     test-guest win
 }
 
 proc test-guest {g} {
-    run-ts = ts-guest-saverestore $g
-    run-ts = ts-guest-localmigrate $g
-    run-ts = ts-guest-stop $g
+    run-ts . = ts-guest-saverestore $g
+    run-ts . = ts-guest-localmigrate $g
+    run-ts . = ts-guest-stop $g
 }
 
 main

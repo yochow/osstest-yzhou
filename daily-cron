@@ -3,6 +3,7 @@ set -ex
 
 if [ "x$1" = "x--real" ]; then
 	: ${OSSTEST_BLESSING:=real}
+	shift
 else
 	: ${OSSTEST_BLESSING:=play}
 fi	
@@ -25,7 +26,7 @@ else
 	hostlists="$OSSTEST_HOST_i386"
 fi
 
-flight=`./make-flight`
+flight=`./make-flight "$@"`
 
 ./cs-flight-bless $flight running
 
@@ -39,7 +40,7 @@ trap "
 	set -x
 	exec 2>&1
 	for hostlist in $hostlists; do
-	(
+		(
 			date
 			./sg-run-builds $flight --hostlist=$hostlist
 			date
@@ -47,22 +48,24 @@ trap "
 			date
 			./sg-run-builds $flight --hostlist=$hostlist
 			date
-	) &
+		) &
+		: spawned builds $! $hostlist
 	done
 	wait
 
 	for hostlist in $hostlists; do
-	(
+		(
 		date
-		./sg-run-tests $flight --hostlist=$OSSTEST_HOST_i386
+		./sg-run-tests $flight --hostlist=$hostlist
 		date
-		./sg-run-tests $flight --hostlist=$OSSTEST_HOST_i386
+		./sg-run-tests $flight --hostlist=$hostlist
 		date
-		./sg-run-tests $flight --hostlist=$OSSTEST_HOST_i386
+		./sg-run-tests $flight --hostlist=$hostlist
 		date
-		./sg-run-tests $flight --hostlist=$OSSTEST_HOST_i386
+		./sg-run-tests $flight --hostlist=$hostlist
 		date
-	) &
+		) &
+		: spawned tests $! $hostlist
 	done
 	wait
 ) >tmp/$flight.transcript

@@ -184,7 +184,10 @@ sub cmd {
 sub sshuho ($$) { my ($user,$ho)= @_; return "$user\@$ho->{Ip}"; }
 
 sub sshopts () {
-    return [ qw(-o UserKnownHostsFile=known_hosts) ];
+    return [ qw(-o UserKnownHostsFile=known_hosts
+                -o BatchMode=yes
+                -o PasswordAuthentication=no
+                -o ChallengeResponseAuthentication=no) ];
 }
 
 sub tcmdex {
