@@ -15,7 +15,7 @@ sub migrate () {
     target_cmd_root($ho,
 		    toolstack()->{Command}
 		    ." migrate $gho->{Name} localhost",
-		    200);
+		    400);
     target_ping_check_up($gho);
 }
 sub checkok () {
