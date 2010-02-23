@@ -116,21 +116,23 @@ proc spawn-ts {testid ts args} {
 
     regsub {^ts-} [join "$ts $args" /] {} deftestid
     if {![string compare $testid =]} {
-        set testid deftestid
+        set testid $deftestid
     } elseif {![string compare $testid *]} {
         set testid $deftestid//*
     }
     regsub {//\*$} $testid //$stepno testid
 
-    pg_execute dbh "
-        UPDATE steps SET testid=[pg_quote $testid]
-            WHERE flight=$flight and stepno=$stepno
-    "
-
     set detstr "$flight.$jobinfo(job) $ts $args"
     set details [list $flight $jobinfo(job) $ts $detstr]
-    logputs stdout "starting $detstr"
+    logputs stdout "starting $detstr $testid"
     
+    pg_execute dbh "
+        UPDATE steps SET testid=[pg_quote $testid]
+            WHERE flight=$flight
+              AND job=[pg_quote $jobinfo(job)]
+              AND stepno=$stepno
+    "
+
     set logdir $c(Logs)/$flight.$jobinfo(job)
     file mkdir $logdir
 
