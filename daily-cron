@@ -1,7 +1,7 @@
 #!/bin/sh
 set -ex
 
-if [ "x$1" = "--real" ]; then
+if [ "x$1" = "x--real" ]; then
 	: ${OSSTEST_BLESSING:=real}
 else
 	: ${OSSTEST_BLESSING:=play}

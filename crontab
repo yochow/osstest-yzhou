@@ -1,4 +1,4 @@
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 # m h dom mon dow command
-20 0	* * *	testing.git/daily-cron --real
-8 0	* * *	testing.git/daily-cron --real
+49 20	* * *	testing.git/daily-cron --real
+#8 0	* * *	testing.git/daily-cron --real
