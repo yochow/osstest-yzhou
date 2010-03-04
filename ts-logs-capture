@@ -162,7 +162,7 @@ sub fetch_logs_host_guests () {
 
     foreach my $cmd
         (
-         'xc list',
+         'xl list',
          'xm list',
          'xm list --long',
          'xenstore-ls -fp'
@@ -195,7 +195,8 @@ sub fetch_logs_guest ($) {
         logm("cannot find domid: $@");
         return;
     }
-    try_cmd_output_save("sleep 1 | xm console $gho->{Name} | cat",
+    my $consolecmd= toolstack()->{Command}." console $gho->{Name}";
+    try_cmd_output_save("sleep 1 | $consolecmd | cat",
                         "guest-$gho->{Name}-console");
 
     if (!eval {
