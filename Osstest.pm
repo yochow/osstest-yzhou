@@ -234,13 +234,14 @@ sub target_putfile_root ($$$$;$) {
 }
 sub target_install_packages {
     my ($ho, @packages) = @_;
-    target_cmd_root($ho, "apt-get -y install @packages", 100 * @packages);
+    target_cmd_root($ho, "apt-get -y install @packages",
+                    300 + 100 * @packages);
 }
 sub target_install_packages_norec {
     my ($ho, @packages) = @_;
     target_cmd_root($ho,
                     "apt-get --no-install-recommends -y install @packages",
-                    100 * @packages);
+                    300 + 100 * @packages);
 }
 
 sub target_editfile_root ($$$;$$) {
