@@ -1,0 +1,35 @@
+
+We always test on the same host as the test last failed on.
+
+We need hosts specified for building.  In the future we'll
+be able to reserve a couple of hosts for building.
+
+We have a limit on how old a starting point we'll use.
+
+Basic algorithm is:
+
+* Firstly, find the most recent (a/c to flights.started) "real" flight
+  where the (job,testid) was run and gave "pass" or "fail".  It should
+  be "fail".  This is the "latest" flight.  This also specifies which
+  host we're going to run all tests on.
+
+* Secondly, find the most recent "real" flight where the (job,testid)
+  was run and passed on that host.  This is the "earliest" flight.
+
+* Construct an ordered list of revision-tuples lying between the
+  revision-tuples of the earliest and latest flights.
+
+* Scan all "bisect" flights after (start time) the "earliest" flight.
+  Ignore flights where the job was not specified for the target host.
+  For each such flight identify the revision-tuple.  Mark the relevant
+  entry in the ordered list of revision tuples with "pass", "fail", or
+  "broken".
+
+* In that list, find the latest (in list order) "pass" and the
+  earliest "fail".  pass should then be < fail.
+
+* Find the longest series of untested revisions-tuples between
+  the pass and fail.  If it is empty, stop, print final report.
+  Otherwise test the middle revision-tuple from that series.
+
+* Create the new job by cloning the old job's runvars.

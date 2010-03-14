@@ -1,0 +1,143 @@
+#!/usr/bin/perl
+
+our @turls= @ARGV;
+
+my $xu= 'http://hg.uk.xensource.com/xen-unstable.hg';
+my $qemu= 'git://mariner.uk.xensource.com/qemu-xen-unstable.git';
+
+my @toplevels= grep { $_ ne $qemu } @turls;
+
+
+sub git_generator ($) {
+    my ($treename) = @_;
+    shellcmd("set -e; exec >&2; cd repos/$treename && git-pull");
+    my $cmd= "cd repos/$treename && git-log --pretty=raw --date-order";
+    my $ch= $fh->open "| $cmd", 'r';  defined $ch or die $!;
+    return sub {
+	my (%r, $l);
+	for (;;) {
+	    defined($l= <$ch>) or die "$cmd $!";
+	    if (m/^\s/) {
+		last if @{ $r{commit} };
+		next;
+	    }
+	    m/^(\w+)\s(.*)$/ or die "$cmd: $_ ?";
+	    push @{ $r{$1} }, $2;
+	}
+	die unless @{ $r{parent} } >= 1;
+	die unless @{ $r{commit} } == 1;
+	die unless @{ $r{committer} } == 1;
+	die unless $r{commiter}[0] =~ m/ (\d+)(?: [-+]\d{4})$/;
+	my $date= $1;
+	return {
+	    Commit => $r{commit}[0],
+	    Parents => $r{parent},
+	    Date => $date
+	};
+    };
+}
+
+sub hg_generator ($) {
+    my ($treename) = @_;
+    shellcmd("set -e; exec >&2; cd repos/$treename && hg pull -u");
+    my $cmd= "cd repos/$treename && hg log --template '".
+	"{rev}:{node|short}\n".
+	"{rev}:{node|short} {date}\n".
+	"{files}\n".
+	"{parents}\n".
+	"'";
+    my $ch= $fh->open "| $cmd", 'r';  defined $ch or die $!;
+    defined <$ch> or die "$cmd $!";
+    $l =~ m/^\w+$/ or die "$l ?";
+    return sub {
+	my $r= { Parents => [] };
+	my $l;
+	defined($l= <$ch>) or die "$cmd $!";
+	m/^(\d+:\w+) (\d+)(?:\.\d+)(?:[-+]\d+)$/ or die "$cmd $l";
+	$r->{Commit}= "$1";
+	$r->{Date}= $2;
+	defined($l= <$ch>) or die "$cmd $!";
+	chomp $l;
+	$r->{Files}= split / /, $l;
+	defined($l= <$ch>) or die "$cmd $!";
+	chomp $l;
+	if (length $l) {
+	    foreach my $parentspec (split / /, $l) {
+		$parentspec =~ m/^\d+\:\w+$/ or die "$parentspec ?";
+		push @{ $r{Parents} }, $parentspec;
+	    }
+	    defined(<$ch>) or die "$cmd $!";
+	} else {
+	    defined($l= <$ch>) or die "$cmd $!";
+	    chomp $l;
+	    push @{ $r{Parents} }, $l;
+	}
+	return $r;
+    }
+}
+
+sub xulink_generator ($$) {
+    my ($xentree,$qemutree) = @_;
+    my $xengen= hg_generator($xentree);
+    my $qemugen= git_generator($qemutree);
+
+    my $xennode= something;
+    my $qemunode= qemunodeofxennode;
+
+    return sub {
+	find_xen_parents($xennode)
+	
+
+	if ($targetqemu ne 'none' and $currentqemu ne 'targetqemu') {
+    my $targetqemu= 'none';
+	    
+	my $xenrev= $xengen->();
+	if ($targetqemu eq 'none') {
+	    open CMK, "| cd repos/$xentree &&
+                         hg cat -r $xenrev->{Commit} Config.mk", 'r'
+			 or die $!;
+	    my $targetqemu;
+	    while (<CMK>) {
+		next unless m/^QEMU_TAG\s*[:?]?\=\s*(\S+)\s*$/;
+		$targetqemu= $1;
+	    }
+	    if ($targetqemu !~ m/^[0-9a-f]+$/) {
+		die if $targetqemu =~ m/[^-+._0-9a-zA-Z]/;
+		die if $targetqemu =~ m/^-/;
+		$!=0; $?=0;
+		$targetqemu= `cd repos/$qmutree &&
+                           git-rev-parse '$targetqemu'`;
+		die "$! $?" if $! or $?;
+		chomp $targetqemu;
+		die unless $targetqemu =~ m/^[0-9a-f]+$/;
+	    }
+
+ or
+	    grep { $_ eq 'Config.mk' } @{ $xenrev->{Files} }
+	    
+    };
+
+foreach my $toplevel (@toplevels) {
+    my $generator;
+    if ($toplevel eq $xu) {
+	$generator= xulink_gen_tuples('xen-unstable.hg', 'qemu-xen-unstable');
+    if ($toplevel =~ m,/(\w[^/.]+)\.git$,) {
+	$generator= git_gen_tuples($1);
+    } elsif ($toplevel =~ m,/(\w[^/.]+\.hg)$,) {
+	$generator= hg_spout_tuples($1);
+    }
+    
+    my $fh= new IO::File;
+    
+    if (!$ch) {
+	if ($toplevel eq $xu) {
+	    
+	
+
+	if ($toplevel eq '
+    my $child{$toplevel}= 
+    defined $child{$toplevel} or die $!;
+    if (!$child{$toplevel}
+
+my @nonif (grep { $_ eq $qemu }
+	@turls

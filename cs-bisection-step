@@ -1,0 +1,174 @@
+#!/usr/bin/perl -w
+#
+# Compute the best combination of things to test for another
+# bisection step.  Create a flight with appropriate builds and
+# tests.
+#
+# usage:
+#   ./cs-bisection-setup [<options>] <job> <testid>
+#      --blessings=real,bisect 
+
+use strict qw(vars);
+use Osstest;
+
+our @blessings= qw(real bisect);
+
+while (@ARGV && $ARGV[0] =~ m/^\-/) {
+    $_= shift @ARGV;
+    last if $_ eq '--';
+    if (s/^--blessings=//) {
+	@blessings= split /\,/;
+	next;
+    } else {
+	die "$_ ?";
+    }
+}
+
+@ARGV==2 or die;
+our ($job,$testid) = @ARGV;
+
+our ($latest_flight, $hosts, $earliest_flight);
+our (@trees);
+
+sub relevant_hosts ($) {
+    my ($flight) = @_;
+    my $sth= $dbh_tests->prepare(<<END);
+        SELECT name,val FROM runvars
+	   WHERE job = ?
+	     AND flight = ?
+	     AND name LIKE '%host'
+END
+    $sth->execute($job,$latest_flight);
+    return join ',', map { join '=', @$_ } @{ $sth->fetchall_arrayref() }
+}
+
+sub flight_has_relevant_hosts ($) {
+    my ($flight) = @_;
+    my $hosts= relevant_hosts($flight);
+}
+
+sub flight_rtuple ($) {
+    my ($flight) = @_;
+
+    $dbh_tests->do(<<END, {}, $job, $flight);
+    
+        SELECT t.name AS use,
+	       b.name AS name,
+	       b.val  AS val
+
+          INTO TEMP TABLE tmp_build_info
+	       
+	  FROM runvars AS t
+    CROSS JOIN runvars AS b
+    
+           WHERE t.job = ?
+	     AND t.flight = ?
+	     AND t.name LIKE '%buildjob'
+	     AND ((t.val NOT LIKE '%.%' AND b.flight=t.flight AND t.val=b.job)
+	       OR (t.val LIKE '%.%' AND t.val = b.flight || '.' || b.job))
+
+END
+    my $sth= $dbh_tests->prepare(<<END);
+
+        SELECT url.val AS uval,
+	       rev.val AS rval
+
+	    FROM tmp_build_info AS rev
+      CROSS JOIN tmp_build_info AS url
+
+           WHERE rev.name LIKE E'built\\_revision\\_%'
+  	     AND url.name LIKE E'tree\\_%'
+	     AND rev.use = url.use
+	     AND rev.name = 'built_revision_' || substr(url.name,6)
+
+	   ORDER by url.val;
+	  
+END
+    $sth->execute();
+    my $row;
+    my $mixed=0;
+    my (@turls, @trevisions);
+    while ($row= $sth->fetchrow_hashref()) {
+	if (@turls && $row->{uval} eq $turls[-1]) {
+	    if ($row->{rval} ne $trevisions[-1]) {
+		print STDERR "!! flight $flight mixed revisions for $turls[-1]: $trevisions[-1] and $row->{rval}\n";
+		$mixed=1;
+	    }
+	} else {
+	    push @turls, $row->{uval};
+	    push @trevisions, $row->{rval};
+	}
+    }
+    $dbh_tests->do(<<END);
+        DROP TABLE tmp_build_info
+END
+    return "" if $mixed;
+    if (!@turls) {
+	print STDERR "!! flight $flight no revisions or trees\n";
+	return "";
+    }
+    if (!@trees) {
+	@trees= @turls;
+	print STDERR "Tree: $_\n" foreach @trees;
+    }
+    if ("@trees" ne "@turls") {
+	print STDERR "!! flight $flight different trees: @turls\n";
+	return "";
+    }
+    map { s/\+//g; } @trevisions;
+    return @trevisions;
+}
+
+sub findbasics () {
+    my $sth= $dbh_tests->prepare(<<END);
+	SELECT * FROM flights NATURAL JOIN steps
+	   WHERE job = ?
+	     AND testid = ?
+	     AND blessing = ?
+	     AND (status = 'fail' OR status = 'pass')
+	   ORDER BY started DESC
+	   LIMIT 1
+END
+    $sth->execute($job,$testid,$blessings[0]);
+    my $row= $sth->fetchrow_hashref();
+    die unless $row;
+    die "$row->{flight} $row->{status}" unless $row->{'status'} eq 'fail';
+    $latest_flight= $row->{flight};
+    print STDERR "Found failure, as expected, in flight $latest_flight\n";
+
+    $hosts= relevant_hosts($latest_flight);
+    print STDERR "Host specification list: $hosts\n";
+
+    $sth= $dbh_tests->prepare(<<END);
+        SELECT * FROM flights NATURAL JOIN steps
+	   WHERE job = ?
+	     AND testid = ?
+	     AND blessing = ?
+	     AND status = 'pass'
+	   ORDER BY started DESC
+END
+    $sth->execute($job,$testid,$blessings[0]);
+    print STDERR "Searching for last pass:";
+    while ($row= $sth->fetchrow_hashref()) {
+	print STDERR " $row->{flight}";
+	next unless flight_has_relevant_hosts($row->{flight});
+	$earliest_flight= $row->{flight};
+	last;
+    }
+    if (!$earliest_flight) {
+	die "\nNo applicable pass, sorry!\n";
+    }
+    print STDERR ".\n";
+}
+
+sub gettuples () {
+    my @latest_rtuple=   flight_rtuple($latest_flight);
+    print STDERR "Latest @latest_rtuple\n";
+    my @earliest_rtuple= flight_rtuple($earliest_flight);
+    print STDERR "Earliest @earliest_rtuple\n";
+}    
+
+csreadconfig();
+findbasics();
+gettuples();
+scantests();
