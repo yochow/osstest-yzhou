@@ -4,7 +4,7 @@ use strict qw(vars);
 use IO::File;
 no warnings qw(recursion);
 
-my $num= 100;
+my $num= 1000;
 
 our @turls= @ARGV;
 
@@ -259,14 +259,14 @@ sub coalesce () {
 	    return;
 	}
 	$out->{$node}{Date}= $explode_date;
-	print STDERR "$explode_date\n";
+	my $parents= $graphs[$explode_i]{ $node[$explode_i] }{Parents};
+	print STDERR "#$explode_i $explode_date  x$#$parents\n";
 
-	foreach my $subparent (@{
-	    $graphs[$explode_i]{ $node[$explode_i] }{Parents}
-	}) {
+	foreach my $subparent (@$parents) {
 	    $node[$explode_i]= $subparent;
 	    push @{ $out->{$node}{Parents} }, "@node";
-	    print STDERR "COA $depth ($node) $explode_date .. (@node)\n";
+	    print STDERR "COA $depth ($node) #$explode_i".
+		         " $explode_date .. (@node)\n";
 	    $generate->($depth+1, @node);
 	}
     };
