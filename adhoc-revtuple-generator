@@ -1,4 +1,10 @@
-#!/usr/bin/perl
+#!/usr/bin/perl -w
+
+use strict qw(vars);
+use IO::File;
+no warnings qw(recursion);
+
+my $num= 100;
 
 our @turls= @ARGV;
 
@@ -7,18 +13,36 @@ my $qemu= 'git://mariner.uk.xensource.com/qemu-xen-unstable.git';
 
 my @toplevels= grep { $_ ne $qemu } @turls;
 
+sub max {
+    my $max;
+    foreach my $item (@_) {
+	next if defined $max and $max>=$item;
+	$max= $item;
+    }
+    return $max;
+}
+sub min {
+    return -max(map { -$_ } @_);
+}
+
+sub shellcmd ($) {
+    $?=0; $!=0;
+    my $r= system($_[0]);
+    die "$_[0] $r $? $!" if $r;
+}
 
 sub git_generator ($) {
     my ($treename) = @_;
     shellcmd("set -e; exec >&2; cd repos/$treename && git-pull");
     my $cmd= "cd repos/$treename && git-log --pretty=raw --date-order";
-    my $ch= $fh->open "| $cmd", 'r';  defined $ch or die $!;
+    my $fh= new IO::File;
+    open $fh, "$cmd |" or die $!;
     return sub {
-	my (%r, $l);
+	my (%r);
 	for (;;) {
-	    defined($l= <$ch>) or die "$cmd $!";
+	    defined($_= <$fh>) or die "$cmd $!";
 	    if (m/^\s/) {
-		last if @{ $r{commit} };
+		last if $r{commit};
 		next;
 	    }
 	    m/^(\w+)\s(.*)$/ or die "$cmd: $_ ?";
@@ -27,8 +51,9 @@ sub git_generator ($) {
 	die unless @{ $r{parent} } >= 1;
 	die unless @{ $r{commit} } == 1;
 	die unless @{ $r{committer} } == 1;
-	die unless $r{commiter}[0] =~ m/ (\d+)(?: [-+]\d{4})$/;
+	die unless $r{committer}[0] =~ m/ (\d+)(?: [-+]\d{4})$/;
 	my $date= $1;
+	print STDERR "GEN git_generator $treename $r{commit}[0]\n";
 	return {
 	    Commit => $r{commit}[0],
 	    Parents => $r{parent},
@@ -46,98 +71,207 @@ sub hg_generator ($) {
 	"{files}\n".
 	"{parents}\n".
 	"'";
-    my $ch= $fh->open "| $cmd", 'r';  defined $ch or die $!;
-    defined <$ch> or die "$cmd $!";
-    $l =~ m/^\w+$/ or die "$l ?";
+    my $fh= new IO::File;
+    open $fh, "$cmd |" or die "$cmd $!";
+    $_= <$fh>;
+    m/^\d+:\w+$/ or die "$_ $! ?";
     return sub {
 	my $r= { Parents => [] };
-	my $l;
-	defined($l= <$ch>) or die "$cmd $!";
-	m/^(\d+:\w+) (\d+)(?:\.\d+)(?:[-+]\d+)$/ or die "$cmd $l";
+	defined($_= <$fh>) or die "$cmd $!";
+	m/^(\d+:\w+) (\d+)(?:\.\d+)?(?:[-+]\d+)?$/ or die "$cmd $_ ?";
 	$r->{Commit}= "$1";
 	$r->{Date}= $2;
-	defined($l= <$ch>) or die "$cmd $!";
-	chomp $l;
-	$r->{Files}= split / /, $l;
-	defined($l= <$ch>) or die "$cmd $!";
-	chomp $l;
-	if (length $l) {
-	    foreach my $parentspec (split / /, $l) {
+	defined($_= <$fh>) or die "$cmd $!";
+	chomp;
+	$r->{Files}= [ split / / ];
+	defined($_= <$fh>) or die "$cmd $!";
+	chomp;
+	if (length) {
+	    foreach my $parentspec (split / /) {
 		$parentspec =~ m/^\d+\:\w+$/ or die "$parentspec ?";
-		push @{ $r{Parents} }, $parentspec;
+		push @{ $r->{Parents} }, $parentspec;
 	    }
-	    defined(<$ch>) or die "$cmd $!";
+	    defined(<$fh>) or die "$cmd $!";
 	} else {
-	    defined($l= <$ch>) or die "$cmd $!";
-	    chomp $l;
-	    push @{ $r{Parents} }, $l;
+	    defined($_= <$fh>) or die "$cmd $!";
+	    chomp;
+	    push @{ $r->{Parents} }, $_;
 	}
+	print STDERR "GEN hg_generator $treename $r->{Commit}\n";
 	return $r;
     }
 }
 
-sub xulink_generator ($$) {
-    my ($xentree,$qemutree) = @_;
-    my $xengen= hg_generator($xentree);
-    my $qemugen= git_generator($qemutree);
+sub gen2_graph ($) {
+    my ($gen) = @_;
+    my $graph= { };
+    for (my $count=0; $count<$num; $count++) {
+	my $rev= $gen->();
+	print STDERR "GEN2 ", (join ' ', map { "$_=$rev->{$_}" }
+			       sort keys %$rev), " .\n";
+	if (!exists $graph->{Head}) { $graph->{Head}= $rev->{Commit} }
+	$graph->{ $rev->{Commit} }= $rev;
+    }
+    print STDERR "GEN2 head $graph->{Head}.\n";
+    return $graph;
+}
 
-    my $xennode= something;
-    my $qemunode= qemunodeofxennode;
-
+sub xu_withtag_generator ($$$) {
+    my ($xentree,$qemutree,$xengen) = @_;
+    my $targetqemu= 'unknown';
     return sub {
-	find_xen_parents($xennode)
-	
-
-	if ($targetqemu ne 'none' and $currentqemu ne 'targetqemu') {
-    my $targetqemu= 'none';
-	    
 	my $xenrev= $xengen->();
-	if ($targetqemu eq 'none') {
-	    open CMK, "| cd repos/$xentree &&
-                         hg cat -r $xenrev->{Commit} Config.mk", 'r'
+	print STDERR "XUWT (tq=$targetqemu) $xenrev->{Commit}\n";
+	if ($targetqemu eq 'unknown') {
+	    my $nodeonly= $xenrev->{Commit};
+	    $nodeonly =~ s/^\d+\://;
+	    open CMK, "cd repos/$xentree &&
+                       hg cat -r $nodeonly Config.mk |"
 			 or die $!;
-	    my $targetqemu;
 	    while (<CMK>) {
 		next unless m/^QEMU_TAG\s*[:?]?\=\s*(\S+)\s*$/;
 		$targetqemu= $1;
 	    }
 	    if ($targetqemu !~ m/^[0-9a-f]+$/) {
 		die if $targetqemu =~ m/[^-+._0-9a-zA-Z]/;
-		die if $targetqemu =~ m/^-/;
+		die unless $targetqemu =~ m/^[^-]/;
 		$!=0; $?=0;
-		$targetqemu= `cd repos/$qmutree &&
-                           git-rev-parse '$targetqemu'`;
-		die "$! $?" if $! or $?;
+		$targetqemu= `cd repos/$qemutree &&
+                              git-rev-parse '$targetqemu'`;
+		die "$! $?" if (!defined $targetqemu) or $?;
 		chomp $targetqemu;
-		die unless $targetqemu =~ m/^[0-9a-f]+$/;
 	    }
+	}
+	die unless $targetqemu =~ m/^[0-9a-f]+$/;
+	$xenrev->{QemuTag} = $targetqemu;
 
- or
-	    grep { $_ eq 'Config.mk' } @{ $xenrev->{Files} }
-	    
+	$targetqemu= 'unknown' if
+	    grep { $_ eq 'Config.mk' } @{ $xenrev->{Files} };
+
+	return $xenrev;
+    }
+}
+
+# Revision graphs are:
+#  $graph->{Head}
+#  $graph->{"<revision>"}{Parents}[0] = "<another revision>"
+#  $graph->{"<revision>"}{Date} = <time_t>
+
+sub xenplusqemu_graph ($$) {
+    my ($xentree,$qemutree) = @_;
+    my $xencoregen= hg_generator($xentree);
+    my $x= gen2_graph(xu_withtag_generator($xentree, $qemutree, $xencoregen));
+    my $q= gen2_graph(git_generator($qemutree));
+
+    my $xhead= $x->{Head};
+    my $qhead= $x->{$xhead}{QemuTag};
+    my $head= $xhead.' '.$qhead;
+    my $result= {
+	Head => $head,
     };
 
-foreach my $toplevel (@toplevels) {
-    my $generator;
-    if ($toplevel eq $xu) {
-	$generator= xulink_gen_tuples('xen-unstable.hg', 'qemu-xen-unstable');
-    if ($toplevel =~ m,/(\w[^/.]+)\.git$,) {
-	$generator= git_gen_tuples($1);
-    } elsif ($toplevel =~ m,/(\w[^/.]+\.hg)$,) {
-	$generator= hg_spout_tuples($1);
+    my ($xfindparents, $qfindparents);
+
+    $qfindparents= sub {
+	my ($xnode, $xparent, $qnode, $qtarg, $depth) = @_;
+	return unless defined $xparent and defined $qtarg;
+	printf STDERR "QFP %d %s %s %s %s ", $depth,
+	    $xnode, $xparent, $qnode, $qtarg;
+	if ($qnode eq $qtarg) {
+	    my $chosen= "$xparent $qnode";
+	    print STDERR "   XP  $xnode $qnode .. $chosen\n";
+	    push @{ $result->{"$xnode $qnode"}{Parents} }, $chosen;
+	    $xfindparents->($xparent, $qtarg, $depth+1);
+	    return;
+	}
+	foreach my $qparent (@{ $q->{$qnode}{Parents} }) {
+	    my $chosen= "$xnode $qparent";
+	    print STDERR "   QP  $xnode $qnode .. $chosen\n";
+	    push @{ $result->{"$xnode $qnode"}{Parents} }, $chosen;
+	    $qfindparents->($xnode, $xparent, $qparent, $qtarg, $depth+1);
+	}
+    };
+
+    $xfindparents= sub {
+	my ($xnode,$qnode,$depth) = @_;
+	return unless defined $xnode and defined $qnode;
+	printf STDERR "XFP %d                    %s %s\n",
+	    $depth, $xnode, $qnode;
+	foreach my $xparent (@{ $x->{$xnode}{Parents} }) {
+	    $qfindparents->($xnode, $xparent,
+			    $qnode, $x->{$xparent}{QemuTag}, $depth+1);
+	}
+    };
+
+    $xfindparents->($xhead, $qhead, 0);
+
+    foreach my $node (keys %$result) {
+	next if $node eq 'Head';
+	my ($xnode, $qnode) = split / /, $node;
+	die "$node ?" unless defined $qnode;
+	$result->{$node}{Date}= max($x->{$xnode}{Date},
+				    $q->{$qnode}{Date});
     }
-    
-    my $fh= new IO::File;
-    
-    if (!$ch) {
+    return $result;
+}
+
+sub coalesce () {
+    my @graphs;
+
+    foreach my $toplevel (@toplevels) {
+	my $graph;
 	if ($toplevel eq $xu) {
-	    
-	
+	    $graph= xenplusqemu_graph('xen-unstable.hg', 'qemu-xen-unstable');
+	} elsif ($toplevel =~ m,/(\w[^/.]+)\.git$,) {
+	    $graph= gen2_graph(git_generator($1));
+	} elsif ($toplevel =~ m,/(\w[^/.]+\.hg)$,) {
+	    $graph= gen2_graph(hg_generator($1));
+	} else {
+	    die "$toplevel ?";
+	}
+	push @graphs, $graph;
+    }
 
-	if ($toplevel eq '
-    my $child{$toplevel}= 
-    defined $child{$toplevel} or die $!;
-    if (!$child{$toplevel}
+    my $head= join ' ', map { $_->{Head} } @graphs;
+    my $out= {
+	Head => $head
+    };
 
-my @nonif (grep { $_ eq $qemu }
-	@turls
+    my $generate;
+    $generate= sub {
+	my ($depth, @node) = @_;
+	my $node = "@node";
+	print STDERR "COA $depth ($node) ";
+	# we find the newest component revision, and generate parents
+	#  for our revisioncommit-tuple by looking at the parents of
+	#  the newest component
+	my $explode_date= 0;
+	my $explode_i;
+	for (my $i=0; $i<@toplevels; $i++) {
+	    my $this_date= $graphs[$i]{ $node[$i] }{Date};
+	    next unless defined $this_date;
+	    next if $this_date <= $explode_date;
+	    $explode_date= $this_date;
+	    $explode_i=    $i;
+	}
+	if (!defined $explode_i) {
+	    print STDERR "...end.\n";
+	    return;
+	}
+	$out->{$node}{Date}= $explode_date;
+	print STDERR "$explode_date\n";
+
+	foreach my $subparent (@{
+	    $graphs[$explode_i]{ $node[$explode_i] }{Parents}
+	}) {
+	    $node[$explode_i]= $subparent;
+	    push @{ $out->{$node}{Parents} }, "@node";
+	    print STDERR "COA $depth ($node) $explode_date .. (@node)\n";
+	    $generate->($depth+1, @node);
+	}
+    };
+
+    $generate->(0, map { $_->{Head} } @graphs);
+}
+
+coalesce();
