@@ -436,6 +436,7 @@ sub main () {
     };
 
     $descend->($graph->{Head});
+    print ".\n" or die $!;
 }
 
 main();

@@ -166,6 +166,10 @@ sub gettuples () {
     print STDERR "Latest @latest_rtuple\n";
     my @earliest_rtuple= flight_rtuple($earliest_flight);
     print STDERR "Earliest @earliest_rtuple\n";
+
+    open REVLIST, "./adhoc-revtuple-generator|" or die $!;
+    while (<REVLIST>) {
+        
 }    
 
 csreadconfig();
