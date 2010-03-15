@@ -2,16 +2,36 @@
 
 use strict qw(vars);
 use IO::File;
+use IO::Handle;
 no warnings qw(recursion);
 
-my $num= 1000;
+our $num= 1000;
+
+open DEBUG, ">/dev/null" or die $!;
+
+while (@ARGV && $ARGV[0] =~ m/^-/) {
+    $_ = shift @ARGV;
+    last if $_ eq '--';
+    die "stdin not meaningful" if $_ eq '-';
+    die "no long options" if m/^--/;
+    while (m/^-./) {
+        if (m/^-n([1-9]\d*)$/) {
+            $num= $1;
+            last;
+        } elsif (s/^-D/-/) {
+            open DEBUG, ">&2" or die $!;
+            STDOUT->autoflush(1);
+            DEBUG->autoflush(1);
+        } else {
+            die "unknown option \`$_'";
+        }
+    }
+}
 
 our @turls= @ARGV;
 
 my $xu= 'http://hg.uk.xensource.com/xen-unstable.hg';
 my $qemu= 'git://mariner.uk.xensource.com/qemu-xen-unstable.git';
-
-my @toplevels= grep { $_ ne $qemu } @turls;
 
 sub max {
     my $max;
@@ -32,13 +52,16 @@ sub shellcmd ($) {
 }
 
 sub git_generator ($) {
-    my ($treename) = @_;
+    my ($tree) = @_;
+    print DEBUG "GIT-GEN ".pmap($tree).".\n";
+    my $treename= $tree->{Treename};
     shellcmd("set -e; exec >&2; cd repos/$treename && git-pull");
     my $cmd= "cd repos/$treename && git-log --pretty=raw --date-order";
     my $fh= new IO::File;
     open $fh, "$cmd |" or die $!;
     return sub {
 	my (%r);
+        local $_;
 	for (;;) {
 	    defined($_= <$fh>) or die "$cmd $!";
 	    if (m/^\s/) {
@@ -53,8 +76,8 @@ sub git_generator ($) {
 	die unless @{ $r{committer} } == 1;
 	die unless $r{committer}[0] =~ m/ (\d+)(?: [-+]\d{4})$/;
 	my $date= $1;
-	print STDERR "GEN git_generator $treename $r{commit}[0]\n";
 	return {
+            Generator => "git_generator:$treename",
 	    Commit => $r{commit}[0],
 	    Parents => $r{parent},
 	    Date => $date
@@ -63,7 +86,10 @@ sub git_generator ($) {
 }
 
 sub hg_generator ($) {
-    my ($treename) = @_;
+    my ($tree) = @_;
+    local $_;
+    print DEBUG "HG-GEN ".pmap($tree).".\n";
+    my $treename= $tree->{Treename};
     shellcmd("set -e; exec >&2; cd repos/$treename && hg pull -u");
     my $cmd= "cd repos/$treename && hg log --template '".
 	"{rev}:{node|short}\n".
@@ -76,7 +102,11 @@ sub hg_generator ($) {
     $_= <$fh>;
     m/^\d+:\w+$/ or die "$_ $! ?";
     return sub {
-	my $r= { Parents => [] };
+        local $_;
+	my $r= {
+            Parents => [],
+            Generator => "hg_generator:$treename",
+        };
 	defined($_= <$fh>) or die "$cmd $!";
 	m/^(\d+:\w+) (\d+)(?:\.\d+)?(?:[-+]\d+)?$/ or die "$cmd $_ ?";
 	$r->{Commit}= "$1";
@@ -97,9 +127,19 @@ sub hg_generator ($) {
 	    chomp;
 	    push @{ $r->{Parents} }, $_;
 	}
-	print STDERR "GEN hg_generator $treename $r->{Commit}\n";
+	print DEBUG "GEN hg_generator $treename $r->{Commit}\n";
 	return $r;
     }
+}
+
+sub pmap ($) {
+    my ($map) = @_;
+    return join ' ', map {
+        my $v= $map->{$_};
+        "$_=".(!defined $v ? '<undef>' :
+               ref $v eq 'ARRAY' ? "[@$v]" :
+               $v)
+        } sort keys %$map;
 }
 
 sub gen2_graph ($) {
@@ -107,21 +147,35 @@ sub gen2_graph ($) {
     my $graph= { };
     for (my $count=0; $count<$num; $count++) {
 	my $rev= $gen->();
-	print STDERR "GEN2 ", (join ' ', map { "$_=$rev->{$_}" }
-			       sort keys %$rev), " .\n";
+	print DEBUG "GEN2 ", pmap($rev), " .\n";
 	if (!exists $graph->{Head}) { $graph->{Head}= $rev->{Commit} }
 	$graph->{ $rev->{Commit} }= $rev;
     }
-    print STDERR "GEN2 head $graph->{Head}.\n";
+    print DEBUG "GEN2 head $graph->{Head}.\n";
     return $graph;
 }
 
-sub xu_withtag_generator ($$$) {
-    my ($xentree,$qemutree,$xengen) = @_;
+sub tree2graph ($) {
+    my ($tree)= @_;
+    my $g= $tree->{Graph};
+    if (!defined $g) {
+        local ($_);
+        print DEBUG "TREE2GRAPH IN ".pmap($tree).".\n";
+        $tree->{Graph}= $g= $tree->{MakeGraph}($tree);
+        print DEBUG "TREE2GRAPH OUT ".pmap($tree).".\n";
+    }
+    return $g;
+}
+
+sub xu_withtag_generator ($) {
+    my ($tree) = @_;
+    my $xengen= tree_get_gen($tree->{Xen});
+    my $xentree= $tree->{Xen}{Treename};
+    my $qemutree= $tree->{Qemu}{Treename};
     my $targetqemu= 'unknown';
     return sub {
 	my $xenrev= $xengen->();
-	print STDERR "XUWT (tq=$targetqemu) $xenrev->{Commit}\n";
+	print DEBUG "XUWT (tq=$targetqemu) $xenrev->{Commit}\n";
 	if ($targetqemu eq 'unknown') {
 	    my $nodeonly= $xenrev->{Commit};
 	    $nodeonly =~ s/^\d+\://;
@@ -148,6 +202,7 @@ sub xu_withtag_generator ($$$) {
 	$targetqemu= 'unknown' if
 	    grep { $_ eq 'Config.mk' } @{ $xenrev->{Files} };
 
+        $xenrev->{Generator} .= ";with-qemu:$qemutree";
 	return $xenrev;
     }
 }
@@ -157,11 +212,15 @@ sub xu_withtag_generator ($$$) {
 #  $graph->{"<revision>"}{Parents}[0] = "<another revision>"
 #  $graph->{"<revision>"}{Date} = <time_t>
 
-sub xenplusqemu_graph ($$) {
-    my ($xentree,$qemutree) = @_;
-    my $xencoregen= hg_generator($xentree);
-    my $x= gen2_graph(xu_withtag_generator($xentree, $qemutree, $xencoregen));
-    my $q= gen2_graph(git_generator($qemutree));
+sub xenplusqemu_graph ($) {
+    my ($tree) = @_;
+    print DEBUG "XENPLUSQEMU_GRAPH ".pmap($tree).".\n";
+
+    my $xentree= $tree->{Xen}{Treename};
+    my $qemutree= $tree->{Qemu}{Treename};
+
+    my $x= gen2_graph(xu_withtag_generator($tree));
+    my $q= tree2graph($tree->{Qemu});
 
     my $xhead= $x->{Head};
     my $qhead= $x->{$xhead}{QemuTag};
@@ -176,22 +235,22 @@ sub xenplusqemu_graph ($$) {
 	my ($xnode, $xparent, $qnode, $qtarg, $depth) = @_;
 	return unless defined $xparent and defined $qtarg;
         my $node= "$xnode $qnode";
-	printf STDERR "QFP %d %s %s %s %s ", $depth,
+	printf DEBUG "QFP %d %s %s %s %s ", $depth,
 	    $xnode, $xparent, $qnode, $qtarg;
         if (exists $result->{$node}) {
-            print STDERR "already.\n";
+            print DEBUG "already.\n";
             return;
         }
 	if ($qnode eq $qtarg) {
 	    my $chosen= "$xparent $qnode";
-	    print STDERR "   XP  $node .. $chosen\n";
+	    print DEBUG "   XP  $node .. $chosen\n";
 	    push @{ $result->{$node}{Parents} }, $chosen;
 	    $xfindparents->($xparent, $qtarg, $depth+1);
 	    return;
 	}
 	foreach my $qparent (@{ $q->{$qnode}{Parents} }) {
 	    my $chosen= "$xnode $qparent";
-	    print STDERR "   QP  $node .. $chosen\n";
+	    print DEBUG "   QP  $node .. $chosen\n";
 	    push @{ $result->{$node}{Parents} }, $chosen;
 	    $qfindparents->($xnode, $xparent, $qparent, $qtarg, $depth+1);
 	}
@@ -200,7 +259,7 @@ sub xenplusqemu_graph ($$) {
     $xfindparents= sub {
 	my ($xnode,$qnode,$depth) = @_;
 	return unless defined $xnode and defined $qnode;
-	printf STDERR "XFP %d                    %s %s\n",
+	printf DEBUG "XFP %d                    %s %s\n",
 	    $depth, $xnode, $qnode;
 	foreach my $xparent (@{ $x->{$xnode}{Parents} }) {
 	    $qfindparents->($xnode, $xparent,
@@ -220,43 +279,29 @@ sub xenplusqemu_graph ($$) {
     return $result;
 }
 
-sub coalesce () {
-    my @graphs;
-
-    foreach my $toplevel (@toplevels) {
-	my $graph;
-	if ($toplevel eq $xu) {
-	    $graph= xenplusqemu_graph('xen-unstable.hg', 'qemu-xen-unstable');
-	} elsif ($toplevel =~ m,/(\w[^/.]+)\.git$,) {
-	    $graph= gen2_graph(git_generator($1));
-	} elsif ($toplevel =~ m,/(\w[^/.]+\.hg)$,) {
-	    $graph= gen2_graph(hg_generator($1));
-	} else {
-	    die "$toplevel ?";
-	}
-	push @graphs, $graph;
-    }
+sub coalesce {
+    my @graphs= @_;
 
     my $head= join ' ', map { $_->{Head} } @graphs;
     my $out= {
 	Head => $head
     };
 
-    my $generate;
-    $generate= sub {
+    my $descend;
+    $descend= sub {
 	my ($depth, @node) = @_;
 	my $node = "@node";
-	print STDERR "COA $depth ($node) ";
+	print DEBUG "COA $depth ($node) ";
         if (exists $out->{$node}) {
-            print STDERR "already.\n";
+            print DEBUG "already.\n";
             return;
         }
-	# we find the newest component revision, and generate parents
+	# we find the newest component revision, and descend parents
 	#  for our revisioncommit-tuple by looking at the parents of
 	#  the newest component
 	my $explode_date= 0;
 	my $explode_i;
-	for (my $i=0; $i<@toplevels; $i++) {
+	for (my $i=0; $i<@graphs; $i++) {
 	    my $this_date= $graphs[$i]{ $node[$i] }{Date};
 	    next unless defined $this_date;
 	    next if $this_date <= $explode_date;
@@ -264,23 +309,133 @@ sub coalesce () {
 	    $explode_i=    $i;
 	}
 	if (!defined $explode_i) {
-	    print STDERR "...end.\n";
+	    print DEBUG "...end.\n";
 	    return;
 	}
 	$out->{$node}{Date}= $explode_date;
 	my $parents= $graphs[$explode_i]{ $node[$explode_i] }{Parents};
-	print STDERR "#$explode_i $explode_date  x".scalar(@$parents)."\n";
+	print DEBUG "#$explode_i $explode_date  x".scalar(@$parents)."\n";
 
 	foreach my $subparent (@$parents) {
 	    $node[$explode_i]= $subparent;
 	    push @{ $out->{$node}{Parents} }, "@node";
-	    print STDERR "COA $depth ($node) #$explode_i".
+	    print DEBUG "COA $depth ($node) #$explode_i".
 		         " $explode_date .. (@node)\n";
-	    $generate->($depth+1, @node);
+	    $descend->($depth+1, @node);
 	}
     };
 
-    $generate->(0, map { $_->{Head} } @graphs);
+    $descend->(0, map { $_->{Head} } @graphs);
+
+    return $out;
 }
 
-coalesce();
+sub tree_get_gen ($) {
+    my ($tree)= @_;
+    print DEBUG "TREE-GET-GEN ".pmap($tree).".\n";
+    return $tree->{Gen}($tree);
+}
+sub makegraph_fromgen ($) {
+    my ($tree)= @_;
+    print DEBUG "MAKEGRAPH-FROMGEN ".pmap($tree).".\n";
+    return gen2_graph(tree_get_gen($tree));
+}
+
+sub main () {
+    my @trees;
+    local $_;
+    
+    foreach (my $i=0; $i<@ARGV; $i++) {
+        $_= $ARGV[$i];
+        my $tree= {
+            MakeGraph => \&makegraph_fromgen,
+            Outixes => [ $i ],
+        };
+
+        if (m,/(\w[^/.]+)\.git$,) {
+            $tree->{Gen}= \&git_generator;
+            $tree->{Treename}= $1;
+	} elsif (m,/(\w[^/.]+\.hg)$,) {
+            $tree->{Gen}= \&hg_generator;
+            $tree->{Treename}= $1;
+        } else {
+            die "unknown tree format $_ ?";
+        }
+
+        push @trees, $tree;
+    }
+
+    print DEBUG "MAIN INIT trees=@trees.\n";
+    print DEBUG "MAIN INIT names=".
+        (join ' ', map { $_->{Treename} } @trees).".\n";
+    print DEBUG "MAIN INIT outixes=".
+        (join ' | ', map { @{ $_->{Outixes} } } @trees).".\n";
+
+    my (@xis, @qis);
+    foreach (my $i=0; $i<@trees; $i++) {
+        $_= $trees[$i]{Treename};
+        push @xis, $i if m/^xen-(?:unstable|4)/;
+        push @qis, $i if m/^qemu-(?:xen-unstable|4)/;
+    }
+    print DEBUG "MAIN xis=@xis qis=@qis.\n";
+
+    if (@xis == 1 && @qis == 1) {
+        my $x= $trees[$xis[0]];
+        my $q= $trees[$qis[0]];
+        $trees[$xis[0]]= {
+            Treename => "$x->{Treename}+$q->{Treename}",
+            Xen => $x,
+            Qemu => $q,
+            MakeGraph => \&xenplusqemu_graph,
+            Outixes => [ @{ $x->{Outixes} }, @{ $q->{Outixes} } ],
+        };
+        $q->{Outixes} = undef;
+    }
+
+    @trees= grep { defined $_->{Outixes} } @trees;
+
+    my @graphs= map { tree2graph($_) } @trees;
+    my @outixes= map { my $ox= $_->{Outixes}; defined $ox ? @$ox : () } @trees;
+    my $graph= coalesce(@graphs);
+    
+    print DEBUG "MAIN THEN trees=@trees.\n";
+    print DEBUG "MAIN THEN names=".
+        (join ' ', map { $_->{Treename} } @trees).".\n";
+    print DEBUG "MAIN THEN graphs=@graphs.\n";
+    print DEBUG "MAIN THEN outixes=@outixes.\n";
+
+    my $pnodename= sub {
+        my ($node)= @_;
+        my @in= split / /, $node;
+        die "($node) @in != @outixes"unless @in==@outixes;
+        my @out;
+        for (my $i=0; $i<@in; $i++) {
+            $out[$outixes[$i]]= $in[$i];
+        }
+        die if grep { !defined $_ } @out;
+        die unless @out==@in;
+        print "@out\n" or die $!;
+    };
+
+    my $descend;
+    $descend= sub {
+        my ($node)= @_;
+        my $n= $graph->{$node};
+        return unless defined $n;
+        print DEBUG "DESC $node ".pmap($n);
+        if ($n->{Descended}++) {
+            print DEBUG " already $n->{Descended}.\n";
+            return;
+        }
+        printf DEBUG ":\n";
+        my $parents= $n->{Parents};
+        $pnodename->($node);
+        printf "%s %d\n", $n->{Date}, scalar(@$parents) or die $!;
+        $pnodename->($_) foreach @$parents;
+        $descend->($_)   foreach @$parents;
+    };
+
+    $descend->($graph->{Head});
+}
+
+main();
