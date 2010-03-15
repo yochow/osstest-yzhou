@@ -175,19 +175,24 @@ sub xenplusqemu_graph ($$) {
     $qfindparents= sub {
 	my ($xnode, $xparent, $qnode, $qtarg, $depth) = @_;
 	return unless defined $xparent and defined $qtarg;
+        my $node= "$xnode $qnode";
 	printf STDERR "QFP %d %s %s %s %s ", $depth,
 	    $xnode, $xparent, $qnode, $qtarg;
+        if (exists $result->{$node}) {
+            print STDERR "already.\n";
+            return;
+        }
 	if ($qnode eq $qtarg) {
 	    my $chosen= "$xparent $qnode";
-	    print STDERR "   XP  $xnode $qnode .. $chosen\n";
-	    push @{ $result->{"$xnode $qnode"}{Parents} }, $chosen;
+	    print STDERR "   XP  $node .. $chosen\n";
+	    push @{ $result->{$node}{Parents} }, $chosen;
 	    $xfindparents->($xparent, $qtarg, $depth+1);
 	    return;
 	}
 	foreach my $qparent (@{ $q->{$qnode}{Parents} }) {
 	    my $chosen= "$xnode $qparent";
-	    print STDERR "   QP  $xnode $qnode .. $chosen\n";
-	    push @{ $result->{"$xnode $qnode"}{Parents} }, $chosen;
+	    print STDERR "   QP  $node .. $chosen\n";
+	    push @{ $result->{$node}{Parents} }, $chosen;
 	    $qfindparents->($xnode, $xparent, $qparent, $qtarg, $depth+1);
 	}
     };
@@ -242,6 +247,10 @@ sub coalesce () {
 	my ($depth, @node) = @_;
 	my $node = "@node";
 	print STDERR "COA $depth ($node) ";
+        if (exists $out->{$node}) {
+            print STDERR "already.\n";
+            return;
+        }
 	# we find the newest component revision, and generate parents
 	#  for our revisioncommit-tuple by looking at the parents of
 	#  the newest component
@@ -260,7 +269,7 @@ sub coalesce () {
 	}
 	$out->{$node}{Date}= $explode_date;
 	my $parents= $graphs[$explode_i]{ $node[$explode_i] }{Parents};
-	print STDERR "#$explode_i $explode_date  x$#$parents\n";
+	print STDERR "#$explode_i $explode_date  x".scalar(@$parents)."\n";
 
 	foreach my $subparent (@$parents) {
 	    $node[$explode_i]= $subparent;
