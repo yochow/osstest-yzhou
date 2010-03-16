@@ -37,7 +37,9 @@ if [ x$buildflight = x ]; then
 		$RUNVARS $BUILD_RUNVARS $arch_runvars \
 		arch=$arch \
 	tree_linux=http://hg.uk.xensource.com/carbon/trunk/kernels/dom0.hg \
-	treepq_linux=http://hg.uk.xensource.com/carbon/trunk/kernels/dom0.pq.hg
+     tree_pq_linux=http://hg.uk.xensource.com/carbon/trunk/kernels/dom0.pq.hg \
+        revision_linux=$REVISION_LINUX \
+        revision_pq_linux=$REVISION_PQ_LINUX
 
     fi
 
