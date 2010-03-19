@@ -12,8 +12,8 @@ bisfile=tmp/bisect.$job.$testid
 
 while true; do
         flight=`./cs-create-flight`
-        savelog $bisfile.dot
-        savelog $bisfile.ps
+        savelog -c 100 $bisfile.dot
+        savelog -c 100 $bisfile.ps
         ./cs-bisection-step --graph-out=$bisfile --flight=$flight
         ./execute-flight $flight bisect "$hostlists"
 done
