@@ -20,6 +20,8 @@ if [ x$buildflight = x ]; then
 		$RUNVARS $BUILD_RUNVARS $arch_runvars \
 		revision_xen=$REVISION_XEN \
 		revision_qemu=$REVISION_QEMU
+        revision_linux=$REVISION_LINUX_PVOPS \
+        revision_pq_linux=$REVISION_PQ_LINUX_PVOPS
 
     ./cs-job-create $flight build-$arch-oldkern build \
 		arch=$arch \
@@ -29,6 +31,8 @@ if [ x$buildflight = x ]; then
 		xen_kernels=linux-2.6-xen \
 		revision_xen=$REVISION_XEN \
 		revision_qemu=$REVISION_QEMU
+        revision_linux=$REVISION_LINUX_OLD \
+        revision_pq_linux=$REVISION_PQ_LINUX_OLD
 
     if [ $arch = i386 ]; then
       # XCP dom0 kernel is 32-bit only
@@ -38,8 +42,8 @@ if [ x$buildflight = x ]; then
 		arch=$arch \
 	tree_linux=http://hg.uk.xensource.com/carbon/trunk/kernels/dom0.hg \
      tree_pq_linux=http://hg.uk.xensource.com/carbon/trunk/kernels/dom0.pq.hg \
-        revision_linux=$REVISION_LINUX \
-        revision_pq_linux=$REVISION_PQ_LINUX
+        revision_linux=$REVISION_LINUX_XCP \
+        revision_pq_linux=$REVISION_PQ_LINUX_XCP
 
     fi
 
