@@ -61,7 +61,14 @@ sub git_generator ($) {
 	my (%r);
         local $_;
 	for (;;) {
-	    defined($_= <$fh>) or die "$cmd $!";
+            if (!defined($_= <$fh>)) {
+                print DEBUG "GIT-GEN EOF $treename\n";
+                die if $fh->error;
+                close $fh or die "$cmd $?";
+                $fh= undef;
+                last if $r{commit};
+                return undef;
+            }
 	    if (m/^\s/) {
 		last if $r{commit};
 		next;
@@ -101,6 +108,10 @@ sub hg_generator ($) {
     m/^\w+$/ or die "$_ $! ?";
     return sub {
         local $_;
+        if (!defined $fh) {
+            print DEBUG "HG-GEN EOF2 $treename\n";
+            return undef;
+        }
 	my $r= {
             Parents => [],
             Generator => "hg_generator:$treename",
@@ -119,12 +130,19 @@ sub hg_generator ($) {
 		$parentspec =~ m/^\d+\:(\w+)$/ or die "$parentspec ?";
 		push @{ $r->{Parents} }, $1;
 	    }
-	    defined(<$fh>) or die "$cmd $!";
-	} else {
-	    defined($_= <$fh>) or die "$cmd $!";
+            die unless @{ $r->{Parents} };
+        }
+        $_= <$fh>;
+        if (!defined $_) {
+            print DEBUG "HG-GEN EOF $treename\n";
+            close $fh or die "$cmd $! $?";
+            $fh= undef;
+            return undef;
+        }
+        if (!@{ $r->{Parents} }) {
 	    chomp;
 	    push @{ $r->{Parents} }, $_;
-	}
+        }            
 	print DEBUG "GEN hg_generator $treename $r->{Commit}\n";
 	return $r;
     }
@@ -145,6 +163,7 @@ sub gen2_graph ($) {
     my $graph= { };
     for (my $count=0; $count<$num; $count++) {
 	my $rev= $gen->();
+        last unless $rev;
 	print DEBUG "GEN2 ", pmap($rev), " .\n";
 	if (!exists $graph->{Head}) { $graph->{Head}= $rev->{Commit} }
 	$graph->{ $rev->{Commit} }= $rev;
@@ -173,6 +192,10 @@ sub xu_withtag_generator ($) {
     my $targetqemu= 'unknown';
     return sub {
 	my $xenrev= $xengen->();
+        if (!$xenrev) {
+            print DEBUG "XUWT EOF $xentree $qemutree\n";
+            return undef;
+        }
 	print DEBUG "XUWT (tq=$targetqemu) $xenrev->{Commit}\n";
 	if ($targetqemu eq 'unknown') {
 	    my $nodeonly= $xenrev->{Commit};
@@ -377,7 +400,7 @@ sub main () {
         if (m,/(\w[^/.]+)\.git$,) {
             $tree->{Gen}= \&git_generator;
             $tree->{Treename}= $1;
-	} elsif (m,/(\w[^/.]+\.hg)$,) {
+	} elsif (m,/(\w[^/.]+(?:\.pq)?\.hg)$,) {
             $tree->{Gen}= \&hg_generator;
             $tree->{Treename}= $1;
         } else {
