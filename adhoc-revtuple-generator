@@ -28,8 +28,6 @@ while (@ARGV && $ARGV[0] =~ m/^-/) {
     }
 }
 
-our @turls= @ARGV;
-
 my $xu= 'http://hg.uk.xensource.com/xen-unstable.hg';
 my $qemu= 'git://mariner.uk.xensource.com/qemu-xen-unstable.git';
 
@@ -92,15 +90,15 @@ sub hg_generator ($) {
     my $treename= $tree->{Treename};
     shellcmd("set -e; exec >&2; cd repos/$treename && hg pull -u");
     my $cmd= "cd repos/$treename && hg log --template '".
-	"{rev}:{node|short}\n".
-	"{rev}:{node|short} {date}\n".
+	"{node|short}\n".
+	"{node|short} {date}\n".
 	"{files}\n".
 	"{parents}\n".
 	"'";
     my $fh= new IO::File;
     open $fh, "$cmd |" or die "$cmd $!";
     $_= <$fh>;
-    m/^\d+:\w+$/ or die "$_ $! ?";
+    m/^\w+$/ or die "$_ $! ?";
     return sub {
         local $_;
 	my $r= {
@@ -108,7 +106,7 @@ sub hg_generator ($) {
             Generator => "hg_generator:$treename",
         };
 	defined($_= <$fh>) or die "$cmd $!";
-	m/^(\d+:\w+) (\d+)(?:\.\d+)?(?:[-+]\d+)?$/ or die "$cmd $_ ?";
+	m/^(\w+) (\d+)(?:\.\d+)?(?:[-+]\d+)?$/ or die "$cmd $_ ?";
 	$r->{Commit}= "$1";
 	$r->{Date}= $2;
 	defined($_= <$fh>) or die "$cmd $!";
@@ -118,8 +116,8 @@ sub hg_generator ($) {
 	chomp;
 	if (length) {
 	    foreach my $parentspec (split / /) {
-		$parentspec =~ m/^\d+\:\w+$/ or die "$parentspec ?";
-		push @{ $r->{Parents} }, $parentspec;
+		$parentspec =~ m/^\d+\:(\w+)$/ or die "$parentspec ?";
+		push @{ $r->{Parents} }, $1;
 	    }
 	    defined(<$fh>) or die "$cmd $!";
 	} else {
@@ -280,11 +278,20 @@ sub xenplusqemu_graph ($) {
 }
 
 sub coalesce {
-    my @graphs= @_;
+    my (@trees)= @_;
+    my (@graphs, @heads);
+    foreach my $tree (@trees) {
+        my $graph= tree2graph($tree);
+        push @graphs, $graph;
+        my $head= length $tree->{Latest} ? $tree->{Latest} : $graph->{Head};
+        push @heads, $head;
+        print DEBUG "COA INIT ".pmap($tree)." | head=$head\n";
+    }
 
-    my $head= join ' ', map { $_->{Head} } @graphs;
+    print DEBUG "COA HEAD (@heads)\n";
+    
     my $out= {
-	Head => $head
+	Head => "@heads"
     };
 
     my $descend;
@@ -299,14 +306,23 @@ sub coalesce {
 	# we find the newest component revision, and descend parents
 	#  for our revisioncommit-tuple by looking at the parents of
 	#  the newest component
+        # except that we prefer not to look at parents of the node
+        #  marked "Earliest", in the hope that our descent will
+        #  eventually find the whole earliest tuple
 	my $explode_date= 0;
+	my $explode_isearliest= 1;
 	my $explode_i;
 	for (my $i=0; $i<@graphs; $i++) {
 	    my $this_date= $graphs[$i]{ $node[$i] }{Date};
 	    next unless defined $this_date;
-	    next if $this_date <= $explode_date;
-	    $explode_date= $this_date;
-	    $explode_i=    $i;
+            my $this_isearliest= 0+($node[$i] eq $trees[$i]{Earliest});
+            next if (
+                     $explode_isearliest <=> $this_isearliest  or
+                     $this_date          <=> $explode_date
+                     ) <= 0;
+	    $explode_date=       $this_date;
+	    $explode_isearliest= $this_isearliest;
+	    $explode_i=          $i;
 	}
 	if (!defined $explode_i) {
 	    print DEBUG "...end.\n";
@@ -314,18 +330,19 @@ sub coalesce {
 	}
 	$out->{$node}{Date}= $explode_date;
 	my $parents= $graphs[$explode_i]{ $node[$explode_i] }{Parents};
-	print DEBUG "#$explode_i $explode_date  x".scalar(@$parents)."\n";
+	print DEBUG "#$explode_i $explode_isearliest".
+            " $explode_date  x".scalar(@$parents)."\n";
 
 	foreach my $subparent (@$parents) {
 	    $node[$explode_i]= $subparent;
 	    push @{ $out->{$node}{Parents} }, "@node";
-	    print DEBUG "COA $depth ($node) #$explode_i".
+	    print DEBUG "COA $depth ($node) #$explode_i $explode_isearliest".
 		         " $explode_date .. (@node)\n";
 	    $descend->($depth+1, @node);
 	}
     };
 
-    $descend->(0, map { $_->{Head} } @graphs);
+    $descend->(0, @heads);
 
     return $out;
 }
@@ -350,8 +367,13 @@ sub main () {
         my $tree= {
             MakeGraph => \&makegraph_fromgen,
             Outixes => [ $i ],
+            Earliest => '',
+            Latest => '',
         };
-
+        if (s/\#(\w+)\-(\w+)$//) {
+            $tree->{Earliest}= $1;
+            $tree->{Latest}= $2;
+        }
         if (m,/(\w[^/.]+)\.git$,) {
             $tree->{Gen}= \&git_generator;
             $tree->{Treename}= $1;
@@ -389,6 +411,11 @@ sub main () {
             MakeGraph => \&xenplusqemu_graph,
             Outixes => [ @{ $x->{Outixes} }, @{ $q->{Outixes} } ],
         };
+        foreach my $el (qw(Earliest Latest)) {
+            my $earl= "$x->{$el} $q->{$el}";
+            $earl='' if $earl =~ m/^ | $/;
+            $trees[$xis[0]]{$el}= $earl;
+        }
         $q->{Outixes} = undef;
     }
 
@@ -396,7 +423,7 @@ sub main () {
 
     my @graphs= map { tree2graph($_) } @trees;
     my @outixes= map { my $ox= $_->{Outixes}; defined $ox ? @$ox : () } @trees;
-    my $graph= coalesce(@graphs);
+    my $graph= coalesce(@trees);
     
     print DEBUG "MAIN THEN trees=@trees.\n";
     print DEBUG "MAIN THEN names=".

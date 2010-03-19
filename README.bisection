@@ -16,7 +16,7 @@ Basic algorithm is:
 * Secondly, find the most recent "real" flight where the (job,testid)
   was run and passed on that host.  This is the "earliest" flight.
 
-* Construct an ordered list of revision-tuples lying between the
+* Construct a digraph of revision-tuples lying between the
   revision-tuples of the earliest and latest flights.
 
 * Scan all "bisect" flights after (start time) the "earliest" flight.

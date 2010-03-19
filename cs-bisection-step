@@ -10,8 +10,12 @@
 
 use strict qw(vars);
 use Osstest;
+use Data::Dumper;
+no warnings qw(recursion);
 
 our @blessings= qw(real bisect);
+
+open DEBUG, ">/dev/null" or die $!;
 
 while (@ARGV && $ARGV[0] =~ m/^\-/) {
     $_= shift @ARGV;
@@ -19,6 +23,9 @@ while (@ARGV && $ARGV[0] =~ m/^\-/) {
     if (s/^--blessings=//) {
 	@blessings= split /\,/;
 	next;
+    } elsif (m/^-D$/) {
+        open DEBUG, ">&2" or die $!;
+        DEBUG->autoflush(1);
     } else {
 	die "$_ ?";
     }
@@ -102,10 +109,10 @@ END
     $dbh_tests->do(<<END);
         DROP TABLE tmp_build_info
 END
-    return "" if $mixed;
+    return () if $mixed;
     if (!@turls) {
 	print STDERR "!! flight $flight no revisions or trees\n";
-	return "";
+	return ();
     }
     if (!@trees) {
 	@trees= @turls;
@@ -113,9 +120,9 @@ END
     }
     if ("@trees" ne "@turls") {
 	print STDERR "!! flight $flight different trees: @turls\n";
-	return "";
+	return ();
     }
-    map { s/\+//g; } @trevisions;
+    map { s/\+//g; s/^\d+://; } @trevisions;
     return @trevisions;
 }
 
@@ -139,6 +146,7 @@ END
     $hosts= relevant_hosts($latest_flight);
     print STDERR "Host specification list: $hosts\n";
 
+    print STDERR "Searching for last pass:";
     $sth= $dbh_tests->prepare(<<END);
         SELECT * FROM flights NATURAL JOIN steps
 	   WHERE job = ?
@@ -148,7 +156,6 @@ END
 	   ORDER BY started DESC
 END
     $sth->execute($job,$testid,$blessings[0]);
-    print STDERR "Searching for last pass:";
     while ($row= $sth->fetchrow_hashref()) {
 	print STDERR " $row->{flight}";
 	next unless flight_has_relevant_hosts($row->{flight});
@@ -161,18 +168,314 @@ END
     print STDERR ".\n";
 }
 
-sub gettuples () {
-    my @latest_rtuple=   flight_rtuple($latest_flight);
+our (%nodes, @latest_rtuple, @earliest_rtuple);
+
+sub digraph_whole () {
+    @latest_rtuple= flight_rtuple($latest_flight);
     print STDERR "Latest @latest_rtuple\n";
-    my @earliest_rtuple= flight_rtuple($earliest_flight);
+    @earliest_rtuple= flight_rtuple($earliest_flight);
     print STDERR "Earliest @earliest_rtuple\n";
 
-    open REVLIST, "./adhoc-revtuple-generator|" or die $!;
+    my $cmd= "./adhoc-revtuple-generator";
+    foreach (my $i=0; $i<@trees; $i++) {
+        $cmd.= ' '.$trees[$i].'#'.$earliest_rtuple[$i].'-'.$latest_rtuple[$i];
+    }
+    print STDERR "Generating revisions with $cmd\n";
+    open REVLIST, "$cmd |" or die $!;
     while (<REVLIST>) {
+        chomp;
+        last if $_ eq '.';
+        my $rtuple= $_;
+        $!=0; $_=<REVLIST>;
+        m/^(\d+) (\d+)$/ or die "$! $_ ?";
+        $nodes{$rtuple}{Date}= $1;
+        my $n= $nodes{$rtuple};
+        my $nparents= $2;
+        while ($nparents--) {
+            $!=0; $_=<REVLIST>;
+            chomp or die $!;
+            push @{ $nodes{$_}{Children} }, $n;
+            push @{ $n->{Parents} }, $nodes{$_};
+        }
+    }
+    $!=0; $?=0; close REVLIST or die "$? $!";
+
+    foreach my $rtuple (keys %nodes) {
+        $nodes{$rtuple}{Rtuple}= $rtuple;
+    }
+    print STDERR "Loaded ".scalar(keys %nodes)." nodes in revision graph\n";
+
+#print DEBUG Dumper(\%nodes),"\n";
+}
+
+sub walk ($$$;$);
+sub walk ($$$;$) {
+    my ($n, $parch, $code, $depth) = @_;
+    return unless defined $n;
+    $depth=0 unless defined $depth;
+    return if $code->($n, $depth);
+    foreach my $neigh (@{ $n->{$parch} }) {
+        walk($neigh, $parch, $code, $depth+1);
+    }
+}
+
+sub digraph_relevant () {
+    my $paint_relevant;
+    $paint_relevant= sub {
+        my ($start, $parch, $paint) = @_;
+        walk($start, $parch, sub {
+            my ($n, $depth) = @_;
+            #print DEBUG "PAINT_RELEVANT $parch $paint $depth $n->{Rtuple}\n";
+            return $n->{$paint}++;
+        });
+    };
+    $paint_relevant->($nodes{"@latest_rtuple"}, Parents, RelvDown);
+    $paint_relevant->($nodes{"@earliest_rtuple"}, Children, RelvUp);
+
+    foreach my $rtuple ("@latest_rtuple", "@earliest_rtuple") {
+        foreach my $relflag (qw(RelvDown RelvUp)) {
+            die "not $relflag at $rtuple" unless $nodes{$rtuple}{$relflag};
+        }
+    }
+}
+
+our @failures;
+
+sub relevant ($) {
+    my ($n) = @_;
+    defined($n) and $n->{RelvDown} and $n->{RelvUp};
+}
+
+sub scantests () {
+    my $earliest_date= $nodes{"@earliest_rtuple"}{Date};
+
+    print STDERR "Searching for test results:\n";
+
+    my $sth= $dbh_tests->prepare("
+       SELECT * FROM flights NATURAL JOIN steps
+          WHERE job = ?
+            AND testid = ?
+            AND (".join("
+             OR  ", map { "blessing='$_'" } @blessings). ")
+            AND started >= $earliest_date
+    ");
+    $sth->execute($job, $testid);
+    while (my $row= $sth->fetchrow_hashref()) {
+        my @rtuple= flight_rtuple($row->{flight});
+	next unless @rtuple;
+        print STDERR " $row->{flight} $row->{status} ";
+        my $n= $nodes{"@rtuple"};
+        if (!relevant($n)) {
+            print STDERR "irrelevant\n";
+            next;
+        }
+        print STDERR "@rtuple\n";
+
+        push @{ $n->{Flights} }, {
+            Flight => $row->{flight},
+            Result => $row->{status}
+        };
+
+        if ($row->{status} eq 'fail') {
+            push @failures, $n;
+            walk($n, Children, sub {
+                my ($desc, $depth) = @_;
+                return 0 unless $depth;
+                return $desc->{UninterestingFailure}++;
+            });
+        }
+    }
+}
+
+sub consolidateresults () {
+    foreach my $n (values %nodes) {
+        my $fs= $n->{Flights};
+        my %r;
+        $r{ $_->{Result} }=1 foreach @$fs;
+        next unless %r;
+        $n->{Result}= (keys %r)[0] if %r==1;
+        $n->{Conflicted}= 1 if %r > 1;
+    }
+}
+
+our @interesting_lengths;
+
+sub search_compute_length_at ($);
+sub search_compute_length_at ($) {
+    my ($n) = @_;
+    print DEBUG "CLA $n->{Rtuple} ";
+    if (!relevant($n)) {
+        print DEBUG "X (irrelevant)\n";
+        return 'X';
+    }
+    if (defined $n->{Result}) {
+        print DEBUG "0 ($n->{Result})\n";
+        die "$n->{Rtuple} $n->{Result} " if $n->{Result} eq 'fail';
+        if ($n->{Result} ne 'pass') {
+            search_compute_length_below($n);
+        }
+        $n->{LengthAt}= 0;
+        return 0;
+    }
+    my $res= 1;
+    print DEBUG ".. x".scalar(@{ $n->{Parents} })."\n";
+    foreach my $parent (@{ $n->{Parents} }) {
+        my $t= search_compute_length_at($parent);
+        next if $t eq 'X';
+        $res += $t;
+    }
+    $n->{LengthAt}= $res;
+    return $res;
+}
+
+sub search_compute_length_below ($) {
+    my ($base) = @_;
+    return if $base->{UninterestingFailure};
+    print DEBUG "CLB $base->{Rtuple}\n";
+    foreach my $n (@{ $base->{Parents} }) {
+        next if exists $n->{InterestingLength};
+        my $t= search_compute_length_at($n);
+        next if $t eq 'X';
+        $n->{InterestingLength}= $t;
+        print STDERR " $t revisions at $n->{Rtuple}\n";
+        push @interesting_lengths, $n;
+    }
+}
+
+sub choose_revision_below ($$);
+sub choose_revision_below ($$) {
+    my ($n, $count) = @_;
+
+    print DEBUG "CRB $count $n->{Rtuple}\n";
+
+    return $n if $count <= 0;
+
+    my $parents= $n->{Parents};
+    die "reached end $n->{Rtuple} !" unless @$parents;
+
+    my ($descend, @bypass) = sort {
+        $b->{LengthAt} <=> $a->{LengthAt}
+    } grep {
+        defined $_->{LengthAt}
+    } @$parents;
+    # $bypass is the parent with the biggest LengthAt, so
+    # the one we're going to investigate.
+
+    $count--;
+    $count -= $_->{LengthAt} foreach @bypass;
+
+    return choose_revision_below($descend, $count);
+}
+
+our $choose;
+
+sub search () {
+    print STDERR "Searching for interesting versions:\n";
+    foreach my $startfail (@failures) {
+        search_compute_length_below($startfail);
+    }
+    my $best;
+    foreach my $n (@interesting_lengths) {
+        next if defined $best
+            and $best->{InterestingLength} >= $n->{InterestingLength};
+        $best= $n;
+    }
+    if (!$best->{InterestingLength}) {
+        print STDERR "No revisions left to test.\n";
+    } else {
+        my $godown= ($best->{InterestingLength} + 1) >> 1;
+        print STDERR "Looking $godown below $best->{Rtuple}.\n";
+        $choose= choose_revision_below($best, $godown);
+        print STDERR "Should test $choose->{Rtuple}.\n";
+        $choose->{Target}= 1;
+    }
+}
+
+sub gnodename ($) {
+    my ($n) = @_;
+
+    my $lab= $n->{Rtuple};
+    $lab =~ s/(\S{12})\S+/$1/g;
+    $lab =~ s/ /,/g;
+
+    my $fs= $n->{Flights};
+    if ($fs) {
+        my $resultsdesc= join ' ', map {
+            $_->{Flight}.':'.$_->{Result}
+        } sort {
+            $a->{Flight} <=> $b->{Flight}
+        } @$fs;
         
-}    
+        $lab.= "\\n".$resultsdesc;
+    }
+    return "\"$lab\"";
+}
+
+sub odot ($) { print DOT $_[0] or die $!; }
+
+sub writegraph () {
+    open DOT, "> bisection.dot" or die $!;
+    
+    odot(<<END);
+digraph "$job $testid" {
+  rankdir=BT;
+  ranksep=0;
+  nodesep=0.3;
+  edge [arrowsize=0.2];
+  node [shape=box, fontname=Courier, fontsize=9, style=filled];
+END
+
+    foreach my $n (values %nodes) {
+        next unless relevant($n);
+
+        odot("  ".gnodename($n)." ");
+        my @s;
+
+        if (defined $n->{Result}) {
+            if ($n->{Result} eq 'fail') {
+                push @s, 'fillcolor="red"';
+                push @s, 'fontcolor="white"';
+            } elsif ($n->{Result} eq 'pass') {
+                push @s, 'fillcolor="green"';
+                push @s, 'fontcolor="black"';
+            } else {
+                push @s, 'fillcolor="orange"';
+                push @s, ' fontcolor="white"';
+            }
+        } elsif (defined $n->{Conflicted}) {
+            push @s, ' fillcolor="yellow"';
+            push @s, ' fontcolor="black"';
+        } else {
+        }
+
+        if ($n->{Target}) {
+            push @s, ' peripheries=2';
+        }
+
+        odot('[');
+        odot(join ', ', @s);
+        odot("];\n");
+        
+
+        foreach my $parent (@{ $n->{Parents} }) {
+            odot("  ".gnodename($parent)." -> ".gnodename($n).";\n");
+        }
+    }
+    odot("}\n");
+
+    close DOT or die $!;
+
+    $!=0; system "dot -Tps -obisection.ps bisection.dot";
+    die "$? $!" if $? or $!;
+}
 
 csreadconfig();
 findbasics();
-gettuples();
+digraph_whole();
+digraph_relevant();
 scantests();
+consolidateresults();
+search();
+writegraph();
+#newflight();
+
