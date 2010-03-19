@@ -470,9 +470,15 @@ sub selecthost ($) {
     $sth->execute($selname);
     my $row= $sth->fetchrow_hashref();  die "$selname ?" unless $row;
     die if $sth->fetchrow_hashref();
-    $ho->{Ip}=    $row->{ip};
-    $ho->{Ether}= $row->{hardware};
-    $ho->{Asset}= $row->{asset};
+    my $get= sub {
+	my ($k) = @_;
+	my $v= $row->{$k};
+	defined $v or warn "undefined $k in configdb::ips\n";
+	return $v;
+    };
+    $ho->{Ip}=    $get->('ip');
+    $ho->{Ether}= $get->('hardware');
+    $ho->{Asset}= $get->('asset');
     logm("host: selected $ho->{Name} $ho->{Asset} $ho->{Ether} $ho->{Ip}");
     return $ho;
     $dbh->disconnect();
@@ -679,7 +685,8 @@ sub power_state ($$) {
     my $rows= $dbh_state->do
         ('UPDATE control SET desired_power=? WHERE asset=?',
          undef, $want, $asset);
-    die "$rows ?" unless $rows==1;
+    die "$rows updating desired_power for $asset in statedb::control\n"
+        unless $rows==1;
     my $sth= $dbh_state->prepare
         ('SELECT current_power FROM control WHERE asset = ?');
     $sth->bind_param(1, $asset);
