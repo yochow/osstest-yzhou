@@ -54,7 +54,8 @@ sub setup_pxeboot_firstboot($) {
                            "noapic",
 #                           "nolapic",
 
-                           "netcfg/dhcp_timeout=150"
+                           "netcfg/dhcp_timeout=150",
+			   "netcfg/choose_interface=auto"
                            );
 
     push @installcmdline, qw(DEBCONF_DEBUG=5 DEBIAN_FRONTEND=text --);

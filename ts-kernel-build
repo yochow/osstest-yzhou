@@ -11,17 +11,22 @@ our $ho= selecthost($r{host});
 my $leaf= "build.$flight.$job";
 my $builddir= "/home/osstest/$leaf";
 
-sub build () {
+sub checkout () {
     target_cmd($ho, "rm -rf $builddir && mkdir $builddir", 60);
-    target_cmd_build($ho, 2000, $builddir, <<END.
-	hg clone $r{tree_linux} linux
+
+    build_clone($ho, 'linux', $builddir, 'linux');
+    
+    if (length($r{tree_pq_linux})) {
+        build_clone($ho, 'pq_linux', $builddir, 'linux/.hg/patches');
+        
+        target_cmd_build($ho, 1000, $builddir, <<END);
+            cd $builddir/linux
+            hg qpush -a
 END
-               (length($r{treepq_linux}) ? <<END : '')
-	hg clone $r{treepq_linux} linux/.hg/patches
-	cd linux
-	hg qpush -a
-END
-		);
+    }
+}
+
+sub build () {
     target_cmd_build($ho, 1000, $builddir, <<END);
 	cd linux
 	perl -i.bak -pe '
@@ -37,10 +42,6 @@ END
         test -f ../build-ok-stamp
         echo ok.
 END
-}
-
-sub collectversions () {
-    store_revision($ho, 'linux', "$builddir/linux");
 }
 
 sub kinstall () {
@@ -68,7 +69,7 @@ END
 END
 }
 
+checkout();
 build();
-collectversions();
 kinstall();
 built_stash($ho, $builddir, 'dist', 'kerndist');

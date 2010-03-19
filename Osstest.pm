@@ -41,6 +41,7 @@ BEGIN {
                       guest_checkrunning guest_check_ip guest_find_ether
                       guest_find_domid
                       guest_vncsnapshot_begin guest_vncsnapshot_stash
+                      dir_identify_vcs build_clone
                       hg_dir_revision git_dir_revision vcs_dir_revision
                       store_revision store_vcs_revision
                       toolstack
@@ -321,14 +322,45 @@ sub target_reboot_hard ($) {
     await_tcp($timeout{HardRebootUp},5,$ho);
 }
 
-sub store_revision ($$$) {
-    my ($ho,$which,$dir) = @_;
-    my $vcs= target_cmd_output($ho, <<END);
+sub build_clone ($$$$) {
+    my ($ho, $which, $builddir, $subdir) = @_;
+    my $vcs= '';
+
+    need_runvars("tree_$which", "revision_$which");
+
+    my $tree= $r{"tree_$which"};
+
+    if ($tree =~ m/\.hg$/) {
+        $vcs= 'hg';
+        
+        target_cmd_build($ho, 2000, $builddir, <<END.
+	    hg clone '$tree' $subdir
+	    cd $subdir
+END
+                         (length($r{"revision_$which"}) ? <<END : ''));
+	    hg update '$r{"revision_$which"}'
+END
+    } else {
+        die "unknown vcs for $which $tree ";
+    }
+
+    my $rev= vcs_dir_revision($ho, "$builddir/$subdir", $vcs);
+    store_vcs_revision($which, $rev, $vcs);
+}
+
+sub dir_identify_vcs ($$) {
+    my ($ho,$dir) = @_;
+    return target_cmd_output($ho, <<END);
         set -e; cd $dir
         (test -d .git && echo git) ||
         (test -d .hg && echo hg) ||
         (echo >&2 'unable to determine vcs'; fail)
 END
+}
+
+sub store_revision ($$$) {
+    my ($ho,$which,$dir) = @_;
+    my $vcs= dir_identify_vcs($ho,$dir);
     my $rev= vcs_dir_revision($ho,$dir,$vcs);
     store_vcs_revision($which,$rev,$vcs);
 }
@@ -438,9 +470,15 @@ sub selecthost ($) {
     $sth->execute($selname);
     my $row= $sth->fetchrow_hashref();  die "$selname ?" unless $row;
     die if $sth->fetchrow_hashref();
-    $ho->{Ip}=    $row->{ip};
-    $ho->{Ether}= $row->{hardware};
-    $ho->{Asset}= $row->{asset};
+    my $get= sub {
+	my ($k) = @_;
+	my $v= $row->{$k};
+	defined $v or warn "undefined $k in configdb::ips\n";
+	return $v;
+    };
+    $ho->{Ip}=    $get->('ip');
+    $ho->{Ether}= $get->('hardware');
+    $ho->{Asset}= $get->('asset');
     logm("host: selected $ho->{Name} $ho->{Asset} $ho->{Ether} $ho->{Ip}");
     return $ho;
     $dbh->disconnect();
@@ -647,7 +685,8 @@ sub power_state ($$) {
     my $rows= $dbh_state->do
         ('UPDATE control SET desired_power=? WHERE asset=?',
          undef, $want, $asset);
-    die "$rows ?" unless $rows==1;
+    die "$rows updating desired_power for $asset in statedb::control\n"
+        unless $rows==1;
     my $sth= $dbh_state->prepare
         ('SELECT current_power FROM control WHERE asset = ?');
     $sth->bind_param(1, $asset);

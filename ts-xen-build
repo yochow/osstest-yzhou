@@ -13,21 +13,17 @@ our $ho= selecthost($r{host});
 my $leaf= "build.$flight.$job";
 my $builddir= "/home/osstest/$leaf";
 
-sub build () {
+sub checkout () {
     my $kerns= $r{xen_kernels};
     $kerns='' unless defined $kerns;
     $kerns =~ s/,/ /g;
     
     target_cmd($ho, "rm -rf $builddir && mkdir $builddir", 60);
-    target_cmd_build($ho, 1000, $builddir,
-               <<END.
-	hg clone '$r{tree_xen}' xen-unstable
-	cd xen-unstable
-END
-               (length($r{revision_xen}) ? <<END : '').
-	hg update '$r{revision_xen}'
-END
-               <<END.
+
+    build_clone($ho, 'xen', $builddir, 'xen-unstable');
+
+    target_cmd_build($ho, 100, $builddir, <<END.
+        cd $builddir/xen-unstable
 	>.config
 	echo >>.config GIT_HTTP=y
 	echo >>.config QEMU_REMOTE='$r{tree_qemu}'
@@ -35,10 +31,16 @@ END
                (length($r{revision_qemu}) ? <<END : '').
 	echo >>.config QEMU_TAG='$r{revision_qemu}'
 END
+               (length($r{revision_linux}) ? <<END : '').
+	echo >>.config XEN_LINUX_GIT_REMOTEBRANCH='$r{revision_linux}'
+END
                (length($kerns) ? <<END : '')
 	echo >>.config KERNELS='$kerns'
 END
                );
+}
+
+sub build () {
     target_cmd_build($ho, 1000, $builddir, <<END);
         cd xen-unstable
         perl -i.bak -pe '
@@ -56,7 +58,6 @@ END
 }
 
 sub collectversions () {
-    store_revision($ho, 'xen', "$builddir/xen-unstable");
     store_revision($ho, 'qemu', "$builddir/xen-unstable/tools/ioemu-dir");
 
     my $whichkerns= target_cmd_output($ho, <<END);
@@ -104,9 +105,7 @@ sub stash () {
     }
 }
 
-need_runvars(qw(tree_xen revision_xen
-                tree_qemu revision_qemu));
-
+checkout();
 build();
 collectversions();
 divide();
