@@ -28,50 +28,8 @@ fi
 
 flight=`./make-flight "$@"`
 
-./cs-flight-bless $flight running
-
-trap "
-	set +e
-	./cs-flight-bless $flight crashed
-	exit 1
-" 0
-
-(
-	set -x
-	exec 2>&1
-	for hostlist in $hostlists; do
-		(
-			date
-			./sg-run-builds $flight --hostlist=$hostlist
-			date
-			./sg-run-builds $flight --hostlist=$hostlist
-			date
-			./sg-run-builds $flight --hostlist=$hostlist
-			date
-		) &
-		: spawned builds $! $hostlist
-	done
-	wait
-
-	for hostlist in $hostlists; do
-		(
-		date
-		./sg-run-tests $flight --hostlist=$hostlist
-		date
-		./sg-run-tests $flight --hostlist=$hostlist
-		date
-		./sg-run-tests $flight --hostlist=$hostlist
-		date
-		./sg-run-tests $flight --hostlist=$hostlist
-		date
-		) &
-		: spawned tests $! $hostlist
-	done
-	wait
-) >tmp/$flight.transcript
-
-./cs-flight-bless $flight $OSSTEST_BLESSING
-trap "" 0
+./execute-flight $flight $OSSTEST_BLESSING "$hostlists" \
+        >tmp/$flight.transcript 2>&1
 
 exec >tmp/$flight.email
 cat $OSSTEST_EMAIL_HEADER

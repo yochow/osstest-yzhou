@@ -1,0 +1,54 @@
+#!/bin/bash
+set -ex
+if [ $# -ne 3 ]; then cat <<END >&2; exit 1
+
+usage: ./execute-flight FLIGHT BLESSING HOSTLISTS
+ eg ./execute-flight 1330 play 'earwig bedbug'
+
+END
+fi
+
+flight="$1"
+blessing="${2-play}"
+hostlists="$3"
+
+trap "
+	set +e
+	./cs-flight-bless $flight crashed
+	exit 1
+" 0
+
+set -x
+./cs-flight-bless $flight running
+for hostlist in $hostlists; do
+	(
+		date
+		./sg-run-builds $flight --hostlist=$hostlist
+		date
+		./sg-run-builds $flight --hostlist=$hostlist
+		date
+		./sg-run-builds $flight --hostlist=$hostlist
+		date
+	) &
+	: spawned builds $! $hostlist
+done
+wait
+
+for hostlist in $hostlists; do
+	(
+	date
+	./sg-run-tests $flight --hostlist=$hostlist
+	date
+	./sg-run-tests $flight --hostlist=$hostlist
+	date
+	./sg-run-tests $flight --hostlist=$hostlist
+	date
+	./sg-run-tests $flight --hostlist=$hostlist
+	date
+	) &
+	: spawned tests $! $hostlist
+done
+wait
+
+./cs-flight-bless $flight "$blessing"
+trap "" 0
