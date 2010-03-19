@@ -15,6 +15,9 @@ no warnings qw(recursion);
 
 our @blessings= qw(real bisect);
 
+my $graphfile= 'bisection';
+my $popflight= 0;
+
 open DEBUG, ">/dev/null" or die $!;
 
 while (@ARGV && $ARGV[0] =~ m/^\-/) {
@@ -23,6 +26,12 @@ while (@ARGV && $ARGV[0] =~ m/^\-/) {
     if (s/^--blessings=//) {
 	@blessings= split /\,/;
 	next;
+    } elsif (m/^--graph-out=(.+)$/) {
+        $graphfile= $1;
+    } elsif (m/^--no-graph-out$/) {
+        $graphfile= '';
+    } elsif (m/^--flight=(\d+)$/) {
+        $popflight= $1;
     } elsif (m/^-D$/) {
         open DEBUG, ">&2" or die $!;
         DEBUG->autoflush(1);
@@ -293,8 +302,8 @@ sub consolidateresults () {
         my %r;
         $r{ $_->{Result} }=1 foreach @$fs;
         next unless %r;
-        $n->{Result}= (keys %r)[0] if %r==1;
-        $n->{Conflicted}= 1 if %r > 1;
+        $n->{Result}= (keys %r)[0] if scalar(keys %r) == 1;
+        $n->{Conflicted}= 1 if scalar(keys %r) > 1;
     }
 }
 
@@ -414,7 +423,9 @@ sub gnodename ($) {
 sub odot ($) { print DOT $_[0] or die $!; }
 
 sub writegraph () {
-    open DOT, "> bisection.dot" or die $!;
+    return unless length $graphfile;
+
+    open DOT, "> $graphfile.dot" or die $!;
     
     odot(<<END);
 digraph "$job $testid" {
@@ -465,8 +476,85 @@ END
 
     close DOT or die $!;
 
-    $!=0; system "dot -Tps -obisection.ps bisection.dot";
+    $!=0; system "dot -Tps -o$graphfile.ps $graphfile.dot";
     die "$? $!" if $? or $!;
+
+    print STDERR "Revision graph left in $graphfile.{dot,ps}.\n";
+}
+
+sub populatejob ($$);
+sub populatejob ($$) {
+    my ($popjob, $copyflight) = @_;
+
+    print STDERR "Creating $popflight.$popjob (copying from $copyflight)\n";
+
+    $dbh_tests->do(<<END, {}, $popflight, $copyflight,$popjob);
+        INSERT INTO jobs (
+              SELECT  ?, job, recipe, 'queued'
+                FROM  jobs
+               WHERE  flight=? AND job=?
+             )
+END
+    $dbh_tests->do(<<END, {}, $popflight, $copyflight, $popjob);
+        INSERT INTO runvars (
+               SELECT  ?, job, name, val, synth
+                 FROM  runvars
+                WHERE  flight=? AND job=? AND synth='f'
+                  AND  name NOT LIKE E'revision\\_%'
+             )
+END
+    my (@trevisions) = split / /, $choose->{Rtuple};
+
+    foreach (my $i=0; $i<@trees; $i++) {
+        my $treeq= $dbh_tests->prepare(<<END);
+            SELECT name FROM runvars
+              WHERE  flight=? AND job=?
+                AND  name LIKE E'tree\\_%'
+                AND  val = ?
+END
+        $treeq->execute($copyflight, $popjob, $trees[$i]);
+        my ($treevar) = $treeq->fetchrow_array();
+        next unless defined $treevar;
+        $treevar =~ m/^tree_/ or
+            die "$copyflight $popjob $trees[$i] $treevar ";
+        my $revname= "revision_$'";
+        my $revval= $trevisions[$i];
+
+        print STDERR " $revname=$revval\n";
+        $dbh_tests->do(<<END, {}, $popflight, $popjob, $revname, $revval);
+            INSERT INTO runvars VALUES (?, ?, ?, ?, 'f')
+END
+    }
+
+    my $jobq= $dbh_tests->prepare(<<END);
+        SELECT val FROM runvars
+            WHERE  flight=? AND job=?
+              AND  name LIKE '%job';
+END
+    $jobq->execute($popflight, $popjob);
+    while (my ($jobspec) = $jobq->fetchrow_array) {
+        if ($jobspec =~ m/^(\d+)\.(\s+)$/) {
+            populatejob($1, $2);
+        } else {
+            populatejob($jobspec, $copyflight);
+        }
+    }
+}
+
+sub populateflight () {
+    return unless $popflight;
+
+    if (!defined $choose) {
+        print STDERR "*** no revision to test ***";
+        return;
+    }
+
+    db_retry($dbh_tests, sub {
+        print STDERR "Populating $popflight...\n";
+        populatejob($job, $latest_flight);
+    });
+
+    print STDERR "Flight $popflight ready to go.\n";
 }
 
 csreadconfig();
@@ -477,5 +565,6 @@ scantests();
 consolidateresults();
 search();
 writegraph();
-#newflight();
+populateflight();
 
+exit(defined($choose) ? 0 : 2);
