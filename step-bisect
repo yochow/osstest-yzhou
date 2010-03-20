@@ -11,9 +11,9 @@ hostlists="$3"
 bisfile=tmp/bisect.$job.$testid
 
 while true; do
-        flight=`./cs-create-flight`
+        flight=`./cs-flight-create`
         savelog -c 100 $bisfile.dot
         savelog -c 100 $bisfile.ps
-        ./cs-bisection-step --graph-out=$bisfile --flight=$flight
+        ./cs-bisection-step --graph-out=$bisfile --flight=$flight $job $testid
         ./execute-flight $flight bisect "$hostlists"
 done
