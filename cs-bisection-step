@@ -392,7 +392,7 @@ sub search () {
     if (!$best->{InterestingLength}) {
         print STDERR "No revisions left to test.\n";
     } else {
-        my $godown= ($best->{InterestingLength} + 1) >> 1;
+        my $godown= ($best->{InterestingLength}) >> 1;
         print STDERR "Looking $godown below $best->{Rtuple}.\n";
         $choose= choose_revision_below($best, $godown);
         print STDERR "Should test $choose->{Rtuple}.\n";
