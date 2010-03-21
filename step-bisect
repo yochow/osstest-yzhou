@@ -8,7 +8,7 @@ hostlists="$3"
 # eg
 #  ./step-bisect test-amd64-xcpkern-i386-win windows-install 'bedbug earwig'
 
-bisfile=tmp/bisect.$job.$testid
+bisfile=tmp/bisect.$job.${testid//\//--}
 
 while true; do
         flight=`./cs-flight-create`

@@ -482,9 +482,16 @@ END
     print STDERR "Revision graph left in $graphfile.{dot,ps}.\n";
 }
 
+our %jobs_populated;
+
 sub populatejob ($$);
 sub populatejob ($$) {
     my ($popjob, $copyflight) = @_;
+
+    if ($jobs_populated{$popjob}++) {
+	print STDERR "Already created $popflight.$popjob\n";
+	return;
+    }
 
     print STDERR "Creating $popflight.$popjob (copying from $copyflight)\n";
 
@@ -545,7 +552,7 @@ sub populateflight () {
     return unless $popflight;
 
     if (!defined $choose) {
-        print STDERR "*** no revision to test ***";
+        print STDERR "*** no revision to test ***\n";
         return;
     }
 
