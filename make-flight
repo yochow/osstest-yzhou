@@ -19,8 +19,9 @@ if [ x$buildflight = x ]; then
 	tree_xen=http://hg.uk.xensource.com/xen-unstable.hg \
 		$RUNVARS $BUILD_RUNVARS $arch_runvars \
 		revision_xen=$REVISION_XEN \
-		revision_qemu=$REVISION_QEMU
-        revision_linux=$REVISION_LINUX_PVOPS \
+		revision_qemu=$REVISION_QEMU \
+     tree_linux=git://git.kernel.org/pub/scm/linux/kernel/git/jeremy/xen.git \
+	revision_linux=$REVISION_LINUX_PVOPS \
         revision_pq_linux=$REVISION_PQ_LINUX_PVOPS
 
     ./cs-job-create $flight build-$arch-oldkern build \
@@ -30,9 +31,9 @@ if [ x$buildflight = x ]; then
 		$RUNVARS $BUILD_RUNVARS $arch_runvars \
 		xen_kernels=linux-2.6-xen \
 		revision_xen=$REVISION_XEN \
-		revision_qemu=$REVISION_QEMU
-        revision_linux=$REVISION_LINUX_OLD \
-        revision_pq_linux=$REVISION_PQ_LINUX_OLD
+		revision_qemu=$REVISION_QEMU \
+	tree_linux=http://hg.uk.xensource.com/linux-2.6.18-xen.hg \
+        revision_linux=$REVISION_LINUX_OLD
 
     if [ $arch = i386 ]; then
       # XCP dom0 kernel is 32-bit only
