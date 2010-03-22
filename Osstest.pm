@@ -562,9 +562,9 @@ sub select_ether ($) {
     return $ether if defined $ether;
     my $prefix= sprintf "%s:%02x", $c{GenEtherPrefix}, $flight & 0xff;
     db_retry($dbh_tests, sub {
-        my $previous= $dbh_tests->selectrow_array(<<END, {}, $flight,$job);
-            SELECT max(val) FROM runvars WHERE flight=? AND job=?
-                AND name LIKE '%_ether'
+        my $previous= $dbh_tests->selectrow_array(<<END, {}, $flight);
+            SELECT max(val) FROM runvars WHERE flight=?
+                AND name LIKE E'%\\_ether'
                 AND val LIKE '$prefix:%'
 END
         if (defined $previous) {
@@ -581,6 +581,17 @@ END
         $dbh_tests->do(<<END, {}, $flight,$job,$vn,$ether);
             INSERT INTO runvars VALUES (?,?,?,?,'t')
 END
+        my $chk= $dbh_tests->prepare(<<END);
+	    SELECT val, count(*) FROM runvars WHERE flight=?
+                AND name LIKE E'%\\_ether'
+                AND val LIKE '$prefix:%'
+		GROUP BY val
+		HAVING count(*) <> 1
+		LIMIT 1
+END
+        $chk->execute($flight);
+        my $chkrow= $chk->fetchrow_hashref();
+	die "$chkrow->{val} $chkrow->{count}" if $chkrow;
     });
     $r{$vn}= $ether;
     return $ether;
