@@ -183,6 +183,9 @@ sub digraph_whole () {
     @latest_rtuple= flight_rtuple($latest_flight);
     print STDERR "Latest @latest_rtuple\n";
     @earliest_rtuple= flight_rtuple($earliest_flight);
+    if (!@earliest_rtuple) {
+	die "Latest pass $earliest_flight rtuple indeterminate/wrong\n";
+    }
     print STDERR "Earliest @earliest_rtuple\n";
 
     my $cmd= "./adhoc-revtuple-generator";
