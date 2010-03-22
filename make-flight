@@ -13,37 +13,37 @@ if [ x$buildflight = x ]; then
 	arch_runvars=\"\$ARCH_RUNVARS_$arch\"
     "
 
-    ./cs-job-create $flight build-$arch build \
-		arch=$arch \
-	tree_qemu=git://mariner.uk.xensource.com/qemu-xen-unstable.git \
-	tree_xen=http://hg.uk.xensource.com/xen-unstable.hg \
-		$RUNVARS $BUILD_RUNVARS $arch_runvars \
-		revision_xen=$REVISION_XEN \
-		revision_qemu=$REVISION_QEMU \
+    ./cs-job-create $flight build-$arch build				     \
+		arch=$arch						     \
+	tree_qemu=git://mariner.uk.xensource.com/qemu-xen-unstable.git	     \
+	tree_xen=http://hg.uk.xensource.com/xen-unstable.hg		     \
+		$RUNVARS $BUILD_RUNVARS $arch_runvars			     \
+		revision_xen=$REVISION_XEN				     \
+		revision_qemu=$REVISION_QEMU				     \
      tree_linux=git://git.kernel.org/pub/scm/linux/kernel/git/jeremy/xen.git \
-	revision_linux=$REVISION_LINUX_PVOPS \
+	revision_linux=$REVISION_LINUX_PVOPS				     \
         revision_pq_linux=$REVISION_PQ_LINUX_PVOPS
 
-    ./cs-job-create $flight build-$arch-oldkern build \
-		arch=$arch \
-	tree_qemu=git://mariner.uk.xensource.com/qemu-xen-unstable.git \
-	tree_xen=http://hg.uk.xensource.com/xen-unstable.hg \
-		$RUNVARS $BUILD_RUNVARS $arch_runvars \
-		xen_kernels=linux-2.6-xen \
-		revision_xen=$REVISION_XEN \
-		revision_qemu=$REVISION_QEMU \
-	tree_linux=http://hg.uk.xensource.com/linux-2.6.18-xen.hg \
+    ./cs-job-create $flight build-$arch-oldkern build			\
+		arch=$arch						\
+	tree_qemu=git://mariner.uk.xensource.com/qemu-xen-unstable.git	\
+	tree_xen=http://hg.uk.xensource.com/xen-unstable.hg		\
+		$RUNVARS $BUILD_RUNVARS $arch_runvars			\
+		xen_kernels=linux-2.6-xen				\
+		revision_xen=$REVISION_XEN				\
+		revision_qemu=$REVISION_QEMU				\
+	tree_linux=http://hg.uk.xensource.com/linux-2.6.18-xen.hg	\
         revision_linux=$REVISION_LINUX_OLD
 
     if [ $arch = i386 ]; then
       # XCP dom0 kernel is 32-bit only
 
-      ./cs-job-create $flight build-$arch-xcpkern build-kern \
-		$RUNVARS $BUILD_RUNVARS $arch_runvars \
-		arch=$arch \
-	tree_linux=http://hg.uk.xensource.com/carbon/trunk/kernels/dom0.hg \
+      ./cs-job-create $flight build-$arch-xcpkern build-kern		      \
+		$RUNVARS $BUILD_RUNVARS $arch_runvars			      \
+		arch=$arch						      \
+	tree_linux=http://hg.uk.xensource.com/carbon/trunk/kernels/dom0.hg    \
      tree_pq_linux=http://hg.uk.xensource.com/carbon/trunk/kernels/dom0.pq.hg \
-        revision_linux=$REVISION_LINUX_XCP \
+        revision_linux=$REVISION_LINUX_XCP				      \
         revision_pq_linux=$REVISION_PQ_LINUX_XCP
 
     fi
@@ -79,28 +79,29 @@ for xenarch in i386 amd64; do
       if [ x$kern = x-xcpkern -a $dom0arch != i386 ]; then continue; fi
 
       most_runvars="
-		arch=$dom0arch \
-		xenbuildjob=${bfi}build-$xenarch \
-		kernbuildjob=${bfi}build-$dom0arch$kern \
-		buildjob=${bfi}build-$dom0arch \
-		kernkind=$kernkind \
+		arch=$dom0arch				\
+		xenbuildjob=${bfi}build-$xenarch	\
+		kernbuildjob=${bfi}build-$dom0arch$kern	\
+		buildjob=${bfi}build-$dom0arch		\
+		kernkind=$kernkind			\
 		$arch_runvars
 		"
 
       ./cs-job-create $flight test-$xenarch$kern-$dom0arch-pv test-debian \
-		$RUNVARS $TEST_RUNVARS $most_runvars \
-		debian_kernkind=$kernkind \
+		$RUNVARS $TEST_RUNVARS $most_runvars			  \
+		debian_kernkind=$kernkind				  \
 		debian_arch=$dom0arch
 
       ./cs-job-create $flight test-$xenarch$kern-$dom0arch-xl test-debian \
-		$RUNVARS $TEST_RUNVARS $most_runvars \
-		toolstack=xl \
-		debian_kernkind=$kernkind \
+		$RUNVARS $TEST_RUNVARS $most_runvars			  \
+		toolstack=xl						  \
+		debian_kernkind=$kernkind				  \
 		debian_arch=$dom0arch
 
-      ./cs-job-create $flight test-$xenarch$kern-$dom0arch-win test-win \
-		$RUNVARS $TEST_RUNVARS $most_runvars \
+      ./cs-job-create $flight test-$xenarch$kern-$dom0arch-win test-win	\
+		$RUNVARS $TEST_RUNVARS $most_runvars			\
 		win_image=winxpsp2.iso
+
     done
 
   done
