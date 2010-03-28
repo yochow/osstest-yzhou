@@ -123,7 +123,7 @@ sub setupboot () {
 
     target_cmd_root($ho, "update-grub");
 
-    my $lmenu= "$stash/menu.lst.out";
+    my $lmenu= "$stash/$ho->{Name}--menu.lst.out";
     target_getfile($ho, 60, $rmenu, $lmenu);
     my $f= new IO::File $lmenu, 'r' or die "$lmenu $?";
     my $def;

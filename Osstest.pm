@@ -266,17 +266,18 @@ sub target_install_packages_norec {
                     300 + 100 * @packages);
 }
 
-sub target_somefile_defleaf ($$) {
-    my ($lleaf_ref, $rdest) = @_;
+sub target_somefile_getleaf ($$$) {
+    my ($lleaf_ref, $rdest, $ho) = @_;
     if (!defined $$lleaf_ref) {
         $$lleaf_ref= $rdest;
         $$lleaf_ref =~ s,.*/,,;
     }
+    $$lleaf_ref= "$ho->{Name}--$$lleaf_ref";
 }
 
 sub target_putfilecontents_root_stash ($$$$;$) {
     my ($ho,$timeout,$filedata, $rdest,$lleaf) = @_;
-    target_somefile_defleaf(\$lleaf,$rdest);
+    target_somefile_getleaf(\$lleaf,$rdest,$ho);
 
     my $h= new IO::File "$stash/$lleaf", 'w' or die "$lleaf $!";
     print $h $filedata or die $!;
@@ -291,7 +292,7 @@ sub target_editfile_root ($$$;$$) {
     if (!defined $rdest) {
         $rdest= $rfile;
     }
-    target_somefile_defleaf(\$lleaf,$rdest);
+    target_somefile_getleaf(\$lleaf,$rdest,$ho);
     my $lfile;
     
     for (;;) {

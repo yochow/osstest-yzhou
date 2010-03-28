@@ -38,11 +38,15 @@ sub install () {
 
     my $kpath= $c{TestHostKeypairPath};
     my $kleaf= $kpath;
+    my $ktarg= $kleaf;
+    $ktarg =~ s/^(id_[a-z]+)_.*/$1/;
     $kleaf =~ s,.*/,,;
     foreach my $ext ('', '.pub') {
-	target_putfile     ($ho,10, "${kpath}${ext}", ".ssh/${kleaf}${ext}");
-	target_putfile_root($ho,10, "${kpath}${ext}", ".ssh/${kleaf}${ext}");
+	target_putfile     ($ho,10, "${kpath}${ext}", ".ssh/${ktarg}${ext}");
+	target_putfile_root($ho,10, "${kpath}${ext}", ".ssh/${ktarg}${ext}");
     }
+    target_cmd     ($ho, "chmod g-r .ssh/${ktarg}");
+    target_cmd_root($ho, "chmod g-r .ssh/${ktarg}");
 
     logm('OK: install completed');
 }   
