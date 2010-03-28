@@ -31,7 +31,7 @@ proc main {} {
 }
 
 proc run-job {} {
-    global jobinfo builds flight ok
+    global jobinfo builds flight ok need_hosts
 
     if {![prepare-job $jobinfo(job)]} return
 
@@ -41,13 +41,47 @@ proc run-job {} {
                catching-otherwise blocked   check-not-blocked
     if {!$ok} return
 
-    if {$ok} { catching-otherwise broken  {
-        run-ts broken host-install(*) ts-host-install-twice
-    } }
-    if {$ok} { catching-otherwise fail      prepare-host                  }
+    set need_hosts [need-hosts/$jobinfo(recipe)]
+
+    per-host-ts broken host-install (*) ts-host-install-twice
+    per-host-ts .      xen-install  {}  ts-xen-install
+    per-host-ts .      xen-boot     {}  ts-host-reboot
+
     if {$ok} { catching-otherwise fail      run-job/$jobinfo(recipe)      }
                catching-otherwise broken    capture-logs
     if {$ok} { setstatus pass                                             }
+}
+
+proc per-host-ts {failst ident1 ident2 args} {
+    global ok need_hosts flight jobinfo
+    
+    if {!$ok} return
+
+    set awaitl {}
+    foreach host $need_hosts {
+	if {[regexp {^(.*)_host$} $host dummy which]} {
+	    set which -$which
+	} elseif {![string compare host $host]} {
+	    set which {}
+	} else {
+	    set which --$host
+	}
+	set ident "$ident1$which$ident2"
+        lappend awaitl [eval spawn-ts $failst $ident $args [list $host]]
+    }
+
+    set failed 0
+    foreach host $need_hosts await $awaitl {
+        if {![reap-ts $await]} {
+            logputs stderr "$flight.$jobinfo(job) @$host $args failed"
+            set failed 1
+            set ok 0
+        }
+    }
+
+    if {$failed} {
+        setstatus $failst
+    }
 }
 
 proc catching-otherwise {failst script} {
@@ -71,27 +105,38 @@ proc check-not-blocked {} {
     run-ts blocked * ts-xen-build-check
 }
 
-proc prepare-host {} {
-    run-ts . = ts-xen-install
-    run-ts . xen-boot ts-host-reboot
-}
-
+proc need-hosts/test-debian {} { return host }
 proc run-job/test-debian {} {
     run-ts . = ts-debian-install
     run-ts . = ts-debian-fixup debian
     run-ts . = ts-guest-start debian
-    test-guest debian
+    test-guest host debian
 }
 
+proc need-hosts/test-win {} { return host }
 proc run-job/test-win {} {
     run-ts . = ts-windows-install
-    test-guest win
+    test-guest host win
 }
 
-proc test-guest {g} {
-    run-ts . = ts-guest-saverestore $g
-    run-ts . = ts-guest-localmigrate $g
-    run-ts . = ts-guest-stop $g
+proc need-hosts/test-pair {} { return {src_host dst_host} }
+proc run-job/test-pair {} {
+    run-ts . =              ts-debian-install      dst_host
+    run-ts . =              ts-debian-fixup        dst_host          debian
+    run-ts . =              ts-guest-nbd-mirror    dst_host src_host debian
+    run-ts . =              ts-guest-start         src_host          debian
+    run-ts . *              ts-guest-migrate       src_host dst_host debian
+    run-ts . *              ts-guest-migrate       dst_host src_host debian
+    run-ts . =              ts-remus-start         src_host dst_host debian
+    run-ts . remus-run      ts-remus-check         src_host dst_host debian
+    run-ts . =              ts-host-fail           src_host
+    run-ts . remus-failover ts-remus-check         src_host dst_host debian
+}
+
+proc test-guest {h g} {
+    run-ts . = ts-guest-saverestore $h $g
+    run-ts . = ts-guest-localmigrate $h $g
+    run-ts . = ts-guest-stop $h $g
 }
 
 main

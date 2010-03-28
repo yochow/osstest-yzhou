@@ -6,6 +6,9 @@ use Osstest;
 
 readconfig();
 opendb_state();
-our $ho= selecthost($r{host});
+
+our ($whhost) = @ARGV;
+$whhost ||= 'host';
+our $ho= selecthost($r{$whhost});
 
 power_cycle($ho);

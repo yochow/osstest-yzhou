@@ -17,8 +17,9 @@ BEGIN {
                       $tftptail
                       %c %r $dbh_state $dbh_tests $flight $job $stash
                       get_runvar get_runvar_maybe store_runvar get_stashed
+		      unique_incrementing_runvar
                       built_stash
-                      csreadconfig
+                      csreadconfig ts_get_host_guest
                       readconfig opendb_state selecthost need_runvars
                       get_filecontents ensuredir postfork db_retry
                       poll_loop logm link_file_contents create_webfile
@@ -29,18 +30,20 @@ BEGIN {
                       target_cmd_output_root target_cmd_output
                       target_getfile target_getfile_root
                       target_putfile target_putfile_root
+		      target_putfilecontents_root_stash
                       target_editfile_root
                       target_install_packages target_install_packages_norec
                       target_reboot target_reboot_hard
-                      target_choose_vg target_umount_lv
+                      target_choose_vg target_umount_lv target_await_down
                       target_ping_check_down target_ping_check_up
                       target_kernkind_check target_kernkind_console_inittab
                       target_var target_var_prefix
                       selectguest prepareguest
                       guest_umount_lv guest_await guest_await_dhcp_tcp
                       guest_checkrunning guest_check_ip guest_find_ether
-                      guest_find_domid
+                      guest_find_domid guest_check_up
                       guest_vncsnapshot_begin guest_vncsnapshot_stash
+		      guest_check_remus_ok
                       dir_identify_vcs build_clone
                       hg_dir_revision git_dir_revision vcs_dir_revision
                       store_revision store_vcs_revision
@@ -99,6 +102,16 @@ END
 
     $stash= "$c{Stash}/$flight.$job";
     ensuredir($stash);
+}
+
+sub ts_get_host_guest { # pass this @ARGV
+    my ($gn,$whhost) = reverse @_;
+    $whhost ||= 'host';
+    $gn ||= 'guest';
+
+    my $ho= selecthost($r{$whhost});
+    my $gho= selectguest($gn);
+    return ($ho,$gho);
 }
 
 sub db_retry ($$) {
@@ -165,6 +178,7 @@ sub cmd {
         exec @cmd;
         die "$cmd[0]: $!";
     }
+    my $start= time;
     my $r;
     eval {
         local $SIG{ALRM} = sub { die "alarm\n"; };
@@ -176,6 +190,13 @@ sub cmd {
         die unless $@ eq "alarm\n";
         logm("command timed out [$timeout]: @cmd");
         return '(timed out)';
+    } else {
+	my $finish= time;
+	my $took= $finish-$start;
+	my $warn= $took > 0.5*$timeout;
+	logm(sprintf "execution took %d seconds%s: %s",
+	     $took, ($warn ? " [**>2x$timeout**]" : "[<=2x$timeout]"), "@cmd")
+	    if $warn or $took > 60;
     }
     die "$r $child $!" unless $r == $child;
     logm("command nonzero waitstatus $?: @cmd") if $?;
@@ -226,7 +247,7 @@ sub tputfileex {
                'rsync', [ '-e', 'ssh '.join(' ',@{ sshopts() }) ],
                @args);
     }
-}    
+}
 sub target_putfile ($$$$;$) {
     tputfileex('osstest', @_);
 }
@@ -245,6 +266,24 @@ sub target_install_packages_norec {
                     300 + 100 * @packages);
 }
 
+sub target_somefile_defleaf ($$) {
+    my ($lleaf_ref, $rdest) = @_;
+    if (!defined $$lleaf_ref) {
+        $$lleaf_ref= $rdest;
+        $$lleaf_ref =~ s,.*/,,;
+    }
+}
+
+sub target_putfilecontents_root_stash ($$$$;$) {
+    my ($ho,$timeout,$filedata, $rdest,$lleaf) = @_;
+    target_somefile_defleaf(\$lleaf,$rdest);
+
+    my $h= new IO::File "$stash/$lleaf", 'w' or die "$lleaf $!";
+    print $h $filedata or die $!;
+    close $h or die $!;
+    target_putfile_root($ho,$timeout, "$stash/$lleaf", $rdest);
+}
+
 sub target_editfile_root ($$$;$$) {
     my $code= pop @_;
     my ($ho,$rfile,$lleaf,$rdest) = @_;
@@ -252,10 +291,7 @@ sub target_editfile_root ($$$;$$) {
     if (!defined $rdest) {
         $rdest= $rfile;
     }
-    if (!defined $lleaf) {
-        $lleaf= $rdest;
-        $lleaf =~ s,.*/,,;
-    }
+    target_somefile_defleaf(\$lleaf,$rdest);
     my $lfile;
     
     for (;;) {
@@ -307,12 +343,17 @@ sub target_ping_check_core {
 sub target_ping_check_down ($) { return target_ping_check_core(@_,256); }
 sub target_ping_check_up ($) { return target_ping_check_core(@_,0); }
 
+sub target_await_down ($$) {
+    my ($ho,$timeout) = @_;
+    poll_loop($timeout,5,'reboot-down', sub {
+        return target_ping_check_down($ho);
+    });
+}    
+
 sub target_reboot ($) {
     my ($ho) = @_;
     target_cmd_root($ho, "init 6");
-    poll_loop($timeout{RebootDown},5,'reboot-down', sub {
-        return target_ping_check_down($ho);
-    });
+    target_await_down($ho, $timeout{RebootDown});
     await_tcp($timeout{RebootUp},5,$ho);
 }
 
@@ -369,6 +410,27 @@ sub store_vcs_revision ($$$) {
     my ($which,$rev,$vcs) = @_;
     store_runvar("built_vcs_$which", $vcs);
     store_runvar("built_revision_$which", $rev);
+}
+
+sub unique_incrementing_runvar ($$) {
+    my ($param,$start) = @_;
+    my $value;
+    db_retry($dbh_tests, sub {
+	my $q= $dbh_tests->prepare(<<END);
+            SELECT val FROM runvars WHERE flight=? AND job=? AND name=?
+END
+        $q->execute($flight, $job, $param);
+	my $row= $q->fetchrow_arrayref();
+	$value= $row ? $row->[0] : $start;
+	$dbh_tests->do(<<END, undef, $flight, $job, $param);
+            DELETE FROM runvars WHERE flight=? AND job=? AND name=? AND synth
+END
+	$dbh_tests->do(<<END, undef, $flight, $job, $param, $value+1);
+            INSERT INTO runvars VALUES (?,?,?,?,'t')
+END
+    });
+    logm("runvar increment: $param=$value");
+    return $value;
 }
 
 sub store_runvar ($$) {
@@ -619,15 +681,29 @@ sub prepareguest ($$$$$) {
     return $gho;
 }
 
-sub guest_checkrunning ($$) {
+sub guest_check_up ($) {
+    my ($gho) = @_;
+    guest_await_dhcp_tcp($gho,10);
+    target_ping_check_up($gho);
+    target_cmd_root($gho, "echo guest $gho->{Name}: ok")
+        if $r{"$gho->{Guest}_tcpcheckport"} == 22;
+}
+
+sub guest_getstate ($$) {
     my ($ho,$gho) = @_;
     my $domains= target_cmd_output_root($ho, toolstack()->{Command}." list");
     $domains =~ s/^Name.*\n//;
     foreach my $l (split /\n/, $domains) {
-        $l =~ m/^(\S+)\s/ or die "$l ?";
-        return 1 if $1 eq $gho->{Name};
+        $l =~ m/^(\S+) (?: \s+ \d+ ){3} \s+ -*([a-z])-* \s/x or die "$l ?";
+        return $2 if $1 eq $gho->{Name};
     }
-    return 0;
+    return '';
+}
+
+sub guest_checkrunning ($$) {
+    my ($ho,$gho) = @_;
+    my $s= guest_getstate($ho,$gho);
+    return $s =~ m/^[rb]$/;
 }
 
 sub guest_await_dhcp_tcp ($$) {
@@ -653,6 +729,29 @@ sub need_runvars {
     my @missing= grep { !defined $r{$_} } @_;
     return unless @missing;
     die "missing runvars @missing ";
+}
+
+sub guest_check_remus_ok {
+    my ($gho, @hos) = @_;
+    my @sts;
+    logm("remus check $gho->{Name}...");
+    foreach my $ho (@hos) {
+	my $st;
+	if (!eval {
+	    $st= guest_getstate($ho, $gho)
+        }) {
+	    $st= '_';
+	    logm("could not get guest $gho->{Name} state on $ho->{Name}: $@");
+	}
+	push @sts, [ $ho, $st ];
+    }
+    my $compound= join '', map { $_->[1] } @sts;
+    my $msg= "remus check $gho->{Name}: result \"$compound\":";
+    $msg .= " $_->[0]{Name}=$_->[1]" foreach @sts;
+    logm($msg);
+    die "running on multiple hosts" if $compound =~ m/[rb].*[rb]/;
+    die "not running anywhere" unless $compound =~ m/[rb]/;
+    die "crashed somewhere" if $compound =~ m/c/;
 }
 
 sub poll_loop ($$$&) {
@@ -776,6 +875,8 @@ sub target_umount_lv ($$$) {
     my ($ho,$vg,$lv) = @_;
     my $dev= "/dev/$vg/$lv";
     for (;;) {
+	my $link= target_cmd_output_root($ho, "readlink $dev");
+	return if $link =~ m,^/dev/nbd,; # can't tell if it's open
         $lv= target_cmd_output_root($ho, "lvdisplay --colon $dev");
         $lv =~ s/^\s+//;  $lv =~ s/\s+$//;
         my @lv = split /:/, $lv;

@@ -1,0 +1,44 @@
+#!/usr/bin/perl -w
+
+use strict qw(vars);
+use DBI;
+use Osstest;
+
+our %timeout= qw(Migrate      400);
+
+readconfig();
+opendb_state();
+our $sho = selecthost($r{$ARGV[0]});
+our $dho = selecthost($r{$ARGV[1]});
+our $gho = selectguest($ARGV[2]);
+
+our $log;
+
+sub startremus () {
+    guest_checkrunning($sho,$gho) or die $gho->{Name};
+    $log= "/var/log/xen/osstest-remus-$gho->{Name}.log";
+    target_cmd_root($sho, <<END);
+set -e
+savelog $log
+( set -e
+  exec </dev/null >$log
+  remus --no-net $gho->{Name} $dho->{Name} 2>&1 ) &
+END
+}
+
+sub awaitready () {
+    poll_loop($timeout{Migrate}, 10, 'remus startup', sub {
+	my $loghead= target_cmd_output_root($sho, "head -40 $log", 100);
+	my @matches= $loghead =~ m/^All memory is saved/mg;
+	return undef if @matches >= 2;
+	$loghead =~ /.*$/ or die;
+	return "log: $&";
+    });
+}
+
+guest_check_up($gho);
+startremus();
+awaitready();
+target_cmd_root($gho, "echo remus $gho->{Name}: ok", 20);
+guest_check_remus_ok($gho,$sho,$dho);
+guest_check_up($gho);

@@ -6,19 +6,24 @@ use Osstest;
 
 readconfig();
 opendb_state();
-our $ho= selecthost($r{host});
+
+our ($whhost,$gn) = @ARGV;
+$whhost ||= 'host';
+$gn ||= 'debian';
+
+our $ho= selecthost($r{$whhost});
 
 our $ram_mb=    512;
 our $swap_mb=  1000;
 our $disk_mb= 10000;
 
-our $guesthost= 'one.guest.osstest';
+our $guesthost= "$gn.guest.osstest";
 our $gho;
 
 sub prep () {
     target_install_packages_norec($ho, qw(lvm2 xen-tools));
 
-    $gho= prepareguest($ho, 'debian', $guesthost, 22,
+    $gho= prepareguest($ho, $gn, $guesthost, 22,
                        $swap_mb + $disk_mb + 2);
     target_cmd_root($ho, "umount $gho->{Lvdev} ||:");
 }
@@ -40,6 +45,7 @@ sub ginstall () {
 END
     my $cfg_xend= "/etc/xen/$gho->{Name}.cfg";
     store_runvar("$gho->{Guest}_cfgpath", $cfg_xend);
+    store_runvar("$gho->{Guest}_swap_lv", "$gho->{Name}-swap");
 }
 
 prep();

@@ -6,8 +6,7 @@ use Osstest;
 
 readconfig();
 opendb_state();
-our $ho= selecthost($r{host});
-our $gho= selectguest(@ARGV ? $ARGV[0] : 'guest');
+our ($ho,$gho) = ts_get_host_guest(@ARGV);
 
 sub start () {
     guest_umount_lv($ho, $gho);
@@ -23,3 +22,4 @@ sub checkstart () {
 start();
 checkstart();
 guest_await($gho, 100);
+guest_check_up($gho);

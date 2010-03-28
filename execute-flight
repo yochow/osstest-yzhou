@@ -1,16 +1,15 @@
 #!/bin/bash
 set -ex
-if [ $# -ne 3 ]; then cat <<END >&2; exit 1
+if [ $# -lt 3 ]; then cat <<END >&2; exit 1
 
-usage: ./execute-flight FLIGHT BLESSING HOSTLISTS
+usage: ./execute-flight FLIGHT BLESSING HOSTLISTS+
  eg ./execute-flight 1330 play 'earwig bedbug'
 
 END
 fi
 
-flight="$1"
-blessing="${2-play}"
-hostlists="$3"
+flight="$1"; shift
+blessing="${2-play}"; shift
 
 trap "
 	set +e
@@ -20,7 +19,7 @@ trap "
 
 set -x
 ./cs-flight-bless $flight running
-for hostlist in $hostlists; do
+for hostlist in $1; do
 	(
 		date
 		./sg-run-builds $flight --hostlist=$hostlist
@@ -34,7 +33,9 @@ for hostlist in $hostlists; do
 done
 wait
 
-for hostlist in $hostlists; do
+while [ $# -ge 1 ]; do
+   : hostlists "$1"
+   for hostlist in $1; do
 	(
 	date
 	./sg-run-tests $flight --hostlist=$hostlist
@@ -47,8 +48,10 @@ for hostlist in $hostlists; do
 	date
 	) &
 	: spawned tests $! $hostlist
+  done
+  wait
+  shift
 done
-wait
 
 ./cs-flight-bless $flight "$blessing"
 trap "" 0

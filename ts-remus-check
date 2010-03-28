@@ -1,0 +1,14 @@
+#!/usr/bin/perl -w
+
+use strict qw(vars);
+use DBI;
+use Osstest;
+
+readconfig();
+opendb_state();
+my $gn= pop(@ARGV);
+our $gho= selectguest($gn);
+our @ho= map { selecthost($r{$_}) } @ARGV;
+
+guest_check_remus_ok($gho, @ho);
+guest_check_up($gho);

@@ -102,6 +102,11 @@ for xenarch in i386 amd64; do
 		$RUNVARS $TEST_RUNVARS $most_runvars			\
 		win_image=winxpsp2.iso
 
+      ./cs-job-create $flight test-$xenarch$kern-$dom0arch-pair test-pair \
+                !host $PAIR_RUNVARS $RUNVARS $TEST_RUNVARS $most_runvars  \
+		debian_kernkind=$kernkind				  \
+		debian_arch=$dom0arch
+
     done
 
   done

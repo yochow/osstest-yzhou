@@ -8,14 +8,33 @@ use POSIX;
 
 my $checkmode= 0;
 
+readconfig();
+opendb_state();
+
+our @hos;
+
 if (@ARGV and $ARGV[0] eq '--check') {
     $checkmode= 1;
     shift @ARGV;
+
+    logm("checking builds are done...");
+    if (!@ARGV) {
+	foreach my $k (keys %r) {
+	    next unless $k =~ m/^(?:\w.*_)?host$/;
+	    push @ARGV, $k;
+	}
+    }
+} else {
+    if (!@ARGV) {
+	push @ARGV, 'host';
+    }
 }
 
-readconfig();
-opendb_state();
-our $ho= selecthost($r{host});
+foreach my $k (@ARGV) {
+    push @hos, selecthost($r{$k});
+}
+
+our $ho;
 
 my %distpath;
 
@@ -42,6 +61,35 @@ sub extract () {
     foreach my $part ('', 'kern', 'xen') {
         extract_one($part, "path_${part}dist", $r{"${part}buildjob"});
     }
+}
+
+sub adjustconfig () {
+    target_editfile_root($ho, "/etc/xen/xend-config.sxp",
+			 "xend-config.sxp", sub {
+	my (@domains) = (qw(localhost localhost.localdomain),
+			 ".".$c{Domain}, ".".$c{TestHostDomain});
+	logm("relocation domains: @domains");
+	foreach (@domains) {
+	    s/\./\\$&/g;
+	    s/^/^/g;
+	    s/$/\$/g;
+	    s/^\^(\\\.)/.\*$1/;
+	}
+	$_= join ' ', @domains;
+	s/[\'\\]/\\$&/g;
+	my $extra= "(xend-relocation-hosts-allow '$_')";
+	logm("relocation setting: $extra");
+	$extra .= "\n";
+        while (<EI>) {
+	    s/^\s*\(xend-relocation-hosts-allow/#$&/;
+	    print EO or die $!;
+	    if (m/^\#\(xend-relocation-hosts-allow/) {
+		print EO $extra or die $!;
+		$extra= '';
+	    }
+	}
+	print EO $extra or die $!;
+    });
 }
 
 sub setupboot () {
@@ -158,11 +206,17 @@ END
 }    
 
 if ($checkmode) {
-    extract();
+    foreach $ho (@hos) {
+	extract();
+    }
 } else {
+    die if @hos > 1;
+    $ho= $hos[0];
+    
     nodhcp();
     packages();
     extract();
+    adjustconfig();
     setupboot();
     setupinitd();
 }

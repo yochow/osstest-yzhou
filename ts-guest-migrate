@@ -8,14 +8,16 @@ our %timeout= qw(Migrate      400);
 
 readconfig();
 opendb_state();
-our ($ho,$gho) = ts_get_host_guest(@ARGV);
+our $sho = selecthost($r{$ARGV[0]});
+our $dho = selecthost($r{$ARGV[1]});
+our $gho = selectguest($ARGV[2]);
 
 sub migrate () {
-    guest_checkrunning($ho,$gho) or die $gho->{Name};
+    guest_checkrunning($sho,$gho) or die $gho->{Name};
     my $err= guest_check_ip($gho);  die "$err $gho->{Name}" if defined $err;
-    target_cmd_root($ho,
+    target_cmd_root($sho,
 		    toolstack()->{Command}
-		    ." migrate $gho->{Name} localhost",
+		    ." migrate $gho->{Name} $dho->{Name}",
 		    $timeout{Migrate});
 }
 

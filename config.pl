@@ -23,7 +23,6 @@ $c{SerialLogPattern}= '/root/sympathy/%host%.log*';
 $c{Stash}= '/home/xc_osstest/stash';
 $c{Images}= '/home/xc_osstest/images';
 $c{Logs}= '/home/xc_osstest/logs';
-$c{Host}= ''; #bedbug
 
 $c{Tftp}= '/tftpboot/pxe';
 
@@ -46,9 +45,11 @@ $c{Preseed}= <<END;
 d-i clock-setup/ntp-server string ntp.uk.xensource.com
 END
 
+$c{TestHostKeypairPath}= '/export/home/osstest/.ssh/id_rsa_osstest';
 $c{AuthorizedKeysFiles}= '';
 $c{AuthorizedKeysAppend}= <<'END';
 ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEA2m8+FRm8zaCy4+L2ZLsINt3OiRzDu82JE67b4Xyt3O0+IEyflPgw5zgGH69ypOn2GqYTaiBoiYNoAn9bpUksMk71q+co4gsZJ17Acm0256A3NP46ByT6z6/AKTl58vwwNKSCEAzNru53sXTYw2TcCZUN8A4vXY76OeJNJmCmgBDHCNod9fW6+EOn8ZSU1YjFUBV2UmS2ekKmsGNP5ecLAF1bZ8I13KpKUIDIY+UiG0UMwTWDfQY59SNsz6bCxv9NsxSXL29RS2XHFeIQis7t6hJuyZTT4b9YzjEAxvk8kdGzzK6314kwILibm1O1Y8LLyrYsWK1AvnJQFIhcYXF0EQ== iwj@mariner
+ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEApAkFv1FwknjOoataWvq5SRN/eUHjfQ5gfWnGJpIa4qnT+zAqYuC10BAHu3pHPV6NiedMxud0KcYlu/giQBMVMnYBdb7gWKdK4AQTgxHgvMMWHufa8oTLONLRsvyp1wQADJBzjQSjmo6HHF9faUckZHfJTfRxqLuR/3ENIyl+CRV9G6KfN9fbABejBxdfsbuTHc5ew2JsYxhDJsDFHgMjtrUoHI/d6eBTQDx8GRj8uUor8W+riFpW3whTH9dqloOyrqIke2qGVQlMNmzx5Z04vB1+n95nu9c5SGOZTUT4BQ5FybEANWQsNfJ7b3aMcYgVCVkKuRHSbW8Q4Pyn1Nh31w== ian@liberator
 END
 
 1;

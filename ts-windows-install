@@ -37,11 +37,7 @@ sub image () {
 }
 
 sub config () {
-    my $cfgleaf= "$gho->{Name}.cfg";
-    store_runvar("$gho->{Guest}_cfgpath", "/etc/xen/$cfgleaf");
-
-    my $h= new IO::File "$stash/$cfgleaf", 'w' or die "$cfgleaf $!";
-    print $h <<END or die $!;
+    my $xencfg= <<END;
 name        = '$gho->{Name}'
 
 kernel      = 'hvmloader'
@@ -77,8 +73,11 @@ on_reboot   = 'restart'
 on_crash    = 'preserve'
 vcpus = 2
 END
-    target_putfile_root($ho,10, "$stash/$cfgleaf",
-                        $r{"$gho->{Guest}_cfgpath"});
+
+    my $cfgpath= "/etc/xen/$gho->{Name}.cfg";
+    store_runvar("$gho->{Guest}_cfgpath", "$cfgpath");
+
+    target_putfilecontents_root_stash($ho,10,$xencfg, $cfgpath);
 }
 
 sub start () {

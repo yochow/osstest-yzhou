@@ -1,0 +1,28 @@
+#!/usr/bin/perl -w
+
+use strict qw(vars);
+use DBI;
+use Osstest;
+
+readconfig();
+opendb_state();
+
+our ($whhost) = @ARGV;
+our $ho= selecthost($r{$whhost});
+
+sub fail () {
+    my $log= "/var/log/xen/osstest-hostfail";
+    target_cmd_root($ho, <<END
+set -e
+savelog $log
+( exec </dev/null >$log
+  exec 2>&1
+  sleep 5
+  ifconfig eth0 down
+  ifconfig peth0 down
+  init 0 ) &
+END
+}   
+
+fail();
+target_await_down($ho, 20);

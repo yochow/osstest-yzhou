@@ -1,19 +1,24 @@
 #!/bin/sh
 set -ex
 
+dcs=daily-cron-settings
+
 if [ "x$1" = "x--real" ]; then
 	: ${OSSTEST_BLESSING:=real}
 	shift
-else
-	: ${OSSTEST_BLESSING:=play}
+elif [ "x$1" = "x--like-real" ]; then
+	: ${OSSTEST_CRON_SETTINGS:=$dcs-real}
+	shift
 fi	
+: ${OSSTEST_BLESSING:=play}
 
 if [ x"$OSSTEST_BLESSING" = xreal ]; then
 	cd ${OSSTEST_DIR:=/export/home/osstest/testing.git}
 fi
+
 : ${OSSTEST_EMAIL_HEADER:=daily-cron-email-$OSSTEST_BLESSING}
 
-. daily-cron-settings-$OSSTEST_BLESSING
+. ${OSSTEST_CRON_SETTINGS:-$dcs-$OSSTEST_BLESSING}
 
 : ${ARCH_RUNVARS_i386:="host=$OSSTEST_HOST_i386"}
 : ${ARCH_RUNVARS_amd64:="host=$OSSTEST_HOST_amd64"}
@@ -21,14 +26,18 @@ export ARCH_RUNVARS_i386
 export ARCH_RUNVARS_amd64
 
 if [ "x$OSSTEST_HOST_i386" != x"$OSSTEST_HOST_amd64" ]; then
-	hostlists="$OSSTEST_HOST_i386 $OSSTEST_HOST_amd64"
+	hostlists1="$OSSTEST_HOST_i386 $OSSTEST_HOST_amd64"
 else
-	hostlists="$OSSTEST_HOST_i386"
+	hostlists1="$OSSTEST_HOST_i386"
 fi
+
+export PAIR_RUNVARS="src_host=$OSSTEST_HOST_PAIR1 dst_host=$OSSTEST_HOST_PAIR2"
+hostlists2="$OSSTEST_HOST_PAIR1 $OSSTEST_HOST_PAIR2"
 
 flight=`./make-flight "$@"`
 
-./execute-flight $flight $OSSTEST_BLESSING "$hostlists" \
+./execute-flight $flight $OSSTEST_BLESSING \
+        "$hostlists1" "$hostlists2" \
         >tmp/$flight.transcript 2>&1
 
 exec >tmp/$flight.email

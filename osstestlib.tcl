@@ -60,7 +60,7 @@ proc prepare-job {job} {
                     WHERE  flight=$flight
                     AND    job='$job'
                     AND   (name='host' OR name LIKE '%_host')
-                  ORDER BY name
+                  ORDER BY val
             " {
                 lappend actualhosts $hostinfo(val)
             }
@@ -74,9 +74,6 @@ proc prepare-job {job} {
     }
 
     logputs stdout "prepping $desc"
-    if {![job-set-host $flight $job $c(Host)]} {
-        return 0
-    }
     return 1
 }
 
@@ -161,28 +158,6 @@ proc spawn-ts {iffail testid ts args} {
 proc setstatus {st} {
     global flight jobinfo
     job-set-status $flight $jobinfo(job) $st
-}
-
-proc job-set-host {flight job host} {
-    pg_execute dbh BEGIN
-    pg_execute -array hostinfo dbh "
-        SELECT * FROM runvars WHERE
-            flight=$flight AND job='$job' AND name='host'
-    "
-    if {[info exists hostinfo(val)]} {
-        pg_execute dbh ROLLBACK
-        if {[string length $host] && [string compare $hostinfo(val) $host]} {
-            logputs stdout "wronghost $flight.$job $hostinfo(val)"
-            return 0
-        }
-        return 1
-    }
-    pg_execute dbh "
-        INSERT INTO runvars VALUES
-             ($flight, '$job', 'host', '$host', 'f')
-    "
-    pg_execute dbh COMMIT
-    return 1
 }
 
 proc job-set-status {flight job st} {

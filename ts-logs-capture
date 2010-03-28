@@ -147,6 +147,7 @@ sub fetch_logs_host_guests () {
                   /var/log/xen/xen-hotplug.log*
                   /var/log/xen/domain-builder-ng.log*
                   /var/log/xen/qemu-dm*
+                  /var/log/xen/osstest*
 
                   )];
     if (!try_fetch_logs($ho, $logs)) {

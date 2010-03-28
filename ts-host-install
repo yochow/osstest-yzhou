@@ -6,7 +6,10 @@ use Osstest;
 
 readconfig();
 opendb_state();
-our $ho= selecthost($r{host});
+
+our ($whhost) = @ARGV;
+$whhost ||= 'host';
+our $ho= selecthost($r{$whhost});
 
 our %timeout= qw(ReadPreseed 250
                  Sshd        800);
@@ -31,6 +34,14 @@ sub install () {
         logm("| $l");
         next unless $l =~ m,^\s*(/dev/[^:]+/dummy):,;
         target_cmd_root($ho, "lvremove -f $1");
+    }
+
+    my $kpath= $c{TestHostKeypairPath};
+    my $kleaf= $kpath;
+    $kleaf =~ s,.*/,,;
+    foreach my $ext ('', '.pub') {
+	target_putfile     ($ho,10, "${kpath}${ext}", ".ssh/${kleaf}${ext}");
+	target_putfile_root($ho,10, "${kpath}${ext}", ".ssh/${kleaf}${ext}");
     }
 
     logm('OK: install completed');
@@ -82,6 +93,7 @@ sub create_preseed ($) {
         "$ENV{'HOME'}/.ssh/$_"
         } qw(authorized_keys id_dsa.pub id_rsa.pub);
     push @akf, split ':', $c{AuthorizedKeysFiles};
+    push @akf, $c{TestHostKeypairPath}.'.pub';
     foreach my $akf (@akf) {
         next unless $akf =~ m/\S/;
         $authkeys .= get_filecontents($akf, "# $akf ENOENT\n"). "\n";
