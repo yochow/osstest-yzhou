@@ -43,19 +43,21 @@ proc run-job {} {
 
     set need_hosts [need-hosts/$jobinfo(recipe)]
 
-    per-host-ts broken host-install (*) ts-host-install-twice
-    per-host-ts .      xen-install  {}  ts-xen-install
-    per-host-ts .      xen-boot     {}  ts-host-reboot
+    per-host-ts broken  host-install (*) ts-host-install-twice
+    per-host-ts .       xen-install  {}  ts-xen-install
+    per-host-ts .       xen-boot     {}  ts-host-reboot
 
     if {$ok} { catching-otherwise fail      run-job/$jobinfo(recipe)      }
-               catching-otherwise broken    capture-logs
+    per-host-ts !broken capture-logs (*) ts-logs-capture
     if {$ok} { setstatus pass                                             }
 }
 
 proc per-host-ts {failst ident1 ident2 args} {
     global ok need_hosts flight jobinfo
     
-    if {!$ok} return
+    if {![regsub {^!} $failst {} failst]} {
+	if {!$ok} return
+    }
 
     set awaitl {}
     foreach host $need_hosts {
@@ -95,10 +97,6 @@ proc catching-otherwise {failst script} {
         set anyfailed 1
 	setstatus $failst
     }
-}
-
-proc capture-logs {} {
-    per-host-ts broken capture-logs (*) ts-logs-capture
 }
 
 proc check-not-blocked {} {
