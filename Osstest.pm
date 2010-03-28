@@ -690,21 +690,23 @@ sub guest_check_up ($) {
         if $r{"$gho->{Guest}_tcpcheckport"} == 22;
 }
 
-sub guest_getstate ($$) {
+sub guest_get_state ($$) {
     my ($ho,$gho) = @_;
     my $domains= target_cmd_output_root($ho, toolstack()->{Command}." list");
     $domains =~ s/^Name.*\n//;
     foreach my $l (split /\n/, $domains) {
-        $l =~ m/^(\S+) (?: \s+ \d+ ){3} \s+ -*([a-z])-* \s/x or die "$l ?";
+        $l =~ m/^(\S+) (?: \s+ \d+ ){3} \s+ -*([-a-z])-* \s/x or die "$l ?";
         return $2 if $1 eq $gho->{Name};
     }
     return '';
 }
 
+our $guest_state_running_re= '[-rb]';
+
 sub guest_checkrunning ($$) {
     my ($ho,$gho) = @_;
-    my $s= guest_getstate($ho,$gho);
-    return $s =~ m/^[rb]$/;
+    my $s= guest_get_state($ho,$gho);
+    return $s =~ m/^$guest_state_running_re$/;
 }
 
 sub guest_await_dhcp_tcp ($$) {
@@ -739,7 +741,7 @@ sub guest_check_remus_ok {
     foreach my $ho (@hos) {
 	my $st;
 	if (!eval {
-	    $st= guest_getstate($ho, $gho)
+	    $st= guest_get_state($ho, $gho)
         }) {
 	    $st= '_';
 	    logm("could not get guest $gho->{Name} state on $ho->{Name}: $@");
@@ -750,9 +752,12 @@ sub guest_check_remus_ok {
     my $msg= "remus check $gho->{Name}: result \"$compound\":";
     $msg .= " $_->[0]{Name}=$_->[1]" foreach @sts;
     logm($msg);
-    die "running on multiple hosts" if $compound =~ m/[rb].*[rb]/;
-    die "not running anywhere" unless $compound =~ m/[rb]/;
-    die "crashed somewhere" if $compound =~ m/c/;
+    die "running on multiple hosts"
+	if $compound =~ m/$guest_state_running_re.*$guest_state_running_re/;
+    die "not running anywhere"
+	unless $compound =~ m/$guest_state_running_re/;
+    die "crashed somewhere"
+	if $compound =~ m/c/;
 }
 
 sub poll_loop ($$$&) {

@@ -38,9 +38,9 @@ sub install () {
 
     my $kpath= $c{TestHostKeypairPath};
     my $kleaf= $kpath;
+    $kleaf =~ s,.*/,,;
     my $ktarg= $kleaf;
     $ktarg =~ s/^(id_[a-z]+)_.*/$1/;
-    $kleaf =~ s,.*/,,;
     foreach my $ext ('', '.pub') {
 	target_putfile     ($ho,10, "${kpath}${ext}", ".ssh/${ktarg}${ext}");
 	target_putfile_root($ho,10, "${kpath}${ext}", ".ssh/${ktarg}${ext}");

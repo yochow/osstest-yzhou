@@ -1,4 +1,4 @@
 : ${OSSTEST_HOST_i386:=spider}
 : ${OSSTEST_HOST_amd64:=spider}
-: ${OSSTEST_HOST_PAIR1:=bedbug}
-: ${OSSTEST_HOST_PAIR2:=earwig}
+: ${OSSTEST_PAIR_HOST1:=bedbug}
+: ${OSSTEST_PAIR_HOST2:=earwig}

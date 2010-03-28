@@ -32,7 +32,8 @@ else
 fi
 
 export PAIR_RUNVARS="src_host=$OSSTEST_HOST_PAIR1 dst_host=$OSSTEST_HOST_PAIR2"
-hostlists2="$OSSTEST_HOST_PAIR1 $OSSTEST_HOST_PAIR2"
+hostlists2=`perl -e 'print join ",", sort @ARGV' \
+	$OSSTEST_PAIR_HOST1 $OSSTEST_PAIR_HOST2`
 
 flight=`./make-flight "$@"`
 

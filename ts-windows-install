@@ -92,3 +92,4 @@ image();
 config();
 start();
 guest_await_dhcp_tcp($gho,7000);
+guest_check_up($gho);

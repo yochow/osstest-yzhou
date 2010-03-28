@@ -9,7 +9,7 @@ END
 fi
 
 flight="$1"; shift
-blessing="${2-play}"; shift
+blessing="${1-play}"; shift
 
 trap "
 	set +e
