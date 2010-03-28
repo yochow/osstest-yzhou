@@ -8,7 +8,10 @@ use POSIX;
 
 readconfig();
 opendb_state();
-our $ho= selecthost($r{host});
+
+our ($whhost) = @ARGV;
+$whhost ||= 'host';
+our $ho= selecthost($r{$whhost});
 
 sub try_fetch_logs ($$) {
     my ($lho, $logfilepats) = @_;
@@ -33,6 +36,13 @@ sub try_fetch_logs ($$) {
             logm("fetching $logfile to $llogfile");
             if (!eval {
                 target_getfile_root($lho,60, $logfile,"$stash/$llogfile");
+		if ($logfile !~ m/\.gz$/) {
+		    stat("$stash/$llogfile") or die "$stash/$llogfile $!";
+		    if ((stat _)[7] > 100000) {
+			my $r= system 'gzip','-9vf','--',"$stash/$llogfile";
+			die "$r $!" if $r;
+		    }
+		}
                 1;
             }) {
                 logm("logfile $logfile fetch failed: $@");
@@ -48,7 +58,9 @@ sub fetch_logs_serial () {
     my $logpat= $c{SerialLogPattern};
     $logpat =~ s/\%(\w*)\%/
         !length $1 ? '' :
-        !defined $r{$1} ? die "$c{SerialLogPattern} $1 ?" :
+        !defined $r{
+	    $1 eq 'host' ? $whhost : $1
+	    } ? die "$c{SerialLogPattern} $1 ?" :
         $r{$1}
     /ge;
     my $started= $dbh_tests->selectrow_array(<<END);

@@ -12,7 +12,7 @@ our $ho= selecthost($r{$whhost});
 
 sub fail () {
     my $log= "/var/log/xen/osstest-hostfail";
-    target_cmd_root($ho, <<END
+    target_cmd_root($ho, <<END);
 set -e
 savelog $log
 ( exec </dev/null >$log
