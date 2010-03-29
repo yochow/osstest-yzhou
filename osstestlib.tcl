@@ -59,7 +59,7 @@ proc prepare-job {job} {
                 SELECT val FROM runvars
                     WHERE  flight=$flight
                     AND    job='$job'
-                    AND   (name='host' OR name LIKE '%_host')
+                    AND   (name='host' OR name LIKE E'%\\_host')
                   ORDER BY val
             " {
                 lappend actualhosts $hostinfo(val)
@@ -113,16 +113,31 @@ proc spawn-ts {iffail testid ts args} {
 	error $emsg $ei $ec
     }
 
-    regsub {^ts-} [join "$ts $args" /] {} deftestid
+    set real_args {}
+    set adding 1
+    set host_testid_suffix {}
+    foreach arg $args {
+        if {![string compare + $arg]} {
+            set adding 0
+            continue
+        }
+        lappend real_args $arg
+        if {$adding} { append host_testid_suffix "/$arg" }
+    }
+
+    regsub {^ts-} $ts {} deftestid
+    append deftestid /@
+
     if {![string compare $testid =]} {
         set testid $deftestid
     } elseif {![string compare $testid *]} {
         set testid $deftestid
         append testid (*)
     }
+    regsub {/\@} $testid $host_testid_suffix testid
     regsub {\(\*\)$} $testid ($stepno) testid
 
-    set detstr "$flight.$jobinfo(job) $ts $args"
+    set detstr "$flight.$jobinfo(job) $ts $real_args"
     set details [list $flight $jobinfo(job) $ts $detstr $iffail]
     logputs stdout "starting $detstr $testid"
     
@@ -147,7 +162,7 @@ proc spawn-ts {iffail testid ts args} {
                      date -u +\"%Y-%m-%d %H:%M:%S Z exit status \$rc\" >&2
                      exit \$rc
                  " x ./$ts] \
-                 $args \
+                 $real_args \
                  [list 2> $log < /dev/null]]
     set fh [open |$cmd r]
     set reap_details($fh) $details
