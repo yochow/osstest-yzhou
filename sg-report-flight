@@ -4,9 +4,40 @@ use strict qw(refs vars);
 
 use DBI;
 use Osstest;
+use IO::Handle;
 
-@ARGV==1 or die;
-my ($specflight)= @ARGV;
+our $specflight;
+our %specver;
+our @blessings;
+our $mro;
+
+open DEBUG, ">/dev/null";
+open MRO, ">/dev/null";
+
+while (@ARGV && $ARGV[0] =~ m/^-/) {
+    $_= shift @ARGV;
+    last if m/^--?$/;
+    if (m/^--(this|that)-([^=]+)\=([^=]+)$/) {
+        $specver{$1}{$2}= $3;
+    } elsif (m/^--machine-readable-output=(.*)$/) {
+        $mro= $1;
+        open MRO, "> $mro.new" or die "$mro.new $!";
+    } elsif (m/^--blessings?=(.*)$/) {
+        push @blessings, split ',', $1;
+    } elsif (m/^--debug/) {
+        open DEBUG, ">&2" or die $!;
+        DEBUG->autoflush(1);
+    } else {
+        die "$_ ?";
+    }
+}
+
+if (@ARGV && !defined $specflight) {
+    $specflight= shift @ARGV;
+}
+!@ARGV or die;
+
+push @blessings, 'real' unless @blessings;
 
 csreadconfig();
 
@@ -14,7 +45,63 @@ csreadconfig();
 our $jl= 30;
 our $sl= 30;
 our $rl= 9;
-our $cw= 75;
+our $cw= 79;
+our $tl= 20;
+
+sub findaflight ($$) {
+    my ($thisthat, $sub) = @_;
+
+    die $thisthat unless keys %{ $specver{$thisthat} };
+
+    my $blessingscond= '('.join(' OR ', map { "blessing=?" } @blessings).')';
+    my $flightsq= <<END;
+        SELECT flight FROM flights
+            WHERE $blessingscond
+            ORDER BY flight DESC
+            LIMIT 1000
+END
+    #print DEBUG "===\n$flightsq\n===\n";
+    $flightsq= $dbh_tests->prepare($flightsq);
+    $flightsq->execute(@blessings);
+
+    my $whynotq= <<END;
+            SELECT * FROM runvars
+                WHERE flight=? AND (FALSE
+END
+    foreach my $tree (keys %{ $specver{$thisthat} }) {
+        my $v= $specver{$thisthat}{$tree};
+        $whynotq .= <<END
+                  OR (name='built_revision_$tree' AND
+                      NOT (val = '$v' OR val LIKE '%:$v'))
+END
+    }
+    $whynotq .= <<END;
+                                    )
+                LIMIT 1
+END
+    #print DEBUG "===\n$whynotq\n===\n";
+    $whynotq= $dbh_tests->prepare($whynotq);
+
+    while (my ($tflight) = $flightsq->fetchrow_array) {
+        $whynotq->execute($tflight);
+        my $row= $whynotq->fetchrow_arrayref();
+        my $whynot;
+        if ($row) {
+            $whynot= "mismatch @$row";
+        } else {
+            $whynot= $sub->($tflight);
+        }
+        return $tflight if !defined $whynot;
+        print DEBUG " $tflight $whynot\n";
+    }
+    return undef;
+}
+
+sub findspecflight () {
+    return if defined $specflight;
+    $specflight= findaflight('this', sub { return undef; });
+    die unless defined $specflight;
+}
 
 sub examineflight ($) {
     my ($flight) = @_;
@@ -100,6 +187,15 @@ END
     };
 }
 
+sub printversions ($) {
+    my ($thisthat) = @_;
+    my ($sv) = $specver{$thisthat};
+    foreach my $k (sort keys %$sv) {
+        printf " %-${tl}s %s\n", $k, $sv->{$k} or die $!;
+        print MRO "version $thisthat $k $sv->{$k}\n" or die $!;
+    }
+}
+
 sub printout ($) {
     my ($r) = @_;
     print <<END
@@ -111,11 +207,33 @@ tests which did not succeed:
 END
         or die $!;
     foreach my $failk (sort keys %{ $r->{Failures} }) {
-        my $s= $r->{Failures}{$failk}{Step};
-        my $j= $r->{Failures}{$failk}{Job};
-        my $text= (sprintf" %-${jl}s %2d %-${sl}s %s",
+        my $failv= $r->{Failures}{$failk};
+        my $s= $failv->{Step};
+        my $j= $failv->{Job};
+        my $text= (sprintf" %-${jl}s %2d %-${sl}s %-${rl}s",
                    $j->{job}, $s->{stepno}, $s->{testid}, $s->{status});
+        if ($failv->{Regression}) {
+            $text .= 'NEW';
+        } elsif (defined $failv->{JustifyingFlight}) {
+            $text .= $failv->{JustifyingFlight};
+        }
+        $text =~ s/ *$//;
+        while (length($text) > $cw) { last unless $text =~ s/(.* ) /$1/; }
         print $text, "\n";
+    }
+    print "\n" or die $!;
+
+    if ($specver{this}) {
+        print "version targeted for testing:\n" or die $!;
+        printversions('this');
+    }
+    if ($specver{that}) {
+        print "baseline version:\n" or die $!;
+        printversions('that');
+        print <<'END' or die $!;
+(Individual test failures are shown as NEW above if they always succeeded in
+ the baseline.  If they ever failed, a flight in which they failed is shown.)
+END
     }
 
     print "\njobs:\n", $r->{JobsSummary}, "\n" or die $!;
@@ -144,5 +262,60 @@ $c{ReportTrailer}
 END
 }
 
+sub justifyfailures ($) {
+    my ($fi) = @_;
+    return unless $specver{that};
+
+    my @failures= values %{ $fi->{Failures} };
+
+    foreach my $failv (@failures) {
+        my $j= $failv->{Job};
+        my $s= $failv->{Step};
+        my $st= $s->{status};
+        print DEBUG "justifying $j->{job} $s->{testid} $st\n";
+        if ($st ne 'fail') {
+            print MRO "broken $j->{job} $s->{testid} $st\n";
+            print DEBUG " not a fail, unjustifiable\n";
+            next;
+        }
+        my $justflight= findaflight('that', sub {
+            my ($chkflight) = @_;
+            my $checkq= $dbh_tests->prepare(<<END);
+                SELECT status FROM steps WHERE flight=? AND job=? AND testid=?
+END
+            $checkq->execute($chkflight, $j->{job}, $s->{testid});
+            my ($chkst) = $checkq->fetchrow_array();
+            return "step not executed" unless defined $chkst;
+            return "benchmark was $st" unless $chkst eq $st;
+            return undef;
+        });
+        if (!defined $justflight) {
+            print MRO "regression $j->{job} $s->{testid}\n" or die $!;
+            $failv->{Regression}= 1;
+            print DEBUG " unjustified\n";
+            next;
+        }
+        print DEBUG " justified by $justflight\n";
+        $failv->{JustifyingFlight}= $justflight;
+    }
+    if (!@failures) {
+        print MRO "tolerable\nperfect\n" or die $!;
+    } elsif (grep { $_->{Regression} } @failures) {
+        $fi->{OutcomeSummary}= "regressions - $fi->{OutcomeSummary}";
+    } elsif (!grep { !defined $_->{JustifyingFlight} } @failures) {
+        $fi->{OutcomeSummary}= "tolerable $fi->{OutcomeSummary}";
+        print MRO "tolerable\n" or die $!;
+    } else {
+        # not tolerable
+    }
+}
+
+findspecflight();
 my $fi= examineflight($specflight);
+justifyfailures($fi);
 printout($fi);
+
+if (defined $mro) {
+    close MRO or die $!;
+    rename "$mro.new",$mro or die $!;
+}
