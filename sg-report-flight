@@ -6,40 +6,36 @@ use DBI;
 use Osstest;
 
 @ARGV==1 or die;
-my ($flight)= @ARGV;
+my ($specflight)= @ARGV;
 
 csreadconfig();
 
-my $flightinfo= $dbh_tests->selectrow_hashref(<<END);
-    SELECT * FROM flights
-        WHERE flight=$flight
-END
+# formatting settings
+our $jl= 30;
+our $sl= 30;
+our $rl= 9;
+our $cw= 75;
 
-my $jobs= $dbh_tests->selectall_arrayref(<<END, { Slice => {} });
-    SELECT * FROM jobs
-        WHERE flight=$flight
-        ORDER BY job
-END
-
-my $toptext='';
-
-my $jl= 28;
-my $sl= 30;
-my $rl= 9;
-my $cols= 1;
-my $cw= 75;
-
-my @jobtexts;
-my %counts;
-
-my @fails;
-
-{
-    my $row= 0;
-    my $col= 0;
+sub examineflight ($) {
+    my ($flight) = @_;
+    my @jobtexts;
+    my %fails;
+    my %statuscounts;
+    my $jobsummary= '';
     
+    my $flightinfo= $dbh_tests->selectrow_hashref(<<END);
+        SELECT * FROM flights
+            WHERE flight=$flight
+END
+
+    my $jobs= $dbh_tests->selectall_arrayref(<<END, { Slice => {} });
+        SELECT * FROM jobs
+            WHERE flight=$flight
+            ORDER BY job
+END
+
     foreach my $j (@$jobs) {
-	$counts{$j->{status}}++;
+	$statuscounts{$j->{status}}++;
 
 	my $jobtext= sprintf "%s:\n", $j->{job};
 
@@ -50,14 +46,18 @@ my @fails;
 END
         $sth->execute();
 
-        $toptext .= sprintf " %-${jl}s %-${rl}s\n", $j->{job}, $j->{status};
+        $jobsummary .= sprintf " %-${jl}s %-${rl}s\n", $j->{job}, $j->{status};
 
 	while (my $s= $sth->fetchrow_hashref()) {
 	    $jobtext .= sprintf "%2d %-${sl}s %-${rl}s\n",
 	        $s->{stepno}, $s->{testid}, $s->{status};
             if ($s->{status} ne 'pass') {
-                push @fails, sprintf " %-${jl}s %2d %-${sl}s %-${rl}s",
-                    $j->{job}, $s->{stepno}, $s->{testid}, $s->{status};
+                my $failkey= "$j->{job}.$s->{testid}";
+                my $failval= {
+                    Job => $j,
+                    Step => $s
+                };
+                $fails{$failkey}= $failval;
             }
 	}
 
@@ -74,70 +74,65 @@ END
             $jobtext .= sprintf " %-15s %-.20s\n", $br, $r->{val};
         }
 
-	$jobtexts[$row][$col]= [ split /\n/, $jobtext ];
-	$col++;
-	if ($col==$cols) { $row++; $col=0; }
+	push @jobtexts, [ split /\n/, $jobtext ];
     }
+
+    my $outcomes= join '/', sort keys %statuscounts;
+    my $outcome;
+    if ($outcomes eq 'pass') {
+        $outcome= 'all pass';
+    } elsif ($outcomes eq 'fail') {
+        $outcome= 'ALL FAIL';
+    } elsif ($outcomes =~ m,^(?:blocked/)?(?:fail/)?pass$,) {
+        $outcome= 'FAIL';
+    } else {
+        $outcome= "trouble: $outcomes";
+    }
+
+    return {
+        Flight => $flight,
+        FlightInfo => $flightinfo,
+        JobTexts => \@jobtexts,
+        Failures => \%fails,
+        StatusCounts => \%statuscounts,
+        OutcomeSummary => $outcome,
+        JobsSummary => $jobsummary,
+    };
 }
 
-my $outcomes= join '/', sort keys %counts;
-my $outcome;
-if ($outcomes eq 'pass') {
-    $outcome= 'all pass';
-} elsif ($outcomes eq 'fail') {
-    $outcome= 'ALL FAIL';
-} elsif ($outcomes =~ m,^(?:blocked/)?(?:fail/)?pass$,) {
-    $outcome= 'FAIL';
-} else {
-    $outcome= "trouble: $outcomes";
-}
-print "oss xen test $flight: $outcome\n" or die $!;
+sub printout ($) {
+    my ($r) = @_;
+    print <<END
+oss xen test $r->{Flight}: $r->{OutcomeSummary}
 
-print <<END
-
-flight $flight $flightinfo->{blessing}
+flight $r->{Flight} $r->{FlightInfo}{blessing}
 
 tests which did not succeed:
 END
-    or die $!;
+        or die $!;
+    foreach my $failk (sort keys %{ $r->{Failures} }) {
+        my $s= $r->{Failures}{$failk}{Step};
+        my $j= $r->{Failures}{$failk}{Job};
+        my $text= (sprintf" %-${jl}s %2d %-${sl}s %s",
+                   $j->{job}, $s->{stepno}, $s->{testid}, $s->{status});
+        print $text, "\n";
+    }
 
-foreach my $fail (@fails) {
-    print $fail, "\n";
-}
+    print "\njobs:\n", $r->{JobsSummary}, "\n" or die $!;
 
-print "\njobs:\n", $toptext, "\n" or die $!;
-
-foreach my $row (0..$#jobtexts) {
-    foreach my $col (0..$cols-1) {
-	print '   ' or die $! if $col;
+    foreach my $jt (@{ $r->{JobTexts} }) {
 	print '-'x$cw or die $!;
+        print "\n" or die $!;
+        print join "\n", @$jt or die $!;
+        print "\n" or die $!;
     }
-    print "\n" or die $!;
-    my $l= 0;
-    for (;;) {
-	my $al= '';
-	my $any= 0;
-	foreach my $col (0..$cols-1) {
-	    my $tl= $jobtexts[$row][$col][$l];
-	    $al .= ' | ' if $col;
-	    $any ||= defined $tl;
-	    $tl='' unless defined $tl;
-	    $al .= sprintf "%-${cw}s", $tl;
-	}
-	last unless $any;
-	$al =~ s/ +$//;
-	print $al, "\n" or die $!;
-	$l++;
-    }
-}
 
-my $hostname= `hostname -f`;
-$? and die $?;  chomp $hostname;
+    my $hostname= `hostname -f`;
+    $? and die $?;  chomp $hostname;
 
-my $logs= `echo 'source config.tcl; puts \$c(logs)' | tclsh`;
-$? and die $?;  chomp $logs;
+    my $logs= $c{Logs};
 
-print <<END or die $!;
+    print <<END or die $!;
 
 ------------------------------------------------------------
 sg-report-flight on $hostname
@@ -147,3 +142,7 @@ images: $c{Images}
 
 $c{ReportTrailer}
 END
+}
+
+my $fi= examineflight($specflight);
+printout($fi);
