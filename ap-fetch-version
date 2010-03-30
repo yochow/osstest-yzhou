@@ -1,0 +1,22 @@
+#!/bin/bash
+set -e
+
+branch=$1
+
+exec 3>&1 >&2
+
+cd repos/$branch.hg
+hg pull -u
+
+result=`hg heads --desc '{node|short}\n'`
+lines=`printf '%s' "$result" | wc -l'
+
+if [ $lines != 1 ]; then
+        cat <<END >&2
+WRONG NUMBER OF HEADS! ($lines)
+$result
+END
+        exit 1
+fi
+
+printf '%s\n' "$result"

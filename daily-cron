@@ -36,6 +36,11 @@ export PAIR_RUNVARS="src_host=$OSSTEST_PAIR_HOST1 dst_host=$OSSTEST_PAIR_HOST2"
 hostlists2=`perl -e 'print join ",", sort @ARGV' \
 	$OSSTEST_PAIR_HOST1 $OSSTEST_PAIR_HOST2`
 
+if [ "x$REVISION_XEN" = x ]; then
+        REVISION_XEN="`./ap-fetch-version $branch`"
+        export REVISION_XEN
+fi
+
 flight=`./make-flight $branch "$@"`
 
 ./execute-flight $flight $OSSTEST_BLESSING \
