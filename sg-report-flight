@@ -152,7 +152,7 @@ END
 
         my $storefail= sub {
             my ($s) = @_;
-            my $failkey= "$j->{job}.$idmro";
+            my $failkey= "$j->{job}.$s->{testid}";
             my $failval= {
                 Job => $j,
                 Step => $s,
@@ -172,7 +172,7 @@ END
         if ($j->{status} ne 'pass' and !$foundfail) {
             $storefail->({
                 stepno => '',
-                status => 'broken',
+                status => "$j->{status}",
                 testid => '<none executed>'
             });
         }
@@ -271,7 +271,7 @@ END
         print <<'END' or die $!;
 (Individual test failures are shown as REGRESSION above if they never failed
 in the baseline.  If they did, a flight in which they failed is shown.
-"never pass" indicates that this test has never passed with any version.)
+"never pass" indicates that this test has never passed on this branch.)
 END
     }
 

@@ -1,5 +1,7 @@
 #
 
+if test -f stop; then exit 0; fi
+
 dcs=daily-cron-settings
 
 if [ "x$1" = "x--real" ]; then
@@ -38,13 +40,15 @@ export PAIR_RUNVARS="src_host=$OSSTEST_PAIR_HOST1 dst_host=$OSSTEST_PAIR_HOST2"
 hostlists2=`perl -e 'print join ",", sort @ARGV' \
 	$OSSTEST_PAIR_HOST1 $OSSTEST_PAIR_HOST2`
 
-mrof="$branch.mro"
-
 execute_flight () {
         if [ "x$OSSTEST_SIMULATE" != x ]; then
                 echo SIMULATING - NOT EXECUTING $1 $2
                 return
         fi
+
+        rm -f abort
+        if test -f stop; then return; fi
+
         ./execute-flight $1 $2 "$hostlists1" "$hostlists2" \
                 >tmp/$1.transcript 2>&1
         cat tmp/$1.transcript
@@ -52,5 +56,5 @@ execute_flight () {
 
 send_email () {
         /usr/sbin/sendmail -odi -oee -oi -t <$1
-        rm $1
+        mv $1 $1.sent
 }

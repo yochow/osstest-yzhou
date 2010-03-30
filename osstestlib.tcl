@@ -85,6 +85,13 @@ proc run-ts {args} {
 proc spawn-ts {iffail testid ts args} {
     global flight c jobinfo reap_details
 
+    if {[file exists abort]} {
+        logputs stdout \
+            "aborting - not executing $flight.$jobinfo(job) $ts $args"
+        job-set-status $flight $jobinfo(job) aborted
+        return {}
+    }
+
     if {![string compare . $iffail]} { set iffail fail }
 
     pg_execute dbh BEGIN
@@ -178,7 +185,7 @@ proc setstatus {st} {
 proc job-set-status {flight job st} {
     pg_execute dbh "
         UPDATE jobs SET status='$st'
-            WHERE flight=$flight AND job='$job'
+            WHERE flight=$flight AND job='$job' AND status<>'aborted'
     "
 }
 
@@ -190,6 +197,8 @@ proc step-set-status {flight job ts st} {
 }
 
 proc reap-ts {reap} {
+    if {![string length $reap]} { return 0 }
+
     upvar #0 reap_details($reap) details
     set detstr [lindex $details 3]
     set iffail [lindex $details 4]

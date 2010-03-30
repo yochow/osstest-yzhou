@@ -4,6 +4,9 @@ set -ex
 . cri-args-hostlists
 branch=$1
 
+if test -f $branch.stop; then exit 0; fi
+if test -f bisect.stop; then exit 0; fi
+
 sticky=bisecting-sticky-branch
 
 if ! test -f $branch.mro; then

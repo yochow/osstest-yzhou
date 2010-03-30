@@ -6,5 +6,5 @@ branch=$1
 ./sg-hg-heads sh -ec '
         cd repos/"'"$branch.hg"'"
         hg pull -u >&2
-        exec "$@"
+        eval "$1"
 ' x
