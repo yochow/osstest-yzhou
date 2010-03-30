@@ -28,9 +28,6 @@ while (@ARGV && $ARGV[0] =~ m/^-/) {
     }
 }
 
-my $xu= 'http://hg.uk.xensource.com/xen-unstable.hg';
-my $qemu= 'git://mariner.uk.xensource.com/qemu-xen-unstable.git';
-
 sub max {
     my $max;
     foreach my $item (@_) {
@@ -44,16 +41,19 @@ sub min {
 }
 
 sub shellcmd ($) {
+    my ($cmd) = @_;
     $?=0; $!=0;
-    my $r= system($_[0]);
-    die "$_[0] $r $? $!" if $r;
+    print DEBUG "SHELLCMD $cmd\n";
+    my $r= system($cmd);
+    die "$cmd $r $? $!" if $r;
 }
 
 sub git_generator ($) {
     my ($tree) = @_;
     print DEBUG "GIT-GEN ".pmap($tree).".\n";
     my $treename= $tree->{Treename};
-    shellcmd("set -e; exec >&2; cd repos/$treename && git-pull");
+    shellcmd("set -e; exec >&2; cd repos/$treename &&".
+             " git-pull && git-fetch --tags");
     my $cmd= "cd repos/$treename && git-log --pretty=raw --date-order";
     my $fh= new IO::File;
     open $fh, "$cmd |" or die $!;
@@ -240,8 +240,8 @@ sub xenplusqemu_graph ($) {
     my $xentree= $tree->{Xen}{Treename};
     my $qemutree= $tree->{Qemu}{Treename};
 
-    my $x= gen2_graph(xu_withtag_generator($tree));
     my $q= tree2graph($tree->{Qemu});
+    my $x= gen2_graph(xu_withtag_generator($tree));
 
     my $xhead= $x->{Head};
     my $qhead= $x->{$xhead}{QemuTag};
