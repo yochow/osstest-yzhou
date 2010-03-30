@@ -148,18 +148,34 @@ END
 
         $jobsummary .= sprintf " %-${jl}s %-${rl}s\n", $j->{job}, $j->{status};
 
+        my $foundfail= 0;
+
+        my $storefail= sub {
+            my ($s) = @_;
+            my $failkey= "$j->{job}.$idmro";
+            my $failval= {
+                Job => $j,
+                Step => $s,
+            };
+            $fails{$failkey}= $failval;
+        };
+
 	while (my $s= $sth->fetchrow_hashref()) {
 	    $jobtext .= sprintf "%2d %-${sl}s %-${rl}s\n",
 	        $s->{stepno}, $s->{testid}, $s->{status};
             if ($s->{status} ne 'pass') {
-                my $failkey= "$j->{job}.$s->{testid}";
-                my $failval= {
-                    Job => $j,
-                    Step => $s
-                };
-                $fails{$failkey}= $failval;
+                $storefail->($s);
+                $foundfail= 1;
             }
 	}
+
+        if ($j->{status} ne 'pass' and !$foundfail) {
+            $storefail->({
+                stepno => '',
+                status => 'broken',
+                testid => '<none executed>'
+            });
+        }
 
         my $revh= $dbh_tests->prepare(<<END);
             SELECT * FROM runvars
@@ -229,16 +245,12 @@ END
         my $failv= $r->{Failures}{$failk};
         my $s= $failv->{Step};
         my $j= $failv->{Job};
-        my $text= (sprintf" %-${jl}s %2d %-${sl}s %-${rl}s",
+        my $text= (sprintf" %-${jl}s %2s %-${sl}s %-${rl}s",
                    $j->{job}, $s->{stepno}, $s->{testid}, $s->{status});
         if ($failv->{Regression}) {
             $text .= 'REGRESSION';
         } elsif (defined $failv->{JustifyingFlight}) {
-            if ($failv->{JustifyingFlight} eq 'never') {
-                $text .= "never pass";
-            } else {
-                $text .= $failv->{JustifyingFlight};
-            }
+            $text .= $failv->{JustifyingFlight};
         }
         $text =~ s/ *$//;
         while (length($text) > $cw) { last unless $text =~ s/(.* ) /$1/; }
@@ -311,11 +323,17 @@ END
         my $st= $s->{status};
         print DEBUG "justifying $j->{job} $s->{testid} $st\n";
 
+        if (!length $s->{stepno}) {
+            print MRO "broken-job $j->{job} $j->{status}\n" or die $!;
+            print DEBUG " broken job\n";
+            next;
+        }
+
         $anypassq->execute($branch, $j->{job}, $s->{testid}, @blessings);
         if (!$anypassq->fetchrow_hashref()) {
             print MRO "never-passed $j->{job} $s->{testid} $st\n";
             print DEBUG " never passed\n";
-            $failv->{JustifyingFlight}= 'never';
+            $failv->{JustifyingFlight}= 'never pass';
             next;
         }
 
