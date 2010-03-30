@@ -41,6 +41,11 @@ if [ "x$REVISION_XEN" = x ]; then
         export REVISION_XEN
 fi
 
+if [ "x$OLD_REVISION_XEN" = x ]; then
+        OLD_REVISION_XEN="`./ap-fetch-version-old $branch`"
+        export OLD_REVISION_XEN
+fi
+
 flight=`./make-flight $branch "$@"`
 
 ./execute-flight $flight $OSSTEST_BLESSING \

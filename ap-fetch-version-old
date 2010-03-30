@@ -1,0 +1,9 @@
+#!/bin/bash
+set -e
+
+branch=$1
+
+./sg-hg-heads ssh xen@xenbits.xensource.com '
+        set -e
+        cd HG/"'"$branch.hg"'"
+'

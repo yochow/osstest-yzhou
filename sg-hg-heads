@@ -1,0 +1,22 @@
+#!/bin/bash
+# usage:  sg-hg-heads COMMAND ARGS...
+#  where COMMAND ARGS SCRIPT
+#  runs shell script SCRIPT in an appropriate directory and place
+
+set -e
+
+result=`"$@" 'hg heads --template '\''{node|short}\n'\'''`
+lines=`printf '%s\n' "$result" | wc -l`
+
+if [ $lines != 1 ]; then
+        cat <<END >&2
+WRONG NUMBER OF HEADS! ($lines)
+command:
+  $*
+result:
+$result
+END
+        exit 1
+fi
+
+printf '%s\n' "$result"
