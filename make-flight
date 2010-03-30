@@ -16,8 +16,8 @@ if [ x$buildflight = x ]; then
 
     ./cs-job-create $flight build-$arch build				     \
 		arch=$arch						     \
-	tree_qemu=git://mariner.uk.xensource.com/qemu-xen-unstable.git	     \
-	tree_xen=http://hg.uk.xensource.com/xen-unstable.hg		     \
+	tree_qemu=git://mariner.uk.xensource.com/qemu-$branch.git	     \
+	tree_xen=http://hg.uk.xensource.com/$branch.hg			     \
 		$RUNVARS $BUILD_RUNVARS $arch_runvars			     \
 		revision_xen=$REVISION_XEN				     \
 		revision_qemu=$REVISION_QEMU				     \
@@ -27,8 +27,8 @@ if [ x$buildflight = x ]; then
 
     ./cs-job-create $flight build-$arch-oldkern build			\
 		arch=$arch						\
-	tree_qemu=git://mariner.uk.xensource.com/qemu-xen-unstable.git	\
-	tree_xen=http://hg.uk.xensource.com/xen-unstable.hg		\
+	tree_qemu=git://mariner.uk.xensource.com/qemu-$branch.git	\
+	tree_xen=http://hg.uk.xensource.com/$branch.hg			\
 		$RUNVARS $BUILD_RUNVARS $arch_runvars			\
 		xen_kernels=linux-2.6-xen				\
 		revision_xen=$REVISION_XEN				\
