@@ -4,42 +4,138 @@ use strict qw(refs vars);
 
 use DBI;
 use Osstest;
+use IO::Handle;
+
+our $specflight;
+our %specver;
+our @blessings;
+our $mro;
+our $branch;
+
+open DEBUG, ">/dev/null";
+open MRO, ">/dev/null";
+
+while (@ARGV && $ARGV[0] =~ m/^-/) {
+    $_= shift @ARGV;
+    last if m/^--?$/;
+    if (m/^--(this|that)-([^=]+)\=([^=]+)$/) {
+        $specver{$1}{$2}= $3;
+    } elsif (m/^--machine-readable-output=(.*)$/) {
+        $mro= $1;
+        open MRO, "> $mro.new" or die "$mro.new $!";
+    } elsif (m/^--blessings?=(.*)$/) {
+        push @blessings, split ',', $1;
+    } elsif (m/^--debug/) {
+        open DEBUG, ">&2" or die $!;
+        DEBUG->autoflush(1);
+    } else {
+        die "$_ ?";
+    }
+}
 
 @ARGV==1 or die;
-my ($flight)= @ARGV;
+
+$_= shift @ARGV;
+if (m/^\d+$/) {
+    $specflight= $_;
+} else {
+    $branch= $_;
+}
+
+push @blessings, 'real' unless @blessings;
 
 csreadconfig();
 
-my $flightinfo= $dbh_tests->selectrow_hashref(<<END);
-    SELECT * FROM flights
-        WHERE flight=$flight
+# formatting settings
+our $jl= 30;
+our $sl= 30;
+our $rl= 9;
+our $cw= 79;
+our $tl= 20;
+
+our $blessingscond= '('.join(' OR ', map { "blessing=?" } @blessings).')';
+
+sub findaflight ($$) {
+    my ($thisthat, $sub) = @_;
+
+    die $thisthat unless keys %{ $specver{$thisthat} };
+
+    my $flightsq= <<END;
+        SELECT flight FROM flights
+            WHERE branch=?
+              AND $blessingscond
+            ORDER BY flight DESC
+            LIMIT 1000
 END
+    #print DEBUG "===\n$flightsq\n===\n";
+    $flightsq= $dbh_tests->prepare($flightsq);
+    $flightsq->execute($branch, @blessings);
 
-my $jobs= $dbh_tests->selectall_arrayref(<<END, { Slice => {} });
-    SELECT * FROM jobs
-        WHERE flight=$flight
-        ORDER BY job
+    my $whynotq= <<END;
+            SELECT * FROM runvars
+                WHERE flight=? AND (FALSE
 END
+    foreach my $tree (keys %{ $specver{$thisthat} }) {
+        my $v= $specver{$thisthat}{$tree};
+        $whynotq .= <<END
+                  OR (name='built_revision_$tree' AND
+                      NOT (val = '$v' OR val LIKE '%:$v'))
+END
+    }
+    $whynotq .= <<END;
+                                    )
+                LIMIT 1
+END
+    #print DEBUG "===\n$whynotq\n===\n";
+    $whynotq= $dbh_tests->prepare($whynotq);
 
-my $toptext='';
+    while (my ($tflight) = $flightsq->fetchrow_array) {
+        $whynotq->execute($tflight);
+        my $row= $whynotq->fetchrow_arrayref();
+        my $whynot;
+        if ($row) {
+            $whynot= "mismatch @$row";
+        } else {
+            $whynot= $sub->($tflight);
+        }
+        return $tflight if !defined $whynot;
+        print DEBUG " $tflight $whynot\n";
+    }
+    return undef;
+}
 
-my $jl= 28;
-my $sl= 30;
-my $rl= 9;
-my $cols= 1;
-my $cw= 75;
+sub findspecflight () {
+    if (defined $specflight) {
+        ($branch) = selectrow_array(<<END, {}, $specflight);
+            SELECT branch FROM flights WHERE flight=?
+END
+        die "$flight branch ?" unless defined $branch;
+    } else {
+        $specflight= findaflight('this', sub { return undef; });
+        die unless defined $specflight;
+    }
+}
 
-my @jobtexts;
-my %counts;
-
-my @fails;
-
-{
-    my $row= 0;
-    my $col= 0;
+sub examineflight ($) {
+    my ($flight) = @_;
+    my @jobtexts;
+    my %fails;
+    my %statuscounts;
+    my $jobsummary= '';
     
+    my $flightinfo= $dbh_tests->selectrow_hashref(<<END);
+        SELECT * FROM flights
+            WHERE flight=$flight
+END
+
+    my $jobs= $dbh_tests->selectall_arrayref(<<END, { Slice => {} });
+        SELECT * FROM jobs
+            WHERE flight=$flight
+            ORDER BY job
+END
+
     foreach my $j (@$jobs) {
-	$counts{$j->{status}}++;
+	$statuscounts{$j->{status}}++;
 
 	my $jobtext= sprintf "%s:\n", $j->{job};
 
@@ -50,14 +146,18 @@ my @fails;
 END
         $sth->execute();
 
-        $toptext .= sprintf " %-${jl}s %-${rl}s\n", $j->{job}, $j->{status};
+        $jobsummary .= sprintf " %-${jl}s %-${rl}s\n", $j->{job}, $j->{status};
 
 	while (my $s= $sth->fetchrow_hashref()) {
 	    $jobtext .= sprintf "%2d %-${sl}s %-${rl}s\n",
 	        $s->{stepno}, $s->{testid}, $s->{status};
             if ($s->{status} ne 'pass') {
-                push @fails, sprintf " %-${jl}s %2d %-${sl}s %-${rl}s",
-                    $j->{job}, $s->{stepno}, $s->{testid}, $s->{status};
+                my $failkey= "$j->{job}.$s->{testid}";
+                my $failval= {
+                    Job => $j,
+                    Step => $s
+                };
+                $fails{$failkey}= $failval;
             }
 	}
 
@@ -74,70 +174,101 @@ END
             $jobtext .= sprintf " %-15s %-.20s\n", $br, $r->{val};
         }
 
-	$jobtexts[$row][$col]= [ split /\n/, $jobtext ];
-	$col++;
-	if ($col==$cols) { $row++; $col=0; }
+	push @jobtexts, [ split /\n/, $jobtext ];
+    }
+
+    my $outcomes= join '/', sort keys %statuscounts;
+    my $outcome;
+    if ($outcomes eq 'pass') {
+        $outcome= 'all pass';
+    } elsif ($outcomes eq 'fail') {
+        $outcome= 'ALL FAIL';
+    } elsif ($outcomes =~ m,^(?:blocked/)?(?:fail/)?pass$,) {
+        $outcome= 'FAIL';
+    } else {
+        $outcome= "trouble: $outcomes";
+    }
+
+    return {
+        Flight => $flight,
+        FlightInfo => $flightinfo,
+        JobTexts => \@jobtexts,
+        Failures => \%fails,
+        StatusCounts => \%statuscounts,
+        OutcomeSummary => $outcome,
+        JobsSummary => $jobsummary,
+    };
+}
+
+sub printversions ($) {
+    my ($thisthat) = @_;
+    my ($sv) = $specver{$thisthat};
+    foreach my $k (sort keys %$sv) {
+        printf " %-${tl}s %s\n", $k, $sv->{$k} or die $!;
+        print MRO "version $thisthat $k $sv->{$k}\n" or die $!;
     }
 }
 
-my $outcomes= join '/', sort keys %counts;
-my $outcome;
-if ($outcomes eq 'pass') {
-    $outcome= 'all pass';
-} elsif ($outcomes eq 'fail') {
-    $outcome= 'ALL FAIL';
-} elsif ($outcomes =~ m,^(?:blocked/)?(?:fail/)?pass$,) {
-    $outcome= 'FAIL';
-} else {
-    $outcome= "trouble: $outcomes";
-}
-print "oss xen test $flight: $outcome\n" or die $!;
+sub printout ($) {
+    my ($r) = @_;
+    print <<END
+oss xen test $r->{Flight}: $r->{OutcomeSummary}
 
-print <<END
-
-flight $flight $flightinfo->{blessing}
+flight $r->{Flight} $r->{FlightInfo}{blessing}
 
 tests which did not succeed:
 END
-    or die $!;
-
-foreach my $fail (@fails) {
-    print $fail, "\n";
-}
-
-print "\njobs:\n", $toptext, "\n" or die $!;
-
-foreach my $row (0..$#jobtexts) {
-    foreach my $col (0..$cols-1) {
-	print '   ' or die $! if $col;
-	print '-'x$cw or die $!;
+        or die $!;
+    foreach my $failk (sort keys %{ $r->{Failures} }) {
+        my $failv= $r->{Failures}{$failk};
+        my $s= $failv->{Step};
+        my $j= $failv->{Job};
+        my $text= (sprintf" %-${jl}s %2d %-${sl}s %-${rl}s",
+                   $j->{job}, $s->{stepno}, $s->{testid}, $s->{status});
+        if ($failv->{Regression}) {
+            $text .= 'REGRESSION';
+        } elsif (defined $failv->{JustifyingFlight}) {
+            if ($failv->{JustifyingFlight} eq 'never') {
+                $text .= "never pass";
+            } else {
+                $text .= $failv->{JustifyingFlight};
+            }
+        }
+        $text =~ s/ *$//;
+        while (length($text) > $cw) { last unless $text =~ s/(.* ) /$1/; }
+        print $text, "\n";
     }
     print "\n" or die $!;
-    my $l= 0;
-    for (;;) {
-	my $al= '';
-	my $any= 0;
-	foreach my $col (0..$cols-1) {
-	    my $tl= $jobtexts[$row][$col][$l];
-	    $al .= ' | ' if $col;
-	    $any ||= defined $tl;
-	    $tl='' unless defined $tl;
-	    $al .= sprintf "%-${cw}s", $tl;
-	}
-	last unless $any;
-	$al =~ s/ +$//;
-	print $al, "\n" or die $!;
-	$l++;
+
+    if ($specver{this}) {
+        print "version targeted for testing:\n" or die $!;
+        printversions('this');
     }
-}
+    if ($specver{that}) {
+        print "baseline version:\n" or die $!;
+        printversions('that');
+        print <<'END' or die $!;
+(Individual test failures are shown as REGRESSION above if they never failed
+in the baseline.  If they did, a flight in which they failed is shown.
+"never pass" indicates that this test has never passed with any version.)
+END
+    }
 
-my $hostname= `hostname -f`;
-$? and die $?;  chomp $hostname;
+    print "\njobs:\n", $r->{JobsSummary}, "\n" or die $!;
 
-my $logs= `echo 'source config.tcl; puts \$c(logs)' | tclsh`;
-$? and die $?;  chomp $logs;
+    foreach my $jt (@{ $r->{JobTexts} }) {
+	print '-'x$cw or die $!;
+        print "\n" or die $!;
+        print join "\n", @$jt or die $!;
+        print "\n" or die $!;
+    }
 
-print <<END or die $!;
+    my $hostname= `hostname -f`;
+    $? and die $?;  chomp $hostname;
+
+    my $logs= $c{Logs};
+
+    print <<END or die $!;
 
 ------------------------------------------------------------
 sg-report-flight on $hostname
@@ -147,3 +278,80 @@ images: $c{Images}
 
 $c{ReportTrailer}
 END
+}
+
+sub justifyfailures ($) {
+    my ($fi) = @_;
+    return unless $specver{that};
+
+    my @failures= values %{ $fi->{Failures} };
+
+    my $anypassq= <<END;
+        SELECT * FROM flights NATURAL JOIN steps
+            WHERE branch=?
+              AND job=? and testid=? and status='pass'
+              AND $blessingscond
+            LIMIT 1
+END
+    $anypassq= $dbh_tests->prepare($anypassq);
+
+    foreach my $failv (@failures) {
+        my $j= $failv->{Job};
+        my $s= $failv->{Step};
+        my $st= $s->{status};
+        print DEBUG "justifying $j->{job} $s->{testid} $st\n";
+
+        $anypassq->execute($branch, $j->{job}, $s->{testid}, @blessings);
+        if (!$anypassq->fetchrow_hashref()) {
+            print MRO "never-passed $j->{job} $s->{testid} $st\n";
+            print DEBUG " never passed\n";
+            $failv->{JustifyingFlight}= 'never';
+            next;
+        }
+
+        if ($st ne 'fail') {
+            print MRO "broken $j->{job} $s->{testid} $st\n";
+            print DEBUG " not a fail, unjustifiable\n";
+            next;
+        }
+        my $justflight= findaflight('that', sub {
+            my ($chkflight) = @_;
+            my $checkq= $dbh_tests->prepare(<<END);
+                SELECT status FROM steps WHERE flight=? AND job=? AND testid=?
+END
+            $checkq->execute($chkflight, $j->{job}, $s->{testid});
+            my ($chkst) = $checkq->fetchrow_array();
+            return "step not executed" unless defined $chkst;
+            return "benchmark was $st" unless $chkst eq $st;
+            return undef;
+        });
+        if (!defined $justflight) {
+            print MRO "regression $j->{job} $s->{testid}\n" or die $!;
+            $failv->{Regression}= 1;
+            print DEBUG " unjustified\n";
+            next;
+        }
+        print DEBUG " justified by $justflight\n";
+        $failv->{JustifyingFlight}= $justflight;
+    }
+    if (!@failures) {
+        print MRO "tolerable\nperfect\n" or die $!;
+    } elsif (grep { $_->{Regression} } @failures) {
+        $fi->{OutcomeSummary}= "regressions - $fi->{OutcomeSummary}";
+    } elsif (!grep { !defined $_->{JustifyingFlight} } @failures) {
+        $fi->{OutcomeSummary}= "tolerable $fi->{OutcomeSummary}";
+        print MRO "tolerable\n" or die $!;
+    } else {
+        # not tolerable
+    }
+}
+
+findspecflight();
+my $fi= examineflight($specflight);
+justifyfailures($fi);
+printout($fi);
+
+if (defined $mro) {
+    close MRO or die $!;
+    rename "$mro.new",$mro or die $!;
+}

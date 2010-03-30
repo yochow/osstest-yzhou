@@ -1,9 +1,10 @@
 #!/bin/sh
 set -e
 
-buildflight=$1
+branch=$1
+buildflight=$2
 
-flight=`./cs-flight-create `
+flight=`./cs-flight-create $branch`
 
 if [ x$buildflight = x ]; then
 

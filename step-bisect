@@ -1,9 +1,10 @@
 #!/bin/bash
 set -ex
 
-job=$1
-testid=$2
-hostlists="$3"
+branch=$1
+job=$2
+testid=$3
+hostlists="$4"
 
 # eg
 #  ./step-bisect test-amd64-xcpkern-i386-win windows-install 'bedbug earwig'
@@ -11,7 +12,7 @@ hostlists="$3"
 bisfile=tmp/bisect.$job.${testid//\//--}
 
 while true; do
-        flight=`./cs-flight-create`
+        flight=`./cs-flight-create $branch`
         savelog -c 100 $bisfile.dot
         savelog -c 100 $bisfile.ps
         ./cs-bisection-step --graph-out=$bisfile --flight=$flight $job $testid
