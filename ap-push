@@ -1,0 +1,8 @@
+#!/bin/bash
+set -ex
+
+branch=$1
+revision=$2
+
+cd repos/$branch.hg
+false hg push -r "$revision" xen@xenbits.xensource.com:HG/$branch.hg

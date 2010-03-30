@@ -1,0 +1,15 @@
+#!/bin/bash
+# usage: cr-for-branches WLEM SCRIPT ARGS...
+# will run   with-lock-ex WLEM SCRIPT BRANCH ARGS...
+
+wlem=$1
+
+BRANCHES='xen-4.0-testing xen-3.4-testing xen-unstable'
+export BRANCHES
+
+with-lock-ex $wlem global-lock bash -xec '
+        script=$1; shift
+        for branch in $BRANCHES; do
+                $script $branch "$@"
+        done
+' x "$@"

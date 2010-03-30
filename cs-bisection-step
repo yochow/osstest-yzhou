@@ -6,14 +6,14 @@
 #
 # usage:
 #   ./cs-bisection-setup [<options>] <branch> <job> <testid>
-#      --blessings=real,bisect 
+#      --blessings=real,real-bisect
 
 use strict qw(vars);
 use Osstest;
 use Data::Dumper;
 no warnings qw(recursion);
 
-our @blessings= qw(real bisect);
+our @blessings= qw(real real-bisect);
 
 my $graphfile= 'bisection';
 my $popflight= 0;

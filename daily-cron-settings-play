@@ -3,3 +3,4 @@
 : ${OSSTEST_PAIR_HOST1:=bedbug}
 : ${OSSTEST_PAIR_HOST2:=earwig}
 : ${OSSTEST_OLD_REVISION_XEN:=none}
+: ${OSSTEST_HTML_SUBDIR:=results-play}

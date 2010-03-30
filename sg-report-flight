@@ -214,7 +214,7 @@ sub printout ($) {
     print <<END or die $!;
 oss xen test $r->{Flight}: $r->{OutcomeSummary}
 
-flight $r->{Flight} $r->{FlightInfo}{blessing}
+flight $r->{Flight} $branch $r->{FlightInfo}{blessing}
 END
     if (defined $r->{Overall}) {
         print "\n" or die $!;
@@ -224,7 +224,7 @@ END
 
 tests which did not succeed:
 END
-     
+
     foreach my $failk (sort keys %{ $r->{Failures} }) {
         my $failv= $r->{Failures}{$failk};
         my $s= $failv->{Step};
@@ -243,6 +243,9 @@ END
         $text =~ s/ *$//;
         while (length($text) > $cw) { last unless $text =~ s/(.* ) /$1/; }
         print $text, "\n";
+    }
+    if (!%{ $r->{Failures} }) {
+        print " none - all tests in this flight passed" or die $!;
     }
     print "\n" or die $!;
 

@@ -1,40 +1,9 @@
 #!/bin/bash
 set -ex
 
-branch=xen-unstable
-dcs=daily-cron-settings
+. cri-args-hostlists
 
-if [ "x$1" = "x--real" ]; then
-	: ${OSSTEST_BLESSING:=real}
-	shift
-elif [ "x$1" = "x--like-real" ]; then
-	: ${OSSTEST_CRON_SETTINGS:=$dcs-real}
-	shift
-fi	
-: ${OSSTEST_BLESSING:=play}
-
-if [ x"$OSSTEST_BLESSING" = xreal ]; then
-	cd ${OSSTEST_DIR:=/export/home/osstest/testing.git}
-fi
-
-: ${OSSTEST_EMAIL_HEADER:=daily-cron-email-$OSSTEST_BLESSING}
-
-. ${OSSTEST_CRON_SETTINGS:-$dcs-$OSSTEST_BLESSING}
-
-: ${ARCH_RUNVARS_i386:="host=$OSSTEST_HOST_i386"}
-: ${ARCH_RUNVARS_amd64:="host=$OSSTEST_HOST_amd64"}
-export ARCH_RUNVARS_i386
-export ARCH_RUNVARS_amd64
-
-if [ "x$OSSTEST_HOST_i386" != x"$OSSTEST_HOST_amd64" ]; then
-	hostlists1="$OSSTEST_HOST_i386 $OSSTEST_HOST_amd64"
-else
-	hostlists1="$OSSTEST_HOST_i386"
-fi
-
-export PAIR_RUNVARS="src_host=$OSSTEST_PAIR_HOST1 dst_host=$OSSTEST_PAIR_HOST2"
-hostlists2=`perl -e 'print join ",", sort @ARGV' \
-	$OSSTEST_PAIR_HOST1 $OSSTEST_PAIR_HOST2`
+branch=$1; shift
 
 sgr_args="$flight"
 
@@ -47,13 +16,14 @@ if [ "x$OLD_REVISION_XEN" = x ]; then
         export OLD_REVISION_XEN
 fi
 
-if [ "x$REVISION_XEN" = "x$OLD_REVISION_XEN" ]; then
+if [ "x$REVISION_XEN" = "x$OLD_REVISION_XEN" ] && \
+   [ $branch != xen-unstable ]; then
         exit 0
 fi
 
-mrof="$branch.mro"
 if test -e $mrof; then mv $mrof $mrof.old; fi
 touch $mrof; rm $mrof
+rm -f bisected.$branch.*
 
 case "$REVISION_XEN/$OLD_REVISION_XEN" in
 */*[^0-9a-f]* | *[^0-9a-f]*/*) ;;
@@ -70,11 +40,7 @@ esac
 
 flight=`./make-flight $branch "$@"`
 
-./execute-flight $flight $OSSTEST_BLESSING \
-        "$hostlists1" "$hostlists2" \
-        >tmp/$flight.transcript 2>&1
-
-cat tmp/$flight.transcript >&2
+execute_flight $flight $OSSTEST_BLESSING
 
 exec >tmp/$flight.email
 cat $OSSTEST_EMAIL_HEADER
@@ -99,6 +65,4 @@ fi
 
 exec >&2
 
-/usr/sbin/sendmail -odi -oee -oi -t <tmp/$flight.email
-rm tmp/$flight.email
-
+send_email tmp/$flight.email

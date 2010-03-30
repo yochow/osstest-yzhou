@@ -1,0 +1,112 @@
+#!/bin/bash
+set -ex
+
+. cri-args-hostlists
+branch=$1
+
+sticky=bisecting-sticky-branch
+
+if ! test -f $branch.mro; then
+        rm -f $sticky
+        echo "$branch no mro"
+        exit 0
+fi
+
+if test -f $sticky; then
+        read <$sticky sticky_branch
+        if [ "x$sticky_branch" != "x$branch" ]; then
+                echo "$branch but sticky $sticky_branch, skipping"
+                exit 0
+        fi
+fi
+
+compute_state () {
+        reportfile=tmp/$flight.bisection-report
+        bisleaf=bisect.$job.${testid//\//--}
+
+        echo "computing $job $testid $*"
+
+        set +e
+        ./cs-bisection-step --graph-out=$OSSTEST_HTML_DIR/$bisleaf \
+                --blessings=$OSSTEST_BLESSING,$OSSTEST_BLESSING-bisect \
+                "$@" $job $testid >$reportfile 2>&1
+        rc=$?
+        set -e
+
+        case $rc in
+        2)      touch $flagfile
+                echo complete
+                send_bisection_email "bisection completed"
+                rm -f $sticky
+                exit 0
+                ;;
+        0)      echo work to do
+                ;;
+        *)      echo >&2 "FAILED $job $testid $rc $* "
+                cat >&2 $reportfile
+                exit 1
+                ;;
+        esac
+}
+
+perhaps_bisect_step () {
+        flagfile=tmp/bisected.$job.$testid
+        if test -f $flagfile; then
+                echo "already completed $job $testid"
+                return
+        fi
+
+        if [ x$flight = x ]; then flight=`./cs-flight-create $branch`; fi
+        flight_executed=false
+
+        compute_state --flight=$flight
+        send_bisection_email "oss xen test: bisection underway"
+
+        echo $branch >$sticky.new
+        mv -f $sticky.new $sticky
+
+        execute_flight $flight $OSSTEST_BLESSING-bisect
+        flight_executed=true
+
+        compute_state
+        send_bisection_email "bisection intermediate results"
+}
+
+
+send_bisection_email () {
+        echo emailing "$1"
+
+        exec 3>tmp/$flight.email
+        cat >&3 $OSSTEST_EMAIL_HEADER
+        cat >&3 <<END
+Subject: oss xen test: $1
+
+branch $branch
+job $job
+test $testid
+
+For bisection revision-tuple graph see:
+   $OSSTEST_HTML_URL/$bisleaf.ps
+
+Revision IDs in each graph node refer, respectively,
+to the Trees mentioned here:
+
+END
+        cat >&3 $reportfile
+        if $flight_executed; then
+                echo >&3
+                ./sg-report-flight >&3 $flight
+        fi
+        exec 3>&-
+        send_email tmp/$flight.email
+}        
+
+exec <$branch.mro
+while read keyword job testid; do
+        if [ "x$keyword" = xregression ]; then
+                perhaps_bisect_step
+        fi
+done
+
+echo nothing to do
+exit 0
