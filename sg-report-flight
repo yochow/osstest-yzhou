@@ -106,7 +106,7 @@ END
 
 sub findspecflight () {
     if (defined $specflight) {
-        ($branch) = selectrow_array(<<END, {}, $specflight);
+        ($branch) = $dbh_tests->selectrow_array(<<END, {}, $specflight);
             SELECT branch FROM flights WHERE flight=?
 END
         die "$flight branch ?" unless defined $branch;
@@ -211,14 +211,20 @@ sub printversions ($) {
 
 sub printout ($) {
     my ($r) = @_;
-    print <<END
+    print <<END or die $!;
 oss xen test $r->{Flight}: $r->{OutcomeSummary}
 
 flight $r->{Flight} $r->{FlightInfo}{blessing}
+END
+    if (defined $r->{Overall}) {
+        print "\n" or die $!;
+        print $r->{Overall} or die $!;
+    }
+    print <<END or die $!;
 
 tests which did not succeed:
 END
-        or die $!;
+     
     foreach my $failk (sort keys %{ $r->{Failures} }) {
         my $failv= $r->{Failures}{$failk};
         my $s= $failv->{Step};
@@ -282,6 +288,7 @@ END
 
 sub justifyfailures ($) {
     my ($fi) = @_;
+
     return unless $specver{that};
 
     my @failures= values %{ $fi->{Failures} };
@@ -336,13 +343,16 @@ END
     }
     if (!@failures) {
         print MRO "tolerable\nperfect\n" or die $!;
+         $fi->{Overall}.= "Perfect :-)\n";
     } elsif (grep { $_->{Regression} } @failures) {
         $fi->{OutcomeSummary}= "regressions - $fi->{OutcomeSummary}";
+        $fi->{Overall}.= "Regressions :-(\n";
     } elsif (!grep { !defined $_->{JustifyingFlight} } @failures) {
         $fi->{OutcomeSummary}= "tolerable $fi->{OutcomeSummary}";
         print MRO "tolerable\n" or die $!;
+        $fi->{Overall}.= "Failures :-/ but no regressions.\n";
     } else {
-        # not tolerable
+        $fi->{Overall}.= "Failures and problems with tests :-(\n";
     }
 }
 

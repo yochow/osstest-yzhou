@@ -2,3 +2,4 @@
 : ${OSSTEST_HOST_amd64:=spider}
 : ${OSSTEST_PAIR_HOST1:=bedbug}
 : ${OSSTEST_PAIR_HOST2:=earwig}
+: ${OSSTEST_OLD_REVISION_XEN:=none}
