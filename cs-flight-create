@@ -6,10 +6,13 @@ use Osstest;
 
 csreadconfig();
 
+@ARGV==1 or die $!;
+our ($branch) = @ARGV;
+
 my ($flight) = 
     db_retry($dbh_tests, sub {
         $dbh_tests->do("INSERT INTO flights VALUES".
-                       " (DEFAULT,DEFAULT,'constructing')");
+                       " (DEFAULT,DEFAULT,'constructing',?)", {}, $branch);
         return $dbh_tests->
             selectrow_array('SELECT MAX(flight) FROM flights');
     });

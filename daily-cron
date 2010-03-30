@@ -1,6 +1,7 @@
 #!/bin/sh
 set -ex
 
+branch=xen-unstable
 dcs=daily-cron-settings
 
 if [ "x$1" = "x--real" ]; then
@@ -35,7 +36,7 @@ export PAIR_RUNVARS="src_host=$OSSTEST_HOST_PAIR1 dst_host=$OSSTEST_HOST_PAIR2"
 hostlists2=`perl -e 'print join ",", sort @ARGV' \
 	$OSSTEST_PAIR_HOST1 $OSSTEST_PAIR_HOST2`
 
-flight=`./make-flight "$@"`
+flight=`./make-flight $branch "$@"`
 
 ./execute-flight $flight $OSSTEST_BLESSING \
         "$hostlists1" "$hostlists2" \

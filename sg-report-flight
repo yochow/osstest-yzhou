@@ -10,6 +10,7 @@ our $specflight;
 our %specver;
 our @blessings;
 our $mro;
+our $branch;
 
 open DEBUG, ">/dev/null";
 open MRO, ">/dev/null";
@@ -32,10 +33,14 @@ while (@ARGV && $ARGV[0] =~ m/^-/) {
     }
 }
 
-if (@ARGV && !defined $specflight) {
-    $specflight= shift @ARGV;
+@ARGV==1 or die;
+
+$_= shift @ARGV;
+if (m/^\d+$/) {
+    $specflight= $_;
+} else {
+    $branch= $_;
 }
-!@ARGV or die;
 
 push @blessings, 'real' unless @blessings;
 
@@ -57,13 +62,14 @@ sub findaflight ($$) {
 
     my $flightsq= <<END;
         SELECT flight FROM flights
-            WHERE $blessingscond
+            WHERE branch=?
+              AND $blessingscond
             ORDER BY flight DESC
             LIMIT 1000
 END
     #print DEBUG "===\n$flightsq\n===\n";
     $flightsq= $dbh_tests->prepare($flightsq);
-    $flightsq->execute(@blessings);
+    $flightsq->execute($branch, @blessings);
 
     my $whynotq= <<END;
             SELECT * FROM runvars
@@ -99,9 +105,15 @@ END
 }
 
 sub findspecflight () {
-    return if defined $specflight;
-    $specflight= findaflight('this', sub { return undef; });
-    die unless defined $specflight;
+    if (defined $specflight) {
+        ($branch) = selectrow_array(<<END, {}, $specflight);
+            SELECT branch FROM flights WHERE flight=?
+END
+        die "$flight branch ?" unless defined $branch;
+    } else {
+        $specflight= findaflight('this', sub { return undef; });
+        die unless defined $specflight;
+    }
 }
 
 sub examineflight ($) {
@@ -276,8 +288,9 @@ sub justifyfailures ($) {
 
     my $anypassq= <<END;
         SELECT * FROM flights NATURAL JOIN steps
-            WHERE $blessingscond
+            WHERE branch=?
               AND job=? and testid=? and status='pass'
+              AND $blessingscond
             LIMIT 1
 END
     $anypassq= $dbh_tests->prepare($anypassq);
@@ -288,7 +301,7 @@ END
         my $st= $s->{status};
         print DEBUG "justifying $j->{job} $s->{testid} $st\n";
 
-        $anypassq->execute(@blessings, $j->{job}, $s->{testid});
+        $anypassq->execute($branch, $j->{job}, $s->{testid}, @blessings);
         if (!$anypassq->fetchrow_hashref()) {
             print MRO "never-passed $j->{job} $s->{testid} $st\n";
             print DEBUG " never passed\n";

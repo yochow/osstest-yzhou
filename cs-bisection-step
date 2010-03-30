@@ -5,7 +5,7 @@
 # tests.
 #
 # usage:
-#   ./cs-bisection-setup [<options>] <job> <testid>
+#   ./cs-bisection-setup [<options>] <branch> <job> <testid>
 #      --blessings=real,bisect 
 
 use strict qw(vars);
@@ -40,8 +40,8 @@ while (@ARGV && $ARGV[0] =~ m/^\-/) {
     }
 }
 
-@ARGV==2 or die;
-our ($job,$testid) = @ARGV;
+@ARGV==3 or die;
+our ($branch,$job,$testid) = @ARGV;
 
 our ($latest_flight, $hosts, $earliest_flight);
 our (@trees);
@@ -142,10 +142,11 @@ sub findbasics () {
 	     AND testid = ?
 	     AND blessing = ?
 	     AND (status = 'fail' OR status = 'pass')
+             AND branch = ?
 	   ORDER BY started DESC
 	   LIMIT 1
 END
-    $sth->execute($job,$testid,$blessings[0]);
+    $sth->execute($job,$testid,$blessings[0],$branch);
     my $row= $sth->fetchrow_hashref();
     die "no failure found" unless $row;
     die "$row->{flight} $row->{status}" unless $row->{'status'} eq 'fail';
@@ -162,9 +163,10 @@ END
 	     AND testid = ?
 	     AND blessing = ?
 	     AND status = 'pass'
+             AND branch = ?
 	   ORDER BY started DESC
 END
-    $sth->execute($job,$testid,$blessings[0]);
+    $sth->execute($job,$testid,$blessings[0],$branch);
     while ($row= $sth->fetchrow_hashref()) {
 	print STDERR " $row->{flight}";
 	next unless flight_has_relevant_hosts($row->{flight});
@@ -270,8 +272,9 @@ sub scantests () {
             AND (".join("
              OR  ", map { "blessing='$_'" } @blessings). ")
             AND started >= $earliest_date
+            AND branch = ?
     ");
-    $sth->execute($job, $testid);
+    $sth->execute($job, $testid, $branch);
     while (my $row= $sth->fetchrow_hashref()) {
         my @rtuple= flight_rtuple($row->{flight});
 	next unless @rtuple;
