@@ -48,12 +48,13 @@ our $rl= 9;
 our $cw= 79;
 our $tl= 20;
 
+our $blessingscond= '('.join(' OR ', map { "blessing=?" } @blessings).')';
+
 sub findaflight ($$) {
     my ($thisthat, $sub) = @_;
 
     die $thisthat unless keys %{ $specver{$thisthat} };
 
-    my $blessingscond= '('.join(' OR ', map { "blessing=?" } @blessings).')';
     my $flightsq= <<END;
         SELECT flight FROM flights
             WHERE $blessingscond
@@ -213,9 +214,13 @@ END
         my $text= (sprintf" %-${jl}s %2d %-${sl}s %-${rl}s",
                    $j->{job}, $s->{stepno}, $s->{testid}, $s->{status});
         if ($failv->{Regression}) {
-            $text .= 'NEW';
+            $text .= 'REGRESSION';
         } elsif (defined $failv->{JustifyingFlight}) {
-            $text .= $failv->{JustifyingFlight};
+            if ($failv->{JustifyingFlight} eq 'never') {
+                $text .= "never pass";
+            } else {
+                $text .= $failv->{JustifyingFlight};
+            }
         }
         $text =~ s/ *$//;
         while (length($text) > $cw) { last unless $text =~ s/(.* ) /$1/; }
@@ -231,8 +236,9 @@ END
         print "baseline version:\n" or die $!;
         printversions('that');
         print <<'END' or die $!;
-(Individual test failures are shown as NEW above if they always succeeded in
- the baseline.  If they ever failed, a flight in which they failed is shown.)
+(Individual test failures are shown as REGRESSION above if they never failed
+in the baseline.  If they did, a flight in which they failed is shown.
+"never pass" indicates that this test has never passed with any version.)
 END
     }
 
@@ -268,11 +274,28 @@ sub justifyfailures ($) {
 
     my @failures= values %{ $fi->{Failures} };
 
+    my $anypassq= <<END;
+        SELECT * FROM flights NATURAL JOIN steps
+            WHERE $blessingscond
+              AND job=? and testid=? and status='pass'
+            LIMIT 1
+END
+    $anypassq= $dbh_tests->prepare($anypassq);
+
     foreach my $failv (@failures) {
         my $j= $failv->{Job};
         my $s= $failv->{Step};
         my $st= $s->{status};
         print DEBUG "justifying $j->{job} $s->{testid} $st\n";
+
+        $anypassq->execute(@blessings, $j->{job}, $s->{testid});
+        if (!$anypassq->fetchrow_hashref()) {
+            print MRO "never-passed $j->{job} $s->{testid} $st\n";
+            print DEBUG " never passed\n";
+            $failv->{JustifyingFlight}= 'never';
+            next;
+        }
+
         if ($st ne 'fail') {
             print MRO "broken $j->{job} $s->{testid} $st\n";
             print DEBUG " not a fail, unjustifiable\n";
