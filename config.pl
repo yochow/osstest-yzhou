@@ -8,8 +8,6 @@ $c{NetGateway}= '10.80.249.254';
 
 $c{GenEtherPrefix}= '5a:36:0e';
 
-$c{DbnamePrefix}= 'dbi:Pg:host=woking.cam.xci-test.com;dbname=';
-
 $c{WebspaceFile}= '/export/home/osstest/public_html/';
 $c{WebspaceUrl}= "http://woking.$c{Domain}/~osstest/";
 $c{WebspaceCommon}= 'osstest/';

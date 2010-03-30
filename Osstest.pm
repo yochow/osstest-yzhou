@@ -152,15 +152,22 @@ sub ensuredir ($) {
 
 sub opendb ($) {
     my ($dbname) = @_;
-    my $src= $c{DbnamePrefix}.$dbname;
+
+    my $src= "dbi:Pg:dbname=$dbname";
+    my $fromenv= sub {
+        my ($envvar,$dbparam) = @_;
+        my $thing= $ENV{$envvar};
+        return unless defined $thing;
+        $src .= ";$dbparam=$thing";
+    };
+    $fromenv->('DBI_HOST', 'host');
+    $fromenv->('DBI_PASS', 'password');
+    
     my $whoami= $ENV{'DBI_USER'};
     if (!defined $whoami) {
         $whoami= `whoami`;  chomp $whoami;
     }
-    my $pass= $ENV{'DBI_PASS'};
-    if (defined $pass) {
-        $src .= ";password=$pass";
-    }
+
     my $dbh= DBI->connect($src, $whoami,'', {
         AutoCommit => 1,
         RaiseError => 1,
