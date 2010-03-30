@@ -2,7 +2,7 @@
 # usage: cr-for-branches WLEM SCRIPT ARGS...
 # will run   with-lock-ex WLEM SCRIPT BRANCH ARGS...
 
-wlem=$1
+wlem=$1; shift
 
 BRANCHES='xen-4.0-testing xen-3.4-testing xen-unstable'
 export BRANCHES
