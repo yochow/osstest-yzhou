@@ -149,7 +149,8 @@ END
     $sth->execute($job,$testid,$blessings[0],$branch);
     my $row= $sth->fetchrow_hashref();
     die "no failure found" unless $row;
-    die "$row->{flight} $row->{status}" unless $row->{'status'} eq 'fail';
+    die "last flight not a failure $row->{flight} $row->{status}"
+        unless $row->{'status'} eq 'fail';
     $latest_flight= $row->{flight};
     print STDERR "Found failure, as expected, in flight $latest_flight\n";
 
