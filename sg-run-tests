@@ -121,8 +121,8 @@ proc run-job/test-pair {} {
     run-ts . =              ts-debian-fixup        dst_host          + debian
     run-ts . =              ts-guests-nbd-mirror + dst_host src_host + debian
     run-ts . =              ts-guest-start       + src_host          + debian
-    run-ts . *              ts-guest-migrate       src_host dst_host + debian
-    run-ts . *              ts-guest-migrate       dst_host src_host + debian
+    run-ts . =              ts-guest-migrate       src_host dst_host + debian
+    run-ts . =              ts-guest-migrate       dst_host src_host + debian
     run-ts . =              ts-remus-start       + src_host dst_host + debian
     run-ts . remus-run      ts-remus-check         src_host dst_host + debian
     run-ts . =              ts-host-fail         + src_host
