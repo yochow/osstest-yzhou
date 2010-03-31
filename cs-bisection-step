@@ -288,7 +288,8 @@ sub scantests () {
 
         push @{ $n->{Flights} }, {
             Flight => $row->{flight},
-            Result => $row->{status}
+            Result => $row->{status},
+            Blessing => $row->{blessing}
         };
 
         if ($row->{status} eq 'fail') {
@@ -302,6 +303,8 @@ sub scantests () {
     }
 }
 
+our @conflicted;
+
 sub consolidateresults () {
     foreach my $n (values %nodes) {
         my $fs= $n->{Flights};
@@ -309,7 +312,10 @@ sub consolidateresults () {
         $r{ $_->{Result} }=1 foreach @$fs;
         next unless %r;
         $n->{Result}= (keys %r)[0] if scalar(keys %r) == 1;
-        $n->{Conflicted}= 1 if scalar(keys %r) > 1;
+        if (scalar(keys %r) > 1) {
+            $n->{Conflicted}= 1;
+            push @conflicted, $n;
+        }
     }
 }
 
@@ -384,8 +390,48 @@ sub choose_revision_below ($$) {
 
 our $choose;
 
+sub do_choose_this ($) {
+    my ($n) = @_;
+    $choose= $n;
+    print STDERR "Should test $choose->{Rtuple}.\n";
+    $choose->{Target}= 1;
+}
+
+sub conflicted_warning ($$) {
+    my ($n, $what) = @_;
+    if ($n->{Conflicted}) {
+        print STDERR <<END;
+
+*** Not reproducible - $what ***
+  Inconsistent test results; test is not stable.
+  Revision: $n->{Rtuple}
+
+END
+        $n->{Target}= 1;
+        return 1;
+    }
+}
+
+sub need_reproduce ($$) {
+    my ($n, $what) = @_;
+
+    return 1 if conflicted_warning($n, $what);
+    
+    my $fl= $n->{Flights} ;
+    if (@$fl < 2) {
+        print STDERR "Need to double-check by reproducing $what.";
+        do_choose_this($n);
+        return 1;
+    }
+    return 0;
+}
+
 sub search () {
     print STDERR "Searching for interesting versions:\n";
+
+    return if need_reproduce($nodes{"@latest_rtuple"}, "failure");
+    return if need_reproduce($nodes{"@earliest_rtuple"}, "last pass");
+
     foreach my $startfail (@failures) {
         search_compute_length_below($startfail);
     }
@@ -396,13 +442,74 @@ sub search () {
         $best= $n;
     }
     if (!$best->{InterestingLength}) {
-        print STDERR "No revisions left to test.\n";
+        print STDERR "No revisions left to test, checking graph state.\n";
+
+        my $found_exact_failure= 0;
+
+        foreach my $fail (@failures) {
+            next if conflicted_warning($fail, "first failure");
+            my @passchildren;
+            my $nope= 0;
+            foreach my $pass (@{ $fail->{Children} }) {
+                $nope=1 if conflicted_warning($pass, "last pass");
+                next unless defined $pass->{Result};
+                next unless $pass->{Result} eq 'pass';
+                ($nope=1),next if conflicted_warning($pass, "last pass");
+                push @passchildren, $pass;
+            }
+            next if $nope;
+            next unless @passchildren;
+            
+            return if need_reproduce($fail, "first failure");
+            foreach my $pass (@passchildren) {
+                return if need_reproduce($_, "last pass");
+            }
+
+            $found_exact_failure++;
+            $fail->{Target}= 1;
+            
+            print STDERR <<END;
+
+*** Found and reproduced problem changeset ***
+END
+            my @failrev= split / /, $fail->{Rtuple};
+
+            for (my $i=0; $i<@trees; $i++) {
+                foreach my $pass (@passchildren) {
+                    my @passrev= split / /, $pass->{Rtuple};
+                    next if $passrev[$i] eq $failrev[$i];
+
+                    print STDERR <<END;
+ Tree: $trees[$i]
+ Bug introduced:  $failrev[$i]
+ Bug not present: $passrev[$i]
+
+END
+                }
+            }
+        }
+        if (!$found_exact_failure) {
+            print STDERR <<END;
+
+*** Exact problem changeset not identified ***
+    See revision graph output for details.
+
+END
+        } elsif (@conflicted) {
+            print STDERR <<END;
+
+*** HOWEVER - WARNING - INCONSISTENT TEST RESULTS ***
+   Some revisions produced unstable test results,
+   so interpret the results with caution.
+   See revision graph output for details.
+
+END
+        }
     } else {
         my $godown= ($best->{InterestingLength}) >> 1;
         print STDERR "Looking $godown below $best->{Rtuple}.\n";
-        $choose= choose_revision_below($best, $godown);
-        print STDERR "Should test $choose->{Rtuple}.\n";
-        $choose->{Target}= 1;
+        my $ch= choose_revision_below($best, $godown);
+        choose_this($ch);
     }
 }
 
@@ -558,7 +665,7 @@ sub populateflight () {
     return unless $popflight;
 
     if (!defined $choose) {
-        print STDERR "*** no revision to test ***\n";
+        print STDERR "No revision to test.\n";
         return;
     }
 
