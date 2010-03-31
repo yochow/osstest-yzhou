@@ -5,3 +5,5 @@ bisection.ps
 bisection.dot
 repos
 *.mro
+*.mro.old
+global-lock
