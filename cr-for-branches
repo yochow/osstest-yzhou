@@ -7,7 +7,7 @@ wlem=$1; shift
 BRANCHES='xen-4.0-testing xen-3.4-testing xen-unstable'
 export BRANCHES
 
-with-lock-ex $wlem global-lock bash -xec '
+with-lock-ex $wlem global-lock bash -ec '
         script=$1; shift
         for branch in $BRANCHES; do
                 $script $branch "$@"
