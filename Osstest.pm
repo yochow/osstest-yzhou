@@ -1072,7 +1072,7 @@ sub guest_find_domid ($$) {
     my ($ho,$gho) = @_;
     return if defined $gho->{Domid};
     my $list= target_cmd_output_root($ho,
-                toolstack()->Command." list $gho->{Name}");
+                toolstack()->{Command}." list $gho->{Name}");
     $list =~ m/^(?!Name\s)(\S+)\s+(\d+).*$/m
         or die "domain list: $list";
     $1 eq $gho->{Name} or die "domain list name $1 expected $gho->{Name}";
