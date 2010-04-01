@@ -700,7 +700,8 @@ END
         my $reuseq= $dbh_tests->prepare(<<END);
             SELECT  *
             FROM    flights f NATURAL JOIN jobs j
-            WHERE   j.status='pass'
+            WHERE   j.job=?
+            AND     j.status='pass'
             AND     $blessingscond
             AND     0 = ( SELECT count(*)
                           FROM
@@ -716,7 +717,7 @@ END
             ORDER BY started desc
             LIMIT 1
 END
-        $reuseq->execute($popjob);
+        $reuseq->execute($popjob,$popjob);
         my $reusejob= $reuseq->fetchrow_hashref();
         if ($reusejob) {
             $usejob= "$reusejob->{flight}.$reusejob->{job}";
