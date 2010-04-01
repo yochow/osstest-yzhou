@@ -421,7 +421,7 @@ sub need_reproduce ($$) {
     
     my $fl= $n->{Flights} ;
     if (@$fl < 2) {
-        print STDERR "Need to double-check by reproducing $what.";
+        print STDERR "Need to double-check by reproducing $what.\n";
         do_choose_this($n);
         return 1;
     }

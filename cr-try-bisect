@@ -32,7 +32,7 @@ compute_state () {
         set +e
         ./cs-bisection-step --graph-out=$OSSTEST_HTML_DIR/$bisleaf \
                 --blessings=$OSSTEST_BLESSING,$OSSTEST_BLESSING-bisect \
-                "$@" $job $testid >$reportfile 2>&1
+                "$@" $branch $job $testid >$reportfile 2>&1
         rc=$?
         set -e
 
