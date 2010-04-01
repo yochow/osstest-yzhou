@@ -18,7 +18,20 @@ our @blessings= qw(real real-bisect);
 my $graphfile= 'bisection';
 my $popflight= 0;
 
+our $worst_estatus= -1;
+our $estatus= 255;
+END { $?= $estatus; }
+
+# exit status
+#   0    have identified a revision to test
+#   4    bisection complete and successful
+#   8    bisection finished and inconclusive
+#  12    bisection finished, but inconsistent test results cast doubt
+#  16    fatally inconsistent test results
+# 255    doom and disaster
+
 open DEBUG, ">/dev/null" or die $!;
+open SUMMARY, ">/dev/null" or die $!;
 
 while (@ARGV && $ARGV[0] =~ m/^\-/) {
     $_= shift @ARGV;
@@ -28,6 +41,8 @@ while (@ARGV && $ARGV[0] =~ m/^\-/) {
 	next;
     } elsif (m/^--graph-out=(.+)$/) {
         $graphfile= $1;
+    } elsif (m/^--summary-out=(.+)$/) {
+        open SUMMARY, "> $1" or die $!;
     } elsif (m/^--no-graph-out$/) {
         $graphfile= '';
     } elsif (m/^--flight=(\d+)$/) {
@@ -47,6 +62,29 @@ our ($latest_flight, $hosts, $earliest_flight);
 our (@trees);
 
 our $blessingscond= '('.join(" OR  ", map { "blessing='$_'" } @blessings).')';
+
+sub psummary ($) {
+    my ($s) = @_;
+    print STDERR $s or die $!;
+    print SUMMARY $s or die $!;
+}
+
+sub summary_report ($$$) {
+    my ($heading,$body,$new_estatus) = @_;
+    psummary("\n");
+    if (length $heading) {
+        chomp $heading;
+        psummary("*** $heading ***\n");
+    }
+    if (length $body) {
+        chomp $body;
+        $body =~ s/^/  /gm;
+        psummary("$body\n");
+    }
+    if ($new_estatus > $worst_estatus) {
+        $worst_estatus= $new_estatus;
+    }
+}
 
 sub relevant_hosts ($) {
     my ($flight) = @_;
@@ -127,7 +165,7 @@ END
     }
     if (!@trees) {
 	@trees= @turls;
-	print STDERR "Tree: $_\n" foreach @trees;
+	psummary("Tree: $_\n") foreach @trees;
     }
     if ("@trees" ne "@turls") {
 	print STDERR "!! flight $flight different trees: @turls\n";
@@ -402,12 +440,12 @@ sub do_choose_this ($) {
 sub conflicted_warning ($$) {
     my ($n, $what) = @_;
     if ($n->{Conflicted}) {
-        print STDERR <<END;
-
-*** Not reproducible - $what ***
-  Inconsistent test results; test is not stable.
-  Revision: $n->{Rtuple}
-
+        summary_report(<<END, <<END, 16);
+Not reproducible - $what
+END
+Could not reproduce problem, or could not reproduce last pass.
+Inconsistent test results were at this revision:
+$n->{Rtuple}
 END
         $n->{Target}= 1;
         return 1;
@@ -429,7 +467,7 @@ sub need_reproduce ($$) {
 }
 
 sub search () {
-    print STDERR "Searching for interesting versions:\n";
+    print STDERR "Searching for interesting versions\n";
 
     return if need_reproduce($nodes{"@latest_rtuple"}, "failure");
     return if need_reproduce($nodes{"@earliest_rtuple"}, "last pass");
@@ -470,9 +508,8 @@ sub search () {
             $found_exact_failure++;
             $fail->{Target}= 1;
             
-            print STDERR <<END;
-
-*** Found and reproduced problem changeset ***
+            summary_report(<<END,'', 4);
+Found and reproduced problem changeset
 END
             my @failrev= split / /, $fail->{Rtuple};
 
@@ -481,30 +518,27 @@ END
                     my @passrev= split / /, $pass->{Rtuple};
                     next if $passrev[$i] eq $failrev[$i];
 
-                    print STDERR <<END;
- Tree: $trees[$i]
- Bug introduced:  $failrev[$i]
- Bug not present: $passrev[$i]
-
+                    summary_report("",<<END, -1);
+Bug is in tree:  $trees[$i]
+Bug introduced:  $failrev[$i]
+Bug not present: $passrev[$i]
 END
                 }
             }
         }
         if (!$found_exact_failure) {
-            print STDERR <<END;
-
-*** Exact problem changeset not identified ***
-    See revision graph output for details.
-
+            summary_report(<<END,<<END, 8);
+Exact problem changeset not identified
+END
+See revision graph output for details.
 END
         } elsif (@conflicted) {
-            print STDERR <<END;
-
-*** HOWEVER - WARNING - INCONSISTENT TEST RESULTS ***
-   Some revisions produced unstable test results,
-   so interpret the results with caution.
-   See revision graph output for details.
-
+            summary_report(<<END,<<END, 12);
+HOWEVER - WARNING - INCONSISTENT TEST RESULTS
+END
+Some revisions produced unstable test results,
+so interpret the results with caution.
+See revision graph output for details.
 END
         }
     } else {
@@ -744,6 +778,12 @@ sub populateflight () {
     print STDERR "Flight $popflight ready to go.\n";
 }
 
+sub compute_exitstatus () {
+    die if $worst_estatus<0;
+    die if $worst_estatus==0 and !defined($choose);
+    $estatus= $worst_estatus;
+}
+
 csreadconfig();
 findbasics();
 digraph_whole();
@@ -753,5 +793,4 @@ consolidateresults();
 search();
 writegraph();
 populateflight();
-
-exit(defined($choose) ? 0 : 2);
+compute_exitstatus();
