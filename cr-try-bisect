@@ -100,13 +100,13 @@ END
 
 For bisection revision-tuple graph see:
    $OSSTEST_HTML_URL/$bisleaf.ps
-Revision IDs in each graph node refer, respectively,
-to the Trees mentioned here.
+Revision IDs in each graph node refer, respectively, to the Trees above.
 
+----------------------------------------
 END
         cat >&3 $reportfile
         if $flight_executed; then
-                echo >&3
+                echo >&3 ----------------------------------------
                 ./sg-report-flight >&3 $flight
         fi
         exec 3>&-

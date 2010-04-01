@@ -444,7 +444,7 @@ sub conflicted_warning ($$) {
 Not reproducible - $what
 END
 Could not reproduce problem, or could not reproduce last pass.
-Inconsistent test results were at this revision:
+Inconsistent test results at this revision ($what):
 $n->{Rtuple}
 END
         $n->{Target}= 1;
@@ -779,9 +779,12 @@ sub populateflight () {
 }
 
 sub compute_exitstatus () {
-    die if $worst_estatus<0;
-    die if $worst_estatus==0 and !defined($choose);
-    $estatus= $worst_estatus;
+    if (defined($choose)) {
+        $estatus= 0;
+    } else {
+        die if $worst_estatus==0;
+        $estatus= $worst_estatus;
+    }
 }
 
 csreadconfig();
