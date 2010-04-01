@@ -46,6 +46,8 @@ our ($branch,$job,$testid) = @ARGV;
 our ($latest_flight, $hosts, $earliest_flight);
 our (@trees);
 
+our $blessingscond= '('.join(" OR  ", map { "blessing='$_'" } @blessings).')';
+
 sub relevant_hosts ($) {
     my ($flight) = @_;
     my $sth= $dbh_tests->prepare(<<END);
@@ -270,8 +272,7 @@ sub scantests () {
        SELECT * FROM flights NATURAL JOIN steps
           WHERE job = ?
             AND testid = ?
-            AND (".join("
-             OR  ", map { "blessing='$_'" } @blessings). ")
+            AND $blessingscond
             AND started >= $earliest_date
             AND branch = ?
     ");
@@ -596,43 +597,37 @@ END
     print STDERR "Revision graph left in $graphfile.{dot,ps}.\n";
 }
 
-our %jobs_populated;
+our %jobs_created;
 
-sub populatejob ($$);
-sub populatejob ($$) {
-    my ($popjob, $copyflight) = @_;
+sub preparejob ($$$);
+sub preparejob ($$$) {
+    my ($popjob, $copyflight, $cacheok) = @_;
 
-    if ($jobs_populated{$popjob}++) {
-	print STDERR "Already created $popflight.$popjob\n";
-	return;
+    if (exists $jobs_created{$popjob}) {
+	print STDERR "Already created $jobs_created{$popjob}\n";
+	return $jobs_created{$popjob};
     }
 
-    print STDERR "Creating $popflight.$popjob (copying from $copyflight)\n";
+    print STDERR "Need $popflight.$popjob (like $copyflight)\n";
 
-    $dbh_tests->do(<<END, {}, $popflight, $copyflight,$popjob);
-        INSERT INTO jobs (
-              SELECT  ?, job, recipe, 'queued'
-                FROM  jobs
-               WHERE  flight=? AND job=?
-             )
-END
-    $dbh_tests->do(<<END, {}, $popflight, $copyflight, $popjob);
-        INSERT INTO runvars (
-               SELECT  ?, job, name, val, synth
+    # Create a temporary table containing the runvars we want
+
+    $dbh_tests->do(<<END, {}, $copyflight, $popjob);
+        SELECT name, val
+            INTO TEMP  bisection_runvars
                  FROM  runvars
                 WHERE  flight=? AND job=? AND synth='f'
                   AND  name NOT LIKE E'revision\\_%'
-             )
 END
     my (@trevisions) = split / /, $choose->{Rtuple};
 
-    foreach (my $i=0; $i<@trees; $i++) {
-        my $treeq= $dbh_tests->prepare(<<END);
-            SELECT name FROM runvars
-              WHERE  flight=? AND job=?
-                AND  name LIKE E'tree\\_%'
-                AND  val = ?
+    my $treeq= $dbh_tests->prepare(<<END);
+        SELECT name FROM runvars
+          WHERE  flight=? AND job=?
+            AND  name LIKE E'tree\\_%'
+            AND  val = ?
 END
+    foreach (my $i=0; $i<@trees; $i++) {
         $treeq->execute($copyflight, $popjob, $trees[$i]);
         my ($treevar) = $treeq->fetchrow_array();
         next unless defined $treevar;
@@ -642,24 +637,95 @@ END
         my $revval= $trevisions[$i];
 
         print STDERR " $revname=$revval\n";
-        $dbh_tests->do(<<END, {}, $popflight, $popjob, $revname, $revval);
-            INSERT INTO runvars VALUES (?, ?, ?, ?, 'f')
+        $dbh_tests->do(<<END, {}, $revname, $revval);
+            INSERT INTO bisection_runvars VALUES (?, ?)
 END
     }
 
+    # Check for subjobs:
+
     my $jobq= $dbh_tests->prepare(<<END);
-        SELECT val FROM runvars
+        SELECT name, val FROM runvars
             WHERE  flight=? AND job=?
               AND  name LIKE '%job';
 END
-    $jobq->execute($popflight, $popjob);
-    while (my ($jobspec) = $jobq->fetchrow_array) {
-        if ($jobspec =~ m/^(\d+)\.(\s+)$/) {
-            populatejob($1, $2);
-        } else {
-            populatejob($jobspec, $copyflight);
+    $jobq->execute($copyflight, $popjob);
+    my $subjobs= $jobq->fetchall_arrayref( {} );
+
+    # See if there's a build we can reuse
+
+    my $recipeq= $dbh_tests->prepare(<<END);
+        SELECT recipe FROM jobs WHERE flight=? AND job=?
+END
+    $recipeq->execute($copyflight,$popjob);
+    my ($recipe) = $recipeq->fetchrow_array();
+
+    my $usejob;
+
+    if ($recipe =~ m/^build/ and !@$subjobs) {
+        my $reuseq= $dbh_tests->prepare(<<END);
+            SELECT  *
+            FROM    flights f NATURAL JOIN jobs j
+            WHERE   j.status='pass'
+            AND     $blessingscond
+            AND     0 = ( SELECT count(*)
+                          FROM
+                              ( SELECT name,val
+                                FROM   runvars
+                                WHERE  flight=f.flight AND job=? AND synth='f'
+                              ) o
+                          FULL OUTER JOIN
+                              bisection_runvars want
+                          USING (name)
+                          WHERE (o.val = want.val) IS NOT TRUE
+                        )
+            ORDER BY started desc
+            LIMIT 1
+END
+        $reuseq->execute($popjob);
+        my $reusejob= $reuseq->fetchrow_hashref();
+        if ($reusejob) {
+            $usejob= "$reusejob->{flight}.$reusejob->{job}";
+            print STDERR "Can reuse $recipe $usejob.\n";
         }
     }
+
+    if (!defined $usejob) {
+        print STDERR "Creating $popflight.$popjob (copying".
+            " from $copyflight)\n";
+
+        $dbh_tests->do(<<END, {}, $popflight,$popjob,$recipe);
+            INSERT INTO jobs VALUES (?, ?, ?, 'queued')
+END
+        $dbh_tests->do(<<END, {}, $popflight,$popjob);
+            INSERT INTO runvars (
+                    SELECT ? as flight, ? as job, name, val, 'f'
+                      FROM bisection_runvars
+                                 )
+END
+
+        $usejob= "$popflight.$popjob";
+        $jobs_created{$popjob}= $usejob;
+    }
+
+    $dbh_tests->do("DROP TABLE bisection_runvars");
+
+    my $jobsetq= $dbh_tests->prepare(<<END);
+        UPDATE runvars SET val=?
+            WHERE  flight=? AND job=? AND name=?
+END
+    foreach my $subjob (@$subjobs) {
+        my $target;
+        my $jobspec= $subjob->{val};
+        if ($jobspec =~ m/^(\d+)\.(\s+)$/) {
+            $target= preparejob($1, $2, 1);
+        } else {
+            $target= preparejob($jobspec, $copyflight, 1);
+        }
+        $jobsetq->execute($target, $popflight, $popjob, $subjob->{name});
+    }
+
+    return $usejob;
 }
 
 sub populateflight () {
@@ -672,7 +738,7 @@ sub populateflight () {
 
     db_retry($dbh_tests, sub {
         print STDERR "Populating $popflight...\n";
-        populatejob($job, $latest_flight);
+        preparejob($job, $latest_flight, 0);
     });
 
     print STDERR "Flight $popflight ready to go.\n";
