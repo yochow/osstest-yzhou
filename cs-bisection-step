@@ -441,10 +441,10 @@ sub conflicted_warning ($$) {
     my ($n, $what) = @_;
     if ($n->{Conflicted}) {
         summary_report(<<END, <<END, 16);
-Not reproducible - $what
+Not reproducible - supposed $what
 END
 Could not reproduce problem, or could not reproduce last pass.
-Inconsistent test results at this revision ($what):
+Inconsistent test results at this revision (supposed $what):
 $n->{Rtuple}
 END
         $n->{Target}= 1;
