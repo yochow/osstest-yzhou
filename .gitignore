@@ -7,3 +7,4 @@ repos
 *.mro
 *.mro.old
 global-lock
+bisecting-sticky-branch
