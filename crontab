@@ -1,4 +1,4 @@
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 # m h dom mon dow command
 49 19	* * * cd testing.git && ./cr-for-branches -w "./cr-daily-branch --real"
-*/5 *	* * * cd testing.git && ./cr-for-branches -w "./cr-try-bisect --real"
+*/30 *	* * * cd testing.git && ./cr-for-branches -w "./cr-try-bisect --real"
