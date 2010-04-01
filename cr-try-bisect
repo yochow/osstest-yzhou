@@ -65,7 +65,7 @@ perhaps_bisect_step () {
                 return
         fi
 
-        if [ x$flight = x ]; then flight=`./cs-flight-create $branch`; fi
+        flight=`./cs-flight-create $branch`
         flight_executed=false
 
         compute_state --flight=$flight
