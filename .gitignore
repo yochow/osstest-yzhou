@@ -8,3 +8,4 @@ repos
 *.mro.old
 global-lock
 bisecting-sticky-branch
+stop
