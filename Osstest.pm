@@ -709,18 +709,24 @@ sub guest_get_state ($$) {
     my $domains= target_cmd_output_root($ho, toolstack()->{Command}." list");
     $domains =~ s/^Name.*\n//;
     foreach my $l (split /\n/, $domains) {
-        $l =~ m/^(\S+) (?: \s+ \d+ ){3} \s+ -*([-a-z])-* \s/x or die "$l ?";
-        return $2 if $1 eq $gho->{Name};
+        $l =~ m/^(\S+) (?: \s+ \d+ ){3} \s+ ([-a-z]+) \s/x or die "$l ?";
+        next unless $1 eq $gho->{Name};
+        my $st= $2;
+        $st =~ s/\-//g;
+        $st='-' if !length $st;
+        logm("guest $gho->{Name} state is $st");
+        return $st;
     }
+    logm("guest $gho->{Name} not present on this host");
     return '';
 }
 
-our $guest_state_running_re= '[-rb]';
+our $guest_state_running_re= '[-rb]+';
 
 sub guest_checkrunning ($$) {
     my ($ho,$gho) = @_;
     my $s= guest_get_state($ho,$gho);
-    return $s =~ m/^$guest_state_running_re$/;
+    return $s =~ m/^$guest_state_running_re$/o;
 }
 
 sub guest_await_dhcp_tcp ($$) {
@@ -762,16 +768,14 @@ sub guest_check_remus_ok {
 	}
 	push @sts, [ $ho, $st ];
     }
-    my $compound= join '', map { $_->[1] } @sts;
+    my $compound= join ',', map { $_->[1] } @sts;
     my $msg= "remus check $gho->{Name}: result \"$compound\":";
     $msg .= " $_->[0]{Name}=$_->[1]" foreach @sts;
     logm($msg);
-    die "running on multiple hosts"
-	if $compound =~ m/$guest_state_running_re.*$guest_state_running_re/;
-    die "not running anywhere"
-	unless $compound =~ m/$guest_state_running_re/;
-    die "crashed somewhere"
-	if $compound =~ m/c/;
+    my $runnings= scalar grep { m/$guest_state_running_re/o } @sts;
+    die "running on multiple hosts $compound" if $runnings > 1;
+    die "not running anywhere $compound" unless $runnings;
+    die "crashed somewhere $compound" if grep { m/c/ } @sts;
 }
 
 sub poll_loop ($$$&) {
