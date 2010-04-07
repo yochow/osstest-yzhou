@@ -71,35 +71,39 @@ END
     $flightsq= $dbh_tests->prepare($flightsq);
     $flightsq->execute($branch, @blessings);
 
-    my $whynotq= <<END;
-            SELECT * FROM runvars
-                WHERE flight=? AND (FALSE
+    my $revisionsq= <<END;
+            SELECT job, val FROM runvars
+                WHERE flight=?
+		  AND name=?
+		GROUP BY job, val
 END
-    foreach my $tree (keys %{ $specver{$thisthat} }) {
-        my $v= $specver{$thisthat}{$tree};
-        $whynotq .= <<END
-                  OR (name='built_revision_$tree' AND
-                      NOT (val = '$v' OR val LIKE '%:$v'))
-END
-    }
-    $whynotq .= <<END;
-                                    )
-                LIMIT 1
-END
-    #print DEBUG "===\n$whynotq\n===\n";
-    $whynotq= $dbh_tests->prepare($whynotq);
+    #print DEBUG "===\n$mismatchq\n===\n";
+    $revisionsq= $dbh_tests->prepare($revisionsq);
 
     while (my ($tflight) = $flightsq->fetchrow_array) {
-        $whynotq->execute($tflight);
-        my $row= $whynotq->fetchrow_arrayref();
-        my $whynot;
-        if ($row) {
-            $whynot= "mismatch @$row";
-        } else {
-            $whynot= $sub->($tflight);
-        }
-        return $tflight if !defined $whynot;
-        print DEBUG " $tflight $whynot\n";
+	my $whynot;
+	foreach my $tree (keys %{ $specver{$thisthat} }) {
+	    my $v= $specver{$thisthat}{$tree};
+	    $revisionsq->execute($tflight, "built_revision_$tree");
+	    my $revisions= $revisionsq->fetchall_arrayref({});
+	    if (!@$revisions) {
+		$whynot= "no built $tree";
+		last;
+	    }
+	    my ($wrong) = grep {
+		$_->{val} !~ m/^(?: .*: )? $v /x;
+	    } @$revisions;
+
+	    if (defined $wrong) {
+		$whynot= "mismatch $tree $wrong->{job} $wrong->{val}";
+		last;
+	    }
+	}
+	if (defined $whynot) {
+	    print DEBUG " $tflight $whynot\n";
+	} else {
+	    return $tflight;
+	}
     }
     return undef;
 }
@@ -249,8 +253,8 @@ END
                    $j->{job}, $s->{stepno}, $s->{testid}, $s->{status});
         if ($failv->{Regression}) {
             $text .= 'REGRESSION';
-        } elsif (defined $failv->{JustifyingFlight}) {
-            $text .= $failv->{JustifyingFlight};
+        } elsif (defined $failv->{Justification}) {
+            $text .= $failv->{Justification};
         }
         $text =~ s/ *$//;
         while (length($text) > $cw) { last unless $text =~ s/(.* ) /$1/; }
@@ -333,11 +337,17 @@ END
         if (!$anypassq->fetchrow_hashref()) {
             print MRO "never-passed $j->{job} $s->{testid} $st\n";
             print DEBUG " never passed\n";
-            $failv->{JustifyingFlight}= 'never pass';
+            $failv->{Justification}= 'never pass';
             next;
         }
 
-        if ($st ne 'fail') {
+	if ($st eq 'blocked') {
+	    print MRO "blocked $s->{job} $s->{testid}\n";
+	    print DEBUG " blocked, call it justifiable\n";
+	    $failv->{Justification}= 'n/a';
+	    next;
+	}
+        if ($st ne 'fail' and $st ne 'blocked') {
             print MRO "broken $j->{job} $s->{testid} $st\n";
             print DEBUG " not a fail, unjustifiable\n";
             next;
@@ -360,7 +370,7 @@ END
             next;
         }
         print DEBUG " justified by $justflight\n";
-        $failv->{JustifyingFlight}= $justflight;
+        $failv->{Justification}= $justflight;
     }
     if (!@failures) {
         print MRO "tolerable\nperfect\n" or die $!;
@@ -368,7 +378,7 @@ END
     } elsif (grep { $_->{Regression} } @failures) {
         $fi->{OutcomeSummary}= "regressions - $fi->{OutcomeSummary}";
         $fi->{Overall}.= "Regressions :-(\n";
-    } elsif (!grep { !defined $_->{JustifyingFlight} } @failures) {
+    } elsif (!grep { !defined $_->{Justification} } @failures) {
         $fi->{OutcomeSummary}= "tolerable $fi->{OutcomeSummary}";
         print MRO "tolerable\n" or die $!;
         $fi->{Overall}.= "Failures :-/ but no regressions.\n";
