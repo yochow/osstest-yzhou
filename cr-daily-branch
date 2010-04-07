@@ -38,8 +38,11 @@ case "$REVISION_XEN/$OLD_REVISION_XEN" in
         echo >&2 "NO SGR COMPARISON badchar $REVISION_XEN/$OLD_REVISION_XEN"
         ;;
 ????????????/????????????)
-        sgr_args+=" --this-xen=$REVISION_XEN --that-xen=$OLD_REVISION_XEN"
         sgr_args+=" --machine-readable-output=$mrof"
+        sgr_args+=" --this-xen=$REVISION_XEN"
+	if $wantpush; then
+	        sgr_args+=" --that-xen=$OLD_REVISION_XEN"
+	fi
         ;;
 *)
         echo >&2 "NO SGR COMPARISON wronglen $REVISION_XEN/$OLD_REVISION_XEN"
