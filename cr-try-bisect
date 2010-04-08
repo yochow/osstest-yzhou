@@ -69,7 +69,7 @@ perhaps_bisect_step () {
         flight_executed=false
 
         compute_state --flight=$flight
-        send_bisection_email "oss xen test: bisection underway"
+        send_bisection_email "bisection underway"
 
         echo $branch >$sticky.new
         mv -f $sticky.new $sticky
