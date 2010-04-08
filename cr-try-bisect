@@ -26,9 +26,9 @@ fi
 compute_state () {
         reportfile=tmp/$flight.bisection-report
         summaryfile=tmp/$flight.bisection-summary
-        bisleaf=bisect.$job.${testid//\//--}
+        bisleaf=bisect.$branch.$job.${testid//\//--}
 
-        echo "computing $job $testid $*"
+        echo "computing $branch $job $testid $*"
 
         set +e
         ./cs-bisection-step --graph-out=$OSSTEST_HTML_DIR/$bisleaf \
@@ -45,7 +45,7 @@ compute_state () {
         12)     how=inconsistent ;;
         16)     how=unreproducible ;;
 
-        *)      echo >&2 "FAILED $job $testid $rc $* "
+        *)      echo >&2 "FAILED $branch $job $testid $rc $* "
                 cat >&2 $reportfile
                 exit 1
                 ;;
@@ -59,9 +59,9 @@ compute_state () {
 }
 
 perhaps_bisect_step () {
-        flagfile=tmp/bisected.$job.$testid
+        flagfile=tmp/bisected.$branch.$job.$testid
         if test -f $flagfile; then
-                echo "already completed $job $testid"
+                echo "already completed $branch $job $testid"
                 return
         fi
 
