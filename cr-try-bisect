@@ -79,6 +79,7 @@ perhaps_bisect_step () {
 
         compute_state
         send_bisection_email "bisection intermediate results"
+	exit 0
 }
 
 
