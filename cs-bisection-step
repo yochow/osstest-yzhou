@@ -480,6 +480,7 @@ sub need_reproduce ($$) {
     return 1 if conflicted_warning($n, $what);
     
     my $fl= $n->{Flights} ;
+    die "$what ?" unless @$fl;
     if (@$fl < 2) {
         print STDERR "Need to double-check by reproducing $what.\n";
         do_choose_this($n);
