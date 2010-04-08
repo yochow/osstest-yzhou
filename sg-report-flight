@@ -347,7 +347,7 @@ END
 	    $failv->{Justification}= 'n/a';
 	    next;
 	}
-        if ($st ne 'fail' and $st ne 'blocked') {
+        if ($st ne 'fail') {
             print MRO "broken $j->{job} $s->{testid} $st\n";
             print DEBUG " not a fail, unjustifiable\n";
             next;
