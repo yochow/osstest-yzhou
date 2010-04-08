@@ -69,7 +69,7 @@ perhaps_bisect_step () {
         flight_executed=false
 
         compute_state --flight=$flight
-        send_bisection_email "bisecting testing"
+        send_bisection_email "bisecting testing" -bisectrun
 
         echo $branch >$sticky.new
         mv -f $sticky.new $sticky
@@ -78,16 +78,16 @@ perhaps_bisect_step () {
         flight_executed=true
 
         compute_state
-        send_bisection_email "bisecting intermediate results"
+        send_bisection_email "bisecting intermediate results" -bisectrun
 	exit 0
 }
 
 
 send_bisection_email () {
-        echo emailing "$1"
+        echo emailing "$2" "$1"
 
         exec 3>tmp/$flight.email
-        cat >&3 $OSSTEST_EMAIL_HEADER
+        cat >&3 $OSSTEST_EMAIL_HEADER$2
         cat >&3 <<END
 Subject: oss xen test: $1
 
