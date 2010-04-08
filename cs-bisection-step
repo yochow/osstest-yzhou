@@ -79,7 +79,7 @@ sub summary_report ($$$) {
     if (length $body) {
         chomp $body;
         $body =~ s/^/  /gm;
-        psummary("$body\n");
+        psummary("$body\n\n");
     }
     if ($new_estatus > $worst_estatus) {
         $worst_estatus= $new_estatus;
@@ -508,8 +508,11 @@ sub search () {
         print STDERR "No revisions left to test, checking graph state.\n";
 
         my $found_exact_failure= 0;
+        my %faildone;
 
         foreach my $fail (@failures) {
+            next if $faildone{$fail}++;
+
             print DEBUG " GS F $fail->{Rtuple}\n";
             if (conflicted_warning($fail, "first failure")) {
                 print DEBUG " GS F $fail->{Rtuple} conflicted\n";
