@@ -52,7 +52,7 @@ sub build () {
 END
     target_cmd_build($ho, 6000, $builddir, <<END);
         cd xen-unstable
-        (false make -j4 2>&1 && touch ../build-ok-stamp) |tee ../log
+        (make -j4 2>&1 && touch ../build-ok-stamp) |tee ../log
         test -f ../build-ok-stamp
         echo ok.
 END
