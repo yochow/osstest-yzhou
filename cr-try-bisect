@@ -40,7 +40,7 @@ compute_state () {
 
         case $rc in
         0)      echo work to do; return ;;
-        4)      how=completed ;;
+        4)      how=complete ;;
         8)      how=inconclusive ;;
         12)     how=inconsistent ;;
         16)     how=unreproducible ;;
@@ -53,7 +53,7 @@ compute_state () {
 
         echo ended $how
         touch $flagfile
-        send_bisection_email "bisection $how"
+        send_bisection_email "bisected $how"
         rm -f $sticky
         exit 0
 }
@@ -69,7 +69,7 @@ perhaps_bisect_step () {
         flight_executed=false
 
         compute_state --flight=$flight
-        send_bisection_email "bisection underway"
+        send_bisection_email "bisecting testing"
 
         echo $branch >$sticky.new
         mv -f $sticky.new $sticky
@@ -78,7 +78,7 @@ perhaps_bisect_step () {
         flight_executed=true
 
         compute_state
-        send_bisection_email "bisection intermediate results"
+        send_bisection_email "bisecting intermediate results"
 	exit 0
 }
 
