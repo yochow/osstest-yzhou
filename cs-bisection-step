@@ -509,21 +509,28 @@ sub search () {
         my $found_exact_failure= 0;
 
         foreach my $fail (@failures) {
-            next if conflicted_warning($fail, "first failure");
-            my @passchildren;
+            print DEBUG " GS F $fail->{Rtuple}\n";
+            if (conflicted_warning($fail, "first failure")) {
+                print DEBUG " GS F $fail->{Rtuple} conflicted\n";
+                next;
+            }
+            my @passparents;
             my $nope= 0;
-            foreach my $pass (@{ $fail->{Children} }) {
+            foreach my $pass (@{ $fail->{Parents} }) {
+                print DEBUG " GS F $fail->{Rtuple} P $pass->{Rtuple}\n";
                 $nope=1 if conflicted_warning($pass, "last pass");
                 next unless defined $pass->{Result};
+                print DEBUG " GS F $fail->{Rtuple} P $pass->{Rtuple}".
+                    " R $pass->{Result}\n";
                 next unless $pass->{Result} eq 'pass';
                 ($nope=1),next if conflicted_warning($pass, "last pass");
-                push @passchildren, $pass;
+                push @passparents, $pass;
             }
             next if $nope;
-            next unless @passchildren;
+            next unless @passparents;
             
             return if need_reproduce($fail, "first failure");
-            foreach my $pass (@passchildren) {
+            foreach my $pass (@passparents) {
                 return if need_reproduce($_, "last pass");
             }
 
@@ -536,7 +543,7 @@ END
             my @failrev= split / /, $fail->{Rtuple};
 
             for (my $i=0; $i<@trees; $i++) {
-                foreach my $pass (@passchildren) {
+                foreach my $pass (@passparents) {
                     my @passrev= split / /, $pass->{Rtuple};
                     next if $passrev[$i] eq $failrev[$i];
 
