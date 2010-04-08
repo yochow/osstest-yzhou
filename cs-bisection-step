@@ -58,7 +58,7 @@ while (@ARGV && $ARGV[0] =~ m/^\-/) {
 @ARGV==3 or die;
 our ($branch,$job,$testid) = @ARGV;
 
-our ($latest_flight, $hosts, $earliest_flight);
+our ($latest_flight, $hosts, $basispass_flight);
 our (@trees);
 
 our $blessingscond= '('.join(" OR  ", map { "blessing='$_'" } @blessings).')';
@@ -219,7 +219,7 @@ END
     $hosts= relevant_hosts($latest_flight);
     print STDERR "Host specification list: $hosts\n";
 
-    print STDERR "Searching for last pass:";
+    print STDERR "Searching for basis pass:";
     $sth= $dbh_tests->prepare(<<END);
         SELECT * FROM flights NATURAL JOIN steps
 	   WHERE job = ?
@@ -233,29 +233,29 @@ END
     while ($row= $sth->fetchrow_hashref()) {
 	print STDERR " $row->{flight}";
 	next unless flight_has_relevant_hosts($row->{flight});
-	$earliest_flight= $row->{flight};
+	$basispass_flight= $row->{flight};
 	last;
     }
-    if (!$earliest_flight) {
-	die "\nNo applicable pass, sorry!\n";
+    if (!$basispass_flight) {
+	die "\nNo applicable basis pass, sorry!\n";
     }
     print STDERR ".\n";
 }
 
-our (%nodes, @latest_rtuple, @earliest_rtuple);
+our (%nodes, @latest_rtuple, @basispass_rtuple);
 
 sub digraph_whole () {
     @latest_rtuple= flight_rtuple($latest_flight);
     print STDERR "Latest @latest_rtuple\n";
-    @earliest_rtuple= flight_rtuple($earliest_flight);
-    if (!@earliest_rtuple) {
-	die "Latest pass $earliest_flight rtuple indeterminate/wrong\n";
+    @basispass_rtuple= flight_rtuple($basispass_flight);
+    if (!@basispass_rtuple) {
+	die "Basis pass $basispass_flight rtuple indeterminate/wrong\n";
     }
-    print STDERR "Earliest @earliest_rtuple\n";
+    print STDERR "Basis pass @basispass_rtuple\n";
 
     my $cmd= "./adhoc-revtuple-generator";
     foreach (my $i=0; $i<@trees; $i++) {
-        $cmd.= ' '.$trees[$i].'#'.$earliest_rtuple[$i].'-'.$latest_rtuple[$i];
+        $cmd.= ' '.$trees[$i].'#'.$basispass_rtuple[$i].'-'.$latest_rtuple[$i];
     }
     print STDERR "Generating revisions with $cmd\n";
     open REVLIST, "$cmd |" or die $!;
@@ -307,9 +307,9 @@ sub digraph_relevant () {
         });
     };
     $paint_relevant->($nodes{"@latest_rtuple"}, Parents, RelvDown);
-    $paint_relevant->($nodes{"@earliest_rtuple"}, Children, RelvUp);
+    $paint_relevant->($nodes{"@basispass_rtuple"}, Children, RelvUp);
 
-    foreach my $rtuple ("@latest_rtuple", "@earliest_rtuple") {
+    foreach my $rtuple ("@latest_rtuple", "@basispass_rtuple") {
         foreach my $relflag (qw(RelvDown RelvUp)) {
             die "not $relflag at $rtuple" unless $nodes{$rtuple}{$relflag};
         }
@@ -324,7 +324,7 @@ sub relevant ($) {
 }
 
 sub scantests () {
-    my $earliest_date= $nodes{"@earliest_rtuple"}{Date};
+    my $basispass_date= $nodes{"@basispass_rtuple"}{Date};
 
     print STDERR "Searching for test results:\n";
 
@@ -333,7 +333,7 @@ sub scantests () {
           WHERE job = ?
             AND testid = ?
             AND $blessingscond
-            AND started >= $earliest_date
+            AND started >= $basispass_date
             AND branch = ?
     ");
     $sth->execute($job, $testid, $branch);
@@ -465,7 +465,7 @@ sub conflicted_warning ($$) {
         summary_report(<<END, <<END, 16);
 Not reproducible - supposed $what
 END
-Could not reproduce problem, or could not reproduce last pass.
+Could not reproduce problem, or could not reproduce basis pass.
 Inconsistent test results at this revision (supposed $what):
 $n->{Rtuple}
 END
@@ -492,7 +492,7 @@ sub search () {
     print STDERR "Searching for interesting versions\n";
 
     return if need_reproduce($nodes{"@latest_rtuple"}, "failure");
-    return if need_reproduce($nodes{"@earliest_rtuple"}, "last pass");
+    return if need_reproduce($nodes{"@basispass_rtuple"}, "last pass");
 
     foreach my $startfail (@failures) {
         search_compute_length_below($startfail);
