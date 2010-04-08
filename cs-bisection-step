@@ -626,7 +626,7 @@ END
                 push @s, 'fillcolor="red"';
                 push @s, 'fontcolor="white"';
             } elsif ($n->{Result} eq 'pass') {
-                push @s, 'fillcolor="green"';
+                push @s, 'fillcolor="#00c000"';
                 push @s, 'fontcolor="black"';
             } else {
                 push @s, 'fillcolor="orange"';
