@@ -52,15 +52,17 @@ sub build () {
 END
     target_cmd_build($ho, 6000, $builddir, <<END);
         cd xen-unstable
-        (make -j4 2>&1 && touch ../build-ok-stamp) |tee ../log
+        (false make -j4 2>&1 && touch ../build-ok-stamp) |tee ../log
         test -f ../build-ok-stamp
         echo ok.
 END
 }
 
-sub collectversions () {
+sub collectversion_qemu () {
     store_revision($ho, 'qemu', "$builddir/xen-unstable/tools/ioemu-dir");
+}
 
+sub collectversions_kernel () {
     my $whichkerns= target_cmd_output($ho, <<END);
         set -e
         cd $builddir/xen-unstable
@@ -76,8 +78,10 @@ END
         push @revisions,
             vcs_dir_revision($ho,"$builddir/xen-unstable/$kerndir", $vcs);
     }
-    store_vcs_revision('linux',"@revisions","@vcss");
-    store_runvar('built_xen_kerneldirs',"@kerndirs");
+    if (@revisions) {
+	store_vcs_revision('linux',"@revisions","@vcss");
+	store_runvar('built_xen_kerneldirs',"@kerndirs");
+    }
 }
 
 sub divide () {
@@ -106,8 +110,22 @@ sub stash () {
     }
 }
 
+our $ok=1;
+
+sub trapping ($) {
+    my ($sub) = @_;
+    my $tok= eval { $sub->(); 1; };
+    if (!$tok) { $ok=0; print STDERR "failure (trapped): $@\n"; }
+}
+
+
 checkout();
-build();
-collectversions();
+
+trapping(\&build);
+trapping(\&collectversion_qemu);
+trapping(\&collectversions_kernel);
+
+die "something failed" unless $ok;
+
 divide();
 stash();
