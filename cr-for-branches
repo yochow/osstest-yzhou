@@ -2,14 +2,43 @@
 # usage: cr-for-branches WLEM "SCRIPT OPTIONS" ARGS...
 # will run   with-lock-ex WLEM SCRIPT OPTIONS BRANCH ARGS...
 
+set -e
+
 wlem=$1; shift
+
+LOGFILE=tmp/cr-for-branches.log
+export LOGFILE
 
 BRANCHES='xen-4.0-testing xen-3.4-testing xen-unstable'
 export BRANCHES
 
 with-lock-ex $wlem global-lock bash -ec '
+        savelog -n 50 $LOGFILE
+        exec >>$LOGFILE
+
+        log () {
+                d=`date +"%Y-%m-%d %H:%M:%S %Z"`
+                printf "[%s $$] %s%s\n" "$d" "$m" "$1"
+        }
+
         script=$1; shift
         for branch in $BRANCHES; do
-                $script $branch "$@"
+                m="$script $branch $*"
+                log ...
+                set +e
+                $script $branch "$@" 2>&1
+                rc=$?
+                set -e
+                log " status=$rc"
+                if [ $rc != 0 ]; then
+                        cat >&2 <<END
+FAILURE $$
+$m
+see $LOGFILE
+
+END
+                        cat >&2 $LOGFILE
+                        exit $rc
+                fi
         done
 ' x "$@"
