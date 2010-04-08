@@ -13,7 +13,7 @@ BRANCHES='xen-4.0-testing xen-3.4-testing xen-unstable'
 export BRANCHES
 
 with-lock-ex $wlem global-lock bash -ec '
-        savelog -n 50 $LOGFILE
+        savelog -n 50 $LOGFILE >/dev/null
         exec >>$LOGFILE
 
         log () {
