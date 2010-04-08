@@ -110,7 +110,8 @@ sub flight_rtuple ($) {
     
         SELECT t.name AS use,
 	       b.name AS name,
-	       b.val  AS val
+	       b.val  AS val,
+	       b.job  AS job
 
           INTO TEMP TABLE tmp_build_info
 	       
@@ -124,10 +125,23 @@ sub flight_rtuple ($) {
 	       OR (t.val LIKE '%.%' AND t.val = b.flight || '.' || b.job))
 
 END
+    $dbh_tests->do(<<END, {}, $job, $flight);
+
+        INSERT INTO tmp_build_info
+	    SELECT ''   AS use,
+	           name AS name,
+	           val  AS val,
+	           job  AS job
+	      FROM runvars
+	     WHERE job = ?
+	       AND flight = ?
+END
+
     my $sth= $dbh_tests->prepare(<<END);
 
         SELECT url.val AS uval,
-	       rev.val AS rval
+	       rev.val AS rval,
+	       url.job AS job
 
 	    FROM tmp_build_info AS rev
       CROSS JOIN tmp_build_info AS url
@@ -135,6 +149,7 @@ END
            WHERE rev.name LIKE E'built\\_revision\\_%'
   	     AND url.name LIKE E'tree\\_%'
 	     AND rev.use = url.use
+	     AND rev.job = url.job
 	     AND rev.name = 'built_revision_' || substr(url.name,6)
 
 	   ORDER by url.val;
@@ -145,6 +160,7 @@ END
     my $mixed=0;
     my (@turls, @trevisions);
     while ($row= $sth->fetchrow_hashref()) {
+	print DEBUG " $flight.$row->{job} uval=$row->{uval} rval=$row->{rval}\n";
 	if (@turls && $row->{uval} eq $turls[-1]) {
 	    if ($row->{rval} ne $trevisions[-1]) {
 		print STDERR "!! flight $flight mixed revisions for $turls[-1]: $trevisions[-1] and $row->{rval}\n";
@@ -167,12 +183,18 @@ END
 	@trees= @turls;
 	psummary("Tree: $_\n") foreach @trees;
     }
-    if ("@trees" ne "@turls") {
-	print STDERR "!! flight $flight different trees: @turls\n";
+    my (@trevisions_interest, @turls_interest);
+    for (my $i=0; $i<@turls; $i++) {
+	next unless grep { $turls[$i] eq $_ } @trees;
+	push @turls_interest,      $turls[$i];
+	push @trevisions_interest, $trevisions[$i];
+    }
+    if ("@trees" ne "@turls_interest") {
+	print STDERR "!! flight $flight different trees: @turls_interest\n";
 	return ();
     }
-    map { s/\+//g; s/^\d+://; } @trevisions;
-    return @trevisions;
+    map { s/\+//g; s/^\d+://; } @trevisions_interest;
+    return @trevisions_interest;
 }
 
 sub findbasics () {
@@ -545,7 +567,7 @@ END
         my $godown= ($best->{InterestingLength}) >> 1;
         print STDERR "Looking $godown below $best->{Rtuple}.\n";
         my $ch= choose_revision_below($best, $godown);
-        choose_this($ch);
+        do_choose_this($ch);
     }
 }
 
