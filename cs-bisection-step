@@ -532,7 +532,7 @@ sub search () {
             
             return if need_reproduce($fail, "first failure");
             foreach my $pass (@passparents) {
-                return if need_reproduce($_, "last pass");
+                return if need_reproduce($pass, "last pass");
             }
 
             $found_exact_failure++;
