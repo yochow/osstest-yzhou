@@ -178,7 +178,9 @@ sub fetch_logs_host_guests () {
          'xl list',
          'xm list',
          'xm list --long',
-         'xenstore-ls -fp'
+         'xenstore-ls -fp',
+         'ifconfig',
+         'route -vn'
          ) {
             try_cmd_output_save($cmd);
         }
