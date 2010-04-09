@@ -704,7 +704,7 @@ sub prepareguest ($$$$$) {
 
 sub guest_check_up ($) {
     my ($gho) = @_;
-    guest_await_dhcp_tcp($gho,10);
+    guest_await_dhcp_tcp($gho,20);
     target_ping_check_up($gho);
     target_cmd_root($gho, "echo guest $gho->{Name}: ok")
         if $r{"$gho->{Guest}_tcpcheckport"} == 22;
