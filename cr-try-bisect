@@ -69,7 +69,7 @@ perhaps_bisect_step () {
         flight_executed=false
 
         compute_state --flight=$flight
-        send_bisection_email "bisecting testing" -bisectrun
+        send_bisection_email "bisecting testing $flight" -bisectrun
 
         echo $branch >$sticky.new
         mv -f $sticky.new $sticky
@@ -78,7 +78,7 @@ perhaps_bisect_step () {
         flight_executed=true
 
         compute_state
-        send_bisection_email "bisecting intermediate results" -bisectrun
+        send_bisection_email "bisecting tested $flight" -bisectrun
 	exit 0
 }
 
