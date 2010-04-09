@@ -840,9 +840,9 @@ sub power_state ($$) {
 }
 sub logm ($) {
     my ($m) = @_;
-    my @t = localtime;
+    my @t = gmtime;
     printf "%04d-%02d-%02d %02d:%02d:%02d Z %s\n",
-        $t[5]+1900,$t[4],$t[3], $t[2],$t[1],$t[0],
+        $t[5]+1900,$t[4]+1,$t[3], $t[2],$t[1],$t[0],
         $m
     or die $!;
     STDOUT->flush or die $!;
