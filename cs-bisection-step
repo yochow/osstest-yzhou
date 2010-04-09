@@ -328,19 +328,29 @@ sub scantests () {
 
     print STDERR "Searching for test results:\n";
 
-    my $sth= $dbh_tests->prepare("
-       SELECT * FROM flights NATURAL JOIN steps
+    my $jobq= $dbh_tests->prepare("
+       SELECT * FROM flights NATURAL JOIN jobs
           WHERE job = ?
-            AND testid = ?
             AND $blessingscond
             AND started >= $basispass_date
             AND branch = ?
     ");
-    $sth->execute($job, $testid, $branch);
-    while (my $row= $sth->fetchrow_hashref()) {
-        my @rtuple= flight_rtuple($row->{flight});
+    my $stepq= $dbh_tests->prepare("
+       SELECT * FROM steps
+          WHERE flight = ?
+            AND job = ?
+            AND testid = ?
+    ");
+
+    $jobq->execute($job,$branch);
+    while (my $jobrow= $jobq->fetchrow_hashref()) {
+        my @rtuple= flight_rtuple($jobrow->{flight});
 	next unless @rtuple;
-        print STDERR " $row->{flight} $row->{status} ";
+
+        $stepq->execute($jobrow->{flight},$job,$testid);
+        my $steprow= $stepq->fetchrow_hashref();
+        my $st= $steprow ? $steprow->{status} : 'blocked';
+        print STDERR " $jobrow->{flight} $st ";
         my $n= $nodes{"@rtuple"};
         if (!relevant($n)) {
             print STDERR "irrelevant\n";
@@ -349,12 +359,12 @@ sub scantests () {
         print STDERR "@rtuple\n";
 
         push @{ $n->{Flights} }, {
-            Flight => $row->{flight},
-            Result => $row->{status},
-            Blessing => $row->{blessing}
+            Flight => $jobrow->{flight},
+            Result => $st,
+            Blessing => $jobrow->{blessing}
         };
 
-        if ($row->{status} eq 'fail') {
+        if ($st eq 'fail') {
             push @failures, $n;
             walk($n, Children, sub {
                 my ($desc, $depth) = @_;
@@ -632,7 +642,7 @@ END
                 push @s, 'fillcolor="#00c000"';
                 push @s, 'fontcolor="black"';
             } else {
-                push @s, 'fillcolor="orange"';
+                push @s, 'fillcolor="blue"';
                 push @s, ' fontcolor="white"';
             }
         } elsif (defined $n->{Conflicted}) {
