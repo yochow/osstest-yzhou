@@ -127,7 +127,7 @@ sub try_cmd_output_save ($;$) {
         $dfn =~ s,-,-,g;
         $dfn =~ s/ /_/g;
         $dfn =~ s/[^-+._,=0-9a-zA-Z]/#/g;
-        $dfn= "output-$dfn";
+        $dfn= $ho->{Name}."-output-$dfn";
     }
     my $output;
     if (!eval {
