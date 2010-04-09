@@ -643,6 +643,7 @@ END
 
         if ($n->{Target}) {
             push @s, ' peripheries=2';
+            push @s, ' style="bold,filled"';
         }
 
         odot('[');
