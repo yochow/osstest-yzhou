@@ -14,9 +14,11 @@ use Data::Dumper;
 no warnings qw(recursion);
 
 our @blessings= qw(real real-bisect);
+our @revtuplegenargs= ();
 
 my $graphfile= 'bisection';
 my $popflight= 0;
+my $debug= 0;
 
 our $worst_estatus= -1;
 our $estatus= 255;
@@ -41,6 +43,8 @@ while (@ARGV && $ARGV[0] =~ m/^\-/) {
 	next;
     } elsif (m/^--graph-out=(.+)$/) {
         $graphfile= $1;
+    } elsif (m/^--no-update$/) {
+        push @revtuplegenargs, '-N';
     } elsif (m/^--summary-out=(.+)$/) {
         open SUMMARY, "> $1" or die $!;
     } elsif (m/^--no-graph-out$/) {
@@ -48,8 +52,14 @@ while (@ARGV && $ARGV[0] =~ m/^\-/) {
     } elsif (m/^--flight=(\d+)$/) {
         $popflight= $1;
     } elsif (m/^-D$/) {
-        open DEBUG, ">&2" or die $!;
-        DEBUG->autoflush(1);
+        $debug++;
+        if ($debug==1) {
+            open DEBUG, ">&2" or die $!;
+            DEBUG->autoflush(1);
+        }
+        if ($debug==3) {
+            push @revtuplegenargs, '-D';
+        }
     } else {
 	die "$_ ?";
     }
@@ -289,7 +299,7 @@ sub digraph_whole () {
     print STDERR "Latest @latest_rtuple\n";
     print STDERR "Basis pass @basispass_rtuple\n";
 
-    my $cmd= "./adhoc-revtuple-generator";
+    my $cmd= "./adhoc-revtuple-generator @revtuplegenargs";
     foreach (my $i=0; $i<@trees; $i++) {
         $cmd.= ' '.$trees[$i].'#'.$basispass_rtuple[$i].'-'.$latest_rtuple[$i];
     }

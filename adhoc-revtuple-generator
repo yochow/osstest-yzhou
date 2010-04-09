@@ -6,6 +6,7 @@ use IO::Handle;
 no warnings qw(recursion);
 
 our $num= 1000;
+our $doupdate= 1;
 
 open DEBUG, ">/dev/null" or die $!;
 
@@ -18,6 +19,8 @@ while (@ARGV && $ARGV[0] =~ m/^-/) {
         if (m/^-n([1-9]\d*)$/) {
             $num= $1;
             last;
+        } elsif (s/^-N/-/) {
+            $doupdate= 0;
         } elsif (s/^-D/-/) {
             open DEBUG, ">&2" or die $!;
             STDOUT->autoflush(1);
@@ -53,7 +56,8 @@ sub git_generator ($) {
     print DEBUG "GIT-GEN ".pmap($tree).".\n";
     my $treename= $tree->{Treename};
     shellcmd("set -e; exec >&2; cd repos/$treename &&".
-             " git-pull && git-fetch --tags");
+             " git-pull && git-fetch --tags")
+        if $doupdate;
     my $cmd= "cd repos/$treename && git-log --pretty=raw --date-order";
     my $fh= new IO::File;
     open $fh, "$cmd |" or die $!;
@@ -95,7 +99,8 @@ sub hg_generator ($) {
     local $_;
     print DEBUG "HG-GEN ".pmap($tree).".\n";
     my $treename= $tree->{Treename};
-    shellcmd("set -e; exec >&2; cd repos/$treename && hg pull -u");
+    shellcmd("set -e; exec >&2; cd repos/$treename && hg pull -u")
+        if $doupdate;
     my $cmd= "cd repos/$treename && hg log --template '".
 	"{node|short}\n".
 	"{node|short} {date}\n".
