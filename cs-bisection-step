@@ -659,10 +659,33 @@ END
 
     close DOT or die $!;
 
-    $!=0; system "dot -Tps -o$graphfile.ps $graphfile.dot";
-    die "$? $!" if $? or $!;
+    foreach my $fmt (qw(ps png)) {
+        system_checked("dot -T$fmt -o$graphfile.$fmt $graphfile.dot");
+    }
+    system_checked("convert -resize $c{BisectionRevisonGraphSize}".
+                   " $graphfile.png $graphfile.mini.png");
+    my $href= $graphfile;
+    $href =~ s,.*/,,;
+    open HTML, "> $graphfile.html" or die "$graphfile.html $!";
+    print HTML <<END
+<html><head><title>bisection $branch $job $testid</title></head>
+<body>
+<h1>$branch $job $testid</h1>
+<h2>Trees</h2>
+<pre>
+END
+    . (join '', map { "  $_\n" } @trees). <<END
+</pre>
+<h2>Revision graph overview</h2>
+<img src="$href.mini.png">
+<h2>Revision graph</h2>
+<a href="$href.ps">PostScript</a><p>
+<img src="$href.png">
+</body></html>
+END
+        or die "$graphfile.html $!";
 
-    print STDERR "Revision graph left in $graphfile.{dot,ps}.\n";
+    print STDERR "Revision graph left in $graphfile.{dot,ps,png,html}.\n";
 }
 
 our %jobs_created;

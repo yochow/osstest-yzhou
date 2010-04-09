@@ -17,7 +17,7 @@ BEGIN {
                       $tftptail
                       %c %r $dbh_state $dbh_tests $flight $job $stash
                       get_runvar get_runvar_maybe store_runvar get_stashed
-		      unique_incrementing_runvar
+		      unique_incrementing_runvar system_checked
                       built_stash
                       csreadconfig ts_get_host_guest
                       readconfig opendb_state selecthost need_runvars
@@ -425,6 +425,12 @@ sub store_vcs_revision ($$$) {
     my ($which,$rev,$vcs) = @_;
     store_runvar("built_vcs_$which", $vcs);
     store_runvar("built_revision_$which", $rev);
+}
+
+sub system_checked ($) {
+    my ($cmd) = @_;
+    $!=0; $?=0; system $cmd;
+    die "$cmd $? $!" if $? or $!;
 }
 
 sub unique_incrementing_runvar ($$) {

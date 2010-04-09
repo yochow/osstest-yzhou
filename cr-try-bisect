@@ -100,7 +100,7 @@ END
         cat >&3 <<END
 
 For bisection revision-tuple graph see:
-   $OSSTEST_HTML_URL/$bisleaf.ps
+   $OSSTEST_HTML_URL/$bisleaf.html
 Revision IDs in each graph node refer, respectively, to the Trees above.
 
 ----------------------------------------

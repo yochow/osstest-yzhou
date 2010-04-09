@@ -36,6 +36,8 @@ $c{HostDiskBoot}=   '300'; #Mby
 $c{HostDiskRoot}= '30000'; #Mby
 $c{HostDiskSwap}=  '2000'; #Mby
 
+$c{BisectionRevisonGraphSize}= '600x300';
+
 # We use the IP address because Citrix can't manage reliable nameservice
 #$c{DebianMirrorHost}= 'debian.uk.xensource.com';
 $c{DebianMirrorHost}= '10.80.16.17';
