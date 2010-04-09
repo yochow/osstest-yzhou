@@ -103,7 +103,7 @@ sub flight_has_relevant_hosts ($) {
     my $hosts= relevant_hosts($flight);
 }
 
-sub flight_rtuple ($) {
+sub flight_rmap ($) {
     my ($flight) = @_;
 
     $dbh_tests->do(<<END, {}, $job, $flight);
@@ -146,11 +146,13 @@ END
 	    FROM tmp_build_info AS rev
       CROSS JOIN tmp_build_info AS url
 
-           WHERE rev.name LIKE E'built\\_revision\\_%'
-  	     AND url.name LIKE E'tree\\_%'
-	     AND rev.use = url.use
-	     AND rev.job = url.job
-	     AND rev.name = 'built_revision_' || substr(url.name,6)
+           WHERE (rev.name LIKE E'built\\_revision\\_%' OR
+                  rev.name LIKE E'revision\\_%')
+  	     AND  url.name LIKE E'tree\\_%'
+	     AND  rev.use = url.use
+	     AND  rev.job = url.job
+	     AND (rev.name = 'built_revision_' || substr(url.name,6) OR
+                  rev.name = 'revision_'       || substr(url.name,6))
 
 	   ORDER by url.val;
 	  
@@ -158,43 +160,59 @@ END
     $sth->execute();
     my $row;
     my $mixed=0;
-    my (@turls, @trevisions);
+    my (@ttrees, @trevisions);
     while ($row= $sth->fetchrow_hashref()) {
 	print DEBUG " $flight.$row->{job} uval=$row->{uval} rval=$row->{rval}\n";
-	if (@turls && $row->{uval} eq $turls[-1]) {
-	    if ($row->{rval} ne $trevisions[-1]) {
-		print STDERR "!! flight $flight mixed revisions for $turls[-1]: $trevisions[-1] and $row->{rval}\n";
+        my $rev= $row->{rval};
+        next unless length $rev;
+        $rev =~ s/\+//g;
+        $rev =~ s/^\d+://;
+	if (@ttrees && $row->{uval} eq $ttrees[-1]) {
+	    if ($rev ne $trevisions[-1]) {
+		print STDERR "!! flight $flight mixed revisions for $ttrees[-1]: $trevisions[-1] and $rev\n";
 		$mixed=1;
 	    }
 	} else {
-	    push @turls, $row->{uval};
-	    push @trevisions, $row->{rval};
+	    push @ttrees, $row->{uval};
+	    push @trevisions, $rev;
 	}
     }
     $dbh_tests->do(<<END);
         DROP TABLE tmp_build_info
 END
-    return () if $mixed;
-    if (!@turls) {
+    return undef if $mixed;
+    if (!@ttrees) {
 	print STDERR "!! flight $flight no revisions or trees\n";
-	return ();
+	return undef;
     }
-    if (!@trees) {
-	@trees= @turls;
-	psummary("Tree: $_\n") foreach @trees;
+    my $map = {};
+    for (my $i=0; $i<@ttrees; $i++) {
+        my $ttree= $ttrees[$i];
+        my $trev= $trevisions[$i];
+        die if exists $map->{ $ttree } and $map->{ $ttree } ne $trev;
+        $map->{ $ttree }= $trev;
     }
-    my (@trevisions_interest, @turls_interest);
-    for (my $i=0; $i<@turls; $i++) {
-	next unless grep { $turls[$i] eq $_ } @trees;
-	push @turls_interest,      $turls[$i];
-	push @trevisions_interest, $trevisions[$i];
+    return $map;
+}
+
+sub flight_rtuple ($) {
+    my ($flight) = @_;
+    my $map= flight_rmap($flight);
+    return () if !defined $map;
+    my @revisions= ();
+    die unless @trees;
+    my $missing= 0;
+    foreach my $tree (@trees) {
+        my $revision= $map->{$tree};
+        if (!defined $revision) {
+            print STDERR "!! flight $flight missing revision for $tree\n";
+            $missing++;
+            next;
+        }
+        push @revisions, $revision;
     }
-    if ("@trees" ne "@turls_interest") {
-	print STDERR "!! flight $flight different trees: @turls_interest\n";
-	return ();
-    }
-    map { s/\+//g; s/^\d+://; } @trevisions_interest;
-    return @trevisions_interest;
+    return () if $missing;
+    return @revisions;
 }
 
 sub findbasics () {
@@ -245,12 +263,30 @@ END
 our (%nodes, @latest_rtuple, @basispass_rtuple);
 
 sub digraph_whole () {
-    @latest_rtuple= flight_rtuple($latest_flight);
-    print STDERR "Latest @latest_rtuple\n";
-    @basispass_rtuple= flight_rtuple($basispass_flight);
-    if (!@basispass_rtuple) {
-	die "Basis pass $basispass_flight rtuple indeterminate/wrong\n";
+    my $latest_rmap= flight_rmap($latest_flight);
+    my $basispass_rmap= flight_rmap($basispass_flight);
+    if (!defined $basispass_rmap) {
+	die "Basis pass $basispass_flight rmap indeterminate/wrong\n";
     }
+
+    foreach my $tree (sort keys %$latest_rmap) {
+        if (defined $basispass_rmap->{$tree}) {
+            push @trees, $tree;
+        } else {
+            print STDERR "(tree in latest but not in basispass: $tree)\n";
+        }
+    }
+    foreach my $tree (sort keys %$basispass_rmap) {
+        if (!defined $latest_rmap->{$tree}) {
+            print STDERR "(tree in basispass but not in latest: $tree)\n";
+        }
+    }
+    psummary("Tree: $_\n") foreach @trees;
+
+    @latest_rtuple= flight_rtuple($latest_flight);
+    @basispass_rtuple= flight_rtuple($basispass_flight);
+
+    print STDERR "Latest @latest_rtuple\n";
     print STDERR "Basis pass @basispass_rtuple\n";
 
     my $cmd= "./adhoc-revtuple-generator";
