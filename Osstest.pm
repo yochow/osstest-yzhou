@@ -103,13 +103,13 @@ END
            UPDATE flights SET blessing='running'
                WHERE flight=$flight AND blessing='constructing'
 END
-        logm("starting $flight") if $count;
+        logm("starting $flight") if $count>0;
 
         $count= $dbh_tests->do(<<END);
            UPDATE flights SET started=$now
                WHERE flight=$flight AND started=0
 END
-        logm("starting $flight started=$now") if $count;
+        logm("starting $flight started=$now") if $count>0;
     });
 
     logm("starting $flight.$job");
