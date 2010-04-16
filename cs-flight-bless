@@ -12,8 +12,10 @@ csreadconfig();
 die unless @ARGV >= 3;
 my ($flight,$blessing,@oldblessings) = @ARGV;
 
+my $q= $dbh_tests->
+    prepare("UPDATE FLIGHTS SET blessing=? WHERE flight=?");
+
 db_retry($dbh_tests, sub {
-    my $q= $dbh_tests->
-        prepare("UPDATE FLIGHTS SET blessing=? WHERE flight=?");
-    dbfl_exec($flight,[@oldblessings], $blessing, $flight);
+    dbfl_check($flight, [@oldblessings]);
+    $q->execute($blessing, $flight);
 });
