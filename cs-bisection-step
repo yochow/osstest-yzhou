@@ -884,7 +884,7 @@ sub populateflight () {
         return;
     }
 
-    db_retry($dbh_tests, sub {
+    db_retry($popflight,'constructing', $dbh_tests, sub {
         print STDERR "Populating $popflight...\n";
         preparejob($job, $latest_flight, 0);
     });

@@ -13,12 +13,12 @@ blessing="${1-play}"; shift
 
 trap "
 	set +e
-	./cs-flight-bless $flight crashed
+	./cs-flight-bless $flight crashed running
 	exit 1
 " 0
 
 set -x
-./cs-flight-bless $flight running
+./cs-flight-bless $flight running constructing
 for hostlist in $1; do
 	(
 		date
@@ -53,5 +53,5 @@ while [ $# -ge 1 ]; do
   shift
 done
 
-./cs-flight-bless $flight "$blessing"
+./cs-flight-bless $flight "$blessing" running
 trap "" 0

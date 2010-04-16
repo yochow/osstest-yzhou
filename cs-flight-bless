@@ -9,11 +9,11 @@ use Osstest;
 
 csreadconfig();
 
-die unless @ARGV == 2;
-my ($flight,$blessing) = @ARGV;
+die unless @ARGV >= 3;
+my ($flight,$blessing,@oldblessings) = @ARGV;
 
 db_retry($dbh_tests, sub {
     my $q= $dbh_tests->
         prepare("UPDATE FLIGHTS SET blessing=? WHERE flight=?");
-    $q->execute($blessing, $flight);
+    dbfl_exec($flight,[@oldblessings], $blessing, $flight);
 });

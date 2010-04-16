@@ -16,6 +16,7 @@ BEGIN {
     @EXPORT      = qw(
                       $tftptail
                       %c %r $dbh_state $dbh_tests $flight $job $stash
+                      dbfl_do dbfl_check dbfl_exec
                       get_runvar get_runvar_maybe store_runvar get_stashed
 		      unique_incrementing_runvar system_checked
                       built_stash
@@ -59,6 +60,7 @@ our $tftptail= '/spider/pxelinux.cfg';
 our (%c,%r,$flight,$job,$stash);
 our $dbh_state;
 our $dbh_tests;
+our $dbfl_check;
 
 our %timeout= qw(RebootDown   100
                  RebootUp     400
@@ -67,6 +69,9 @@ our %timeout= qw(RebootDown   100
 sub csreadconfig () {
     require 'config.pl';
     $dbh_tests= opendb('osstestdb');
+    $dbfl_check= $dbh_tests->prepare(<<END);
+        SELECT blessing FROM flights WHERE flight=?
+END
 }
 
 sub readconfig () {
@@ -82,12 +87,24 @@ END
     my ($count) = $q->fetchrow_array();
     die "$flight.$job $count" unless $count==1;
     $q->finish;
-    logm("starting $flight.$job");
 
     my $now= time;  defined $now or die $!;
-    $dbh_tests->do(<<END);
-        UPDATE flights SET started=$now WHERE flight=$flight AND started=0
+
+    db_retry($flight,[qw(running constructing)], $dbh_tests, sub {
+        my $count= $dbh_tests->do(<<END);
+           UPDATE flights SET blessing='running'
+               WHERE flight=$flight AND blessing='constructing'
 END
+        logm("starting $flight") if $count;
+
+        $count= $dbh_tests->do(<<END);
+           UPDATE flights SET started=$now
+               WHERE flight=$flight AND started=0
+END
+        logm("starting $flight started=$now") if $count;
+    });
+
+    logm("starting $flight.$job");
 
     $q= $dbh_tests->prepare(<<END);
         SELECT name, val FROM runvars WHERE flight=? AND job=?
@@ -104,6 +121,35 @@ END
     ensuredir($stash);
 }
 
+sub dbfl_do ($$$) {
+    my ($fl,$flok, $stmt) = @_;
+    my $sh= $dbh_tests->prepare($stmt);
+    return dbfl_exec($fl,$flok, $sh);
+}
+
+sub dbfl_check ($$) {
+    my ($fl,$flok) = @_;
+    if (!ref $flok) {
+        $flok= [ split /,/, $flok ];
+    }
+    die unless ref($flok) eq 'ARRAY';
+    $dbfl_check->execute($fl);
+    my ($bless) = $dbfl_check->fetchrow_array();
+    die "modifying flight $fl but flight not found\n"
+        unless defined $bless;
+    return if $bless =~ m/\bplay\b/;
+    die "modifying flight $fl blessing $bless expected @$flok\n"
+        unless grep { $_ eq $bless } @$flok;
+}
+
+sub dbfl_exec {
+    my ($fl,$flok, $sh,@rest) = @_;
+    db_retry($fl,$flok, $dbh_tests, sub {
+        dbfl_check($fl,$flok);
+        $sh->execute(@rest);
+    });
+}
+
 sub ts_get_host_guest { # pass this @ARGV
     my ($gn,$whhost) = reverse @_;
     $whhost ||= 'host';
@@ -114,12 +160,18 @@ sub ts_get_host_guest { # pass this @ARGV
     return ($ho,$gho);
 }
 
-sub db_retry ($$) {
-    my ($dbh, $code) = @_;
+sub db_retry ($$;$$) {
+    my ($fl,$flok, $dbh,$code) = (@_==4 ? @_ :
+                                  @_==2 ? (undef,undef,@_) :
+                                  die);
     my $retries= 20;
     my $r;
     for (;;) {
         $dbh->begin_work();
+        if (defined $fl) {
+            die unless $dbh eq $dbh_tests;
+            dbfl_check($fl,$flok);
+        }
         $r= &$code;
         last if eval { $dbh->commit(); 1; };
         die "$dbh $code $@ ?" unless $retries-- > 0;
@@ -437,7 +489,7 @@ sub system_checked ($) {
 sub unique_incrementing_runvar ($$) {
     my ($param,$start) = @_;
     my $value;
-    db_retry($dbh_tests, sub {
+    db_retry($flight,'running', $dbh_tests, sub {
 	my $q= $dbh_tests->prepare(<<END);
             SELECT val FROM runvars WHERE flight=? AND job=? AND name=?
 END
@@ -458,13 +510,15 @@ END
 sub store_runvar ($$) {
     my ($param,$value) = @_;
     logm("runvar store: $param=$value");
-    $dbh_tests->do(<<END, undef, $flight, $job, $param);
-	DELETE FROM runvars WHERE flight=? AND job=? AND name=? AND synth
-END
     my $q= $dbh_tests->prepare(<<END);
         INSERT INTO runvars VALUES (?,?,?,?,'t')
 END
-    $q->execute($flight,$job, $param,$value);
+    db_retry($flight,'running', sub {
+        $dbh_tests->do(<<END, undef, $flight, $job, $param);
+	    DELETE FROM runvars WHERE flight=? AND job=? AND name=? AND synth
+END
+        $q->execute($flight,$job, $param,$value);
+    });
     $r{$param}= get_runvar($param, "$flight.$job");
 }
 
@@ -645,7 +699,7 @@ sub select_ether ($) {
     my $ether= $r{$vn};
     return $ether if defined $ether;
     my $prefix= sprintf "%s:%02x", $c{GenEtherPrefix}, $flight & 0xff;
-    db_retry($dbh_tests, sub {
+    db_retry($flight,'running', $dbh_tests, sub {
         my $previous= $dbh_tests->selectrow_array(<<END, {}, $flight);
             SELECT max(val) FROM runvars WHERE flight=?
                 AND name LIKE E'%\\_ether'

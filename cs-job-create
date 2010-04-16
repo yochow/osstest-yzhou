@@ -18,7 +18,7 @@ $dbh_tests->
     selectrow_arrayref("SELECT * FROM flights where flight= $flight")
     or die "$flight ?";
 
-db_retry($dbh_tests, sub {
+db_retry($flight,'constructing', $dbh_tests, sub {
     $dbh_tests->do(<<END);
         INSERT INTO jobs VALUES ($flight,'$job','$recipe','queued')
 END
