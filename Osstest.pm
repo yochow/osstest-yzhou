@@ -61,6 +61,8 @@ our (%c,%r,$flight,$job,$stash);
 our $dbh_state;
 our $dbh_tests;
 our $dbfl_check;
+our $dbfl_harness_read;
+our $dbfl_harness_add;
 
 our %timeout= qw(RebootDown   100
                  RebootUp     400
@@ -71,6 +73,12 @@ sub csreadconfig () {
     $dbh_tests= opendb('osstestdb');
     $dbfl_check= $dbh_tests->prepare(<<END);
         SELECT blessing FROM flights WHERE flight=?
+END
+    $dbfl_harness_read= $dbh_tests->prepare(<<END);
+        SELECT * FROM flights_harness_touched WHERE flight=? AND harness=?
+END
+    $dbfl_harness_add= $dbh_tests->prepare(<<END);
+        INSERT INTO flights_harness_touched VALUES (?,?)
 END
 }
 
@@ -129,6 +137,7 @@ sub dbfl_do ($$$) {
 
 sub dbfl_check ($$) {
     my ($fl,$flok) = @_;
+
     if (!ref $flok) {
         $flok= [ split /,/, $flok ];
     }
@@ -140,12 +149,25 @@ sub dbfl_check ($$) {
     return if $bless =~ m/\bplay\b/;
     die "modifying flight $fl blessing $bless expected @$flok\n"
         unless grep { $_ eq $bless } @$flok;
+
+    $!=0; $?=0; my $rev= `git-rev-parse HEAD`; die "$? $!" unless defined $rev;
+    $rev =~ s/\n$//;
+    die "$rev ?" unless $rev =~ m/^[0-9a-f]+$/;
+    my $diffr= system 'git-diff --exit-code HEAD >/dev/null';
+    if ($diffr) {
+        die "$diffr $! ?" if $diffr != 256;
+        $rev .= '+';
+    }
+    $dbfl_harness_read->execute($fl,$rev);
+    my $already= $dbfl_harness_read->fetchrow_hashref();
+    if (!$already) {
+        $dbfl_harness_add->execute($fl,$rev);
+    }
 }
 
 sub dbfl_exec {
     my ($fl,$flok, $sh,@rest) = @_;
     db_retry($fl,$flok, $dbh_tests, sub {
-        dbfl_check($fl,$flok);
         $sh->execute(@rest);
     });
 }
