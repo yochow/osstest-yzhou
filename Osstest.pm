@@ -535,7 +535,7 @@ sub store_runvar ($$) {
     my $q= $dbh_tests->prepare(<<END);
         INSERT INTO runvars VALUES (?,?,?,?,'t')
 END
-    db_retry($flight,'running', sub {
+    db_retry($flight,'running', $dbh_tests, sub {
         $dbh_tests->do(<<END, undef, $flight, $job, $param);
 	    DELETE FROM runvars WHERE flight=? AND job=? AND name=? AND synth
 END
