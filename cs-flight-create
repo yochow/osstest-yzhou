@@ -9,13 +9,14 @@ csreadconfig();
 @ARGV==1 or die $!;
 our ($branch) = @ARGV;
 
-my ($flight) = 
+my ($flight) =
     db_retry($dbh_tests, sub {
         $dbh_tests->do("INSERT INTO flights VALUES".
                        " (DEFAULT,DEFAULT,'constructing',?)", {}, $branch);
-        dbfl_check($flight,'constructing');
-        return $dbh_tests->
+        my $fl= $dbh_tests->
             selectrow_array('SELECT MAX(flight) FROM flights');
+        dbfl_check($fl,'constructing');
+        return $fl
     });
 
 printf "%s\n", $flight;
