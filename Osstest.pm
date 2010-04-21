@@ -34,7 +34,7 @@ BEGIN {
 		      target_putfilecontents_root_stash
                       target_editfile_root
                       target_install_packages target_install_packages_norec
-                      target_reboot target_reboot_hard
+                      host_reboot target_reboot target_reboot_hard
                       target_choose_vg target_umount_lv target_await_down
                       target_ping_check_down target_ping_check_up
                       target_kernkind_check target_kernkind_console_inittab
@@ -283,7 +283,7 @@ sub cmd {
 	my $took= $finish-$start;
 	my $warn= $took > 0.5*$timeout;
 	logm(sprintf "execution took %d seconds%s: %s",
-	     $took, ($warn ? " [**>2x$timeout**]" : "[<=2x$timeout]"), "@cmd")
+	     $took, ($warn ? " [**>$timeout/2**]" : "[<=2x$timeout]"), "@cmd")
 	    if $warn or $took > 60;
     }
     die "$r $child $!" unless $r == $child;
@@ -439,6 +439,17 @@ sub target_await_down ($$) {
         return target_ping_check_down($ho);
     });
 }    
+
+sub host_reboot ($) {
+    my ($ho) = @_;
+    target_reboot($ho);
+    poll_loop(40,2, 'reboot-confirm-booted', sub {
+        my $output= target_cmd_output($ho,
+          "stat /dev/shm/osstest-confirm-booted 2>&1 >/dev/null ||:",
+                                      40);
+        return length($output) ? $output : undef;
+    });
+}
 
 sub target_reboot ($) {
     my ($ho) = @_;

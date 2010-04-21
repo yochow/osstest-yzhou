@@ -11,4 +11,4 @@ our ($whhost) = @ARGV;
 $whhost ||= 'host';
 our $ho= selecthost($r{$whhost});
 
-target_reboot($ho);
+host_reboot($ho);

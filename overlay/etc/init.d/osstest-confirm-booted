@@ -1,0 +1,37 @@
+#! /bin/sh
+### BEGIN INIT INFO
+# Provides:          osstest-confirm-booted
+# Required-Start:    $all
+# Required-Stop:
+# Default-Start:     2 3 4 5
+# Default-Stop:
+# Short-Description: Confirm fully booted
+# Description:
+### END INIT INFO
+
+NAME=stop-bootlogd
+DAEMON=/sbin/bootlogd
+
+[ -x "$DAEMON" ] || exit 0
+
+case "$1" in
+  stop|restart)
+        rm -f /dev/shm/osstest-confirm-booted
+        ;;
+  start|reload|force-reload)
+        ;;
+  *)
+        echo "Usage: $NAME {start|stop|restart|reload|force-reload}" >&2
+        exit 3
+esac
+
+case "$1" in
+  start|reload|force-reload)
+        if mount | egrep '^[^ 	][^ 	]* on /dev/shm type tmpfs ' >/dev/null
+        then
+                touch /dev/shm/osstest-confirm-booted
+        else
+                echo >&2 '/dev/shm is not a tmpfs ?'; exit 1
+        fi
+        ;;
+esac
