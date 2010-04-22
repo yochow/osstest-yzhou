@@ -862,14 +862,15 @@ sub guest_check_remus_ok {
 	}
 	push @sts, [ $ho, $st ];
     }
-    my $compound= join ',', map { $_->[1] } @sts;
+    my @ststrings= map { $_->[1] } @sts;
+    my $compound= join ',', @ststrings;
     my $msg= "remus check $gho->{Name}: result \"$compound\":";
     $msg .= " $_->[0]{Name}=$_->[1]" foreach @sts;
     logm($msg);
-    my $runnings= scalar grep { m/$guest_state_running_re/o } @sts;
+    my $runnings= scalar grep { m/$guest_state_running_re/o } @ststrings;
     die "running on multiple hosts $compound" if $runnings > 1;
     die "not running anywhere $compound" unless $runnings;
-    die "crashed somewhere $compound" if grep { m/c/ } @sts;
+    die "crashed somewhere $compound" if grep { m/c/ } @ststrings;
 }
 
 sub poll_loop ($$$&) {
