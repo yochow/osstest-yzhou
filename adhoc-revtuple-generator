@@ -402,10 +402,10 @@ sub main () {
             $tree->{Earliest}= $1;
             $tree->{Latest}= $2;
         }
-        if (m,/(\w[^/.]+)\.git$,) {
+        if (m,/(\w[^/]+)\.git$,) {
             $tree->{Gen}= \&git_generator;
             $tree->{Treename}= $1;
-	} elsif (m,/(\w[^/.]+(?:\.pq)?\.hg)$,) {
+	} elsif (m,/(\w[^/]+?(?:\.pq)?\.hg)$,) {
             $tree->{Gen}= \&hg_generator;
             $tree->{Treename}= $1;
         } else {
