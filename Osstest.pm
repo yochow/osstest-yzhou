@@ -1210,6 +1210,7 @@ our %toolstacks=
         DaemonInitd => 'xend',
         Command => 'xm',
         CfgPathVar => 'cfgpath',
+        Dom0MemFixed => 1,
         },
      'xl' => {
         DaemonInitd => 'xenlightdaemons',
