@@ -52,12 +52,13 @@ proc run-job {} {
     if {$ok} { setstatus pass                                             }
 }
 
-proc per-host-ts {failst ident script args} {
+proc per-host-ts {iffail ident script args} {
     global ok need_hosts flight jobinfo
     
-    if {![regsub {^!} $failst {} failst]} {
+    if {![regsub {^!} $iffail {} iffail]} {
 	if {!$ok} return
     }
+    if {![string compare . $iffail]} { set iffail fail }
 
     set awaitl {}
     foreach host $need_hosts {
@@ -67,7 +68,7 @@ proc per-host-ts {failst ident script args} {
         } else {
             lappend hostargs $host +
         }
-        lappend awaitl [eval spawn-ts $failst $ident $script $hostargs $args]
+        lappend awaitl [eval spawn-ts $iffail $ident $script $hostargs $args]
     }
 
     set failed 0
@@ -80,7 +81,7 @@ proc per-host-ts {failst ident script args} {
     }
 
     if {$failed} {
-        setstatus $failst
+        setstatus $iffail
     }
 }
 
