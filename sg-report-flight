@@ -95,7 +95,7 @@ END
 	    } @$revisions;
 
 	    if (defined $wrong) {
-		$whynot= "mismatch $tree $wrong->{job} $wrong->{val}";
+		$whynot= "mismatch $tree $wrong->{job} $wrong->{val} != $v";
 		last;
 	    }
 	}
@@ -361,6 +361,7 @@ END
             my ($chkst) = $checkq->fetchrow_array();
             return "step not executed" unless defined $chkst;
             return "benchmark was $st" unless $chkst eq $st;
+            print DEBUG "  benchmark was $chkst\n";
             return undef;
         });
         if (!defined $justflight) {
