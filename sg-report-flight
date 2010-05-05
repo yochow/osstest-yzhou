@@ -99,11 +99,9 @@ END
 		last;
 	    }
 	}
-	if (defined $whynot) {
-	    print DEBUG " $tflight $whynot\n";
-	} else {
-	    return $tflight;
-	}
+        $whynot= $sub->($tflight) if !defined $whynot;
+        return $flight            if !defined $whynot;
+        print DEBUG " $tflight $whynot\n";
     }
     return undef;
 }
@@ -360,7 +358,8 @@ END
             $checkq->execute($chkflight, $j->{job}, $s->{testid});
             my ($chkst) = $checkq->fetchrow_array();
             return "step not executed" unless defined $chkst;
-            return "benchmark was $st" unless $chkst eq $st;
+            return "that flight had $chkst, looking for $st"
+                unless $chkst eq $st;
             print DEBUG "  benchmark was $chkst\n";
             return undef;
         });
