@@ -73,10 +73,10 @@ elif $push; then
         to_push=`sed -n 's/^version this xen //p' <$mrof`
         if ./ap-push $branch $to_push 2>&1; then
                 rm -f $branch.push
-                perl -i~ tmp/$flight.email -pe '
+                perl -i~ -pe '
                         next unless m/^Subject: / && !$subsequent++;
                         s/$/ - PUSHED/;
-                '
+                ' tmp/$flight.email
         fi
 else
         echo
