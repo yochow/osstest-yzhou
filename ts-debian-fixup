@@ -88,6 +88,7 @@ sub unmount () {
 
 sub otherfixupcfg () {
     $cfg =~ s/^dhcp/#$&/mg;
+    $cfg =~ s/^on_crash.*/on_crash='preserve'/mg;
 };
 
 sub writecfg () {
