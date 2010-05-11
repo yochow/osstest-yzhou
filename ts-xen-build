@@ -32,7 +32,7 @@ END
 	echo >>.config QEMU_TAG='$r{revision_qemu}'
 END
                (length($r{revision_linux}) ? <<END : '').
-	echo >>.config export XEN_LINUX_GIT_REMOTEBRANCH='$r{revision_linux}'
+	echo >>.config export XEN_LINUX_GITREV='$r{revision_linux}'
 END
                (length($kerns) ? <<END : '')
 	echo >>.config KERNELS='$kerns'
