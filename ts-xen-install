@@ -180,27 +180,65 @@ sub setupboot () {
     logm("ready to boot Xen");
 }
 
+our $initscripts_nobridge;
+
 sub setupinitd () {
-    my $initd= toolstack()->{DaemonInitd};
-    target_cmd_root($ho, "update-rc.d $initd start 92 2 .")
-        if defined $initd;
-    target_cmd_root($ho, "update-rc.d xenbridge start 38 S .")
-        if toolstack()->{SeparateBridgeInitd};
+    my $ts= toolstack();
+    $initscripts_nobridge= !!target_cmd_output_root($ho,
+                        "test -f /etc/init.d/xencommons && echo y");
+    logm("init.d scripts ".
+         ($initscripts_nobridge
+          ? 'do not mess with bridge, doing it in interfaces(5)'
+          : '_do_ mess with bridge, letting them handle it'));
+    my $cmd= '';
+    my $updatercd= sub {
+        my ($script,$start) = @_;
+        $cmd .= "\n    update-rc.d $script start $start 2 .";
+    };
+    if ($initscripts_nobridge) {
+        $updatercd->('xencommons',92);
+        my $pri= 93;
+        foreach my $d (@{ $ts->{NewDaemons} }) {
+            $updatercd->("$d",$pri);
+            $pri++;
+        }
+    } else {
+        my $initd= $ts->{OldDaemonInitd};
+        $updatercd->($initd,93) if defined $initd;
+        $updatercd->('xenbridge',38) if $ts->{OldSeparateBridgeInitd};
+    }
+    target_cmd_root($ho, $cmd);
 }
 
 sub nodhcp () {
+    my ($iface,$bridgex);
+    if ($initscripts_nobridge) {
+        $iface= 'xenbr0';
+        $bridgex= "bridge_ports eth0";
+    } else {
+        $iface= 'eth0';
+        $bridgex= '';
+    }
+logm("iface $iface >$initscripts_nobridge<");
     target_editfile_root($ho, "/etc/network/interfaces",
                          "etc-network-interfaces", sub {
+        my $suppress= 0;
         while (<EI>) {
-            if (m/^\s* iface \s+ eth0 \s+ inet \s+ dhcp \s/x) {
-                $_= <<END;
-iface eth0 inet static
+            $suppress= 0 unless m/^\s+/;
+            s/^ \s* allow-hotplug \s+ (?: eth0 | xenbr0 ) \s* $
+                /auto $iface\n/x;
+            if (m/^\s* iface \s+ (?: eth0 | xenbr0 ) \s+ inet \s /x) {
+                $suppress= 1;
+                print EO <<END;
+iface $iface inet static
     address $ho->{Ip}
     netmask $c{NetNetmask}
     gateway $c{NetGateway}
+    $bridgex
 END
             }
-            print EO or die $!;
+            print EO or die $!
+                unless $suppress;
         }
     });
 }    
@@ -213,10 +251,10 @@ if ($checkmode) {
     die if @hos > 1;
     $ho= $hos[0];
     
-    nodhcp();
     packages();
     extract();
     adjustconfig();
     setupboot();
     setupinitd();
+    nodhcp();
 }

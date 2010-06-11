@@ -1207,14 +1207,16 @@ sub guest_vncsnapshot_stash ($$$$) {
 
 our %toolstacks=
     ('xend' => {
-        DaemonInitd => 'xend',
+        NewDaemons => [qw(xend)],
+        OldDaemonInitd => 'xend',
         Command => 'xm',
         CfgPathVar => 'cfgpath',
         Dom0MemFixed => 1,
         },
      'xl' => {
-        DaemonInitd => 'xenlightdaemons',
-        SeparateBridgeInitd => 1,
+        NewDaemons => [],
+        OldDaemonInitd => 'xenlightdaemons',
+        OldSeparateBridgeInitd => 1,
         Dom0MemFixed => 1,
         Command => 'xl',
         CfgPathVar => 'xlpath',
