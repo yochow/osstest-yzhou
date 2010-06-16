@@ -185,7 +185,7 @@ our $initscripts_nobridge;
 sub setupinitd () {
     my $ts= toolstack();
     $initscripts_nobridge= !!target_cmd_output_root($ho,
-                        "test -f /etc/init.d/xencommons && echo y");
+                        "if test -f /etc/init.d/xencommons; then echo y; fi");
     logm("init.d scripts ".
          ($initscripts_nobridge
           ? 'do not mess with bridge, doing it in interfaces(5)'
