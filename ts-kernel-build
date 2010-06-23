@@ -38,7 +38,7 @@ sub build () {
 	' buildconfigs/linux-defconfig_*[^~]
 	make -f buildconfigs/Rules.mk defconfig </dev/null
 END
-    target_cmd_build($ho, 6000, $builddir, <<END);
+    target_cmd_build($ho, 9000, $builddir, <<END);
 	cd linux
         (make -j4 all modules 2>&1 && touch ../build-ok-stamp) |tee ../log
         test -f ../build-ok-stamp

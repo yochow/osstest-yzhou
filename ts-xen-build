@@ -50,7 +50,7 @@ sub build () {
                 print "setopt CONFIG_BLK_DEV_NBD m\\n" or die \$!;
         ' buildconfigs/enable-xen-config
 END
-    target_cmd_build($ho, 6000, $builddir, <<END);
+    target_cmd_build($ho, 9000, $builddir, <<END);
         cd xen-unstable
         (make -j4 2>&1 && touch ../build-ok-stamp) |tee ../log
         test -f ../build-ok-stamp
