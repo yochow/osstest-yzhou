@@ -1,0 +1,62 @@
+#!/bin/bash
+set -e
+
+: ${CACHEING_GIT_CACHE:=/volatile/git-cache}
+
+echo "using cache $CACHEING_GIT_CACHE..."
+
+if ! test -d "${CACHEING_GIT_CACHE}"; then
+	mkdir "${CACHEING_GIT_CACHE}"
+	echo >&2 'cache directory ($CACHEING_GIT_CACHE) does not exist'
+	exit 127
+fi
+
+if [ "x$CACHEING_GIT_CACHE_LOCKED" != "x$CACHEING_GIT_CACHE" ]; then
+	export CACHEING_GIT_CACHE_LOCKED="$CACHEING_GIT_CACHE"
+	exec with-lock-ex -w "$CACHEING_GIT_CACHE/lock" "$0" "$@"
+fi
+
+echo "locked cache $CACHEING_GIT_CACHE..."
+
+: ${GIT_ALTERNATE_OBJECT_DIRECTORIES=$CACHEING_GIT_CACHE/.git/objects}
+export GIT_ALTERNATE_OBJECT_DIRECTORIES
+
+case "$1" in
+clone|fetch)
+	echo "processing $0 $@..."
+	;;
+*)
+	echo "running git $@..."
+	exec git "$@" ;;
+esac
+
+git "$@"
+
+case "$1" in
+clone)
+	while [ $# -gt 1 ]; do shift; done
+	if ! test -d "$1"; then
+		echo \
+ "not updating cache; last arg \`$1' seems not to be dest dir"
+		exit 0
+	fi
+	relevant="$1"
+	;;
+fetch)
+	relevant=.
+	;;
+*)
+	echo >&2 "$0: internal error $1"
+	exit 1
+	;;
+esac
+
+if test -d "$CACHEING_GIT_CACHE"/.git; then
+	echo "updating cache $CACHEING_GIT_CACHE..."
+else
+	echo "initialising cache $CACHEING_GIT_CACHE..."
+	(cd "$CACHEING_GIT_CACHE" && git-init-db --shared)
+fi
+
+${RSYNC-rsync} -r "$relevant"/.git/objects/. \
+	"$CACHEING_GIT_CACHE"/.git/objects/.
