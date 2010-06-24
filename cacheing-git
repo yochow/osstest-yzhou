@@ -18,6 +18,28 @@ fi
 
 echo "locked cache $CACHEING_GIT_CACHE..."
 
+if ! test -x "$0"; then
+        echo >&2 "myself is $0 but not executable ?"
+        exit 127
+fi
+
+for git in `type -pa git`; do
+        if [ -x "$git" ] && ! cmp $git "$0" >/dev/null; then
+                REAL_GIT=$git
+                break
+        fi
+done
+
+if [ "x$REAL_GIT" = x ]; then
+        echo >&2 "$0: did not find git that wasn't me"
+        exit 127
+fi
+
+if ! test -d "$CACHEING_GIT_CACHE"/.git; then
+	echo "initialising cache $CACHEING_GIT_CACHE..."
+	(cd "$CACHEING_GIT_CACHE" && git-init-db --shared)
+fi
+
 : ${GIT_ALTERNATE_OBJECT_DIRECTORIES=$CACHEING_GIT_CACHE/.git/objects}
 export GIT_ALTERNATE_OBJECT_DIRECTORIES
 
@@ -27,10 +49,10 @@ clone|fetch)
 	;;
 *)
 	echo "running git $@..."
-	exec git "$@" ;;
+	exec $REAL_GIT "$@" ;;
 esac
 
-git "$@"
+$REAL_GIT "$@"
 
 case "$1" in
 clone)
@@ -51,12 +73,7 @@ fetch)
 	;;
 esac
 
-if test -d "$CACHEING_GIT_CACHE"/.git; then
-	echo "updating cache $CACHEING_GIT_CACHE..."
-else
-	echo "initialising cache $CACHEING_GIT_CACHE..."
-	(cd "$CACHEING_GIT_CACHE" && git-init-db --shared)
-fi
+echo "updating cache $CACHEING_GIT_CACHE..."
 
 ${RSYNC-rsync} -r "$relevant"/.git/objects/. \
 	"$CACHEING_GIT_CACHE"/.git/objects/.

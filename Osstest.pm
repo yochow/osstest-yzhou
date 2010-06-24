@@ -338,6 +338,7 @@ sub tputfileex {
     }
 }
 sub target_putfile ($$$$;$) {
+    # $ho,$timeout,$lsrc,$rdst,[$rsync_opt]
     tputfileex('osstest', @_);
 }
 sub target_putfile_root ($$$$;$) {

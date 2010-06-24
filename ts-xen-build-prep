@@ -3,6 +3,7 @@
 use strict qw(vars);
 use DBI;
 use Osstest;
+use POSIX;
 
 readconfig();
 opendb_state();
@@ -19,4 +20,46 @@ sub prep () {
 			       ccache));
 }
 
+sub cacheing_git_mount () {
+    my $cache= $c{GitCache};
+    return unless defined $cache;
+
+    if ($cache =~ m,/$,) {
+        my $cachelocal= $c{GitCacheLocal};
+        my $subdir= $ho->{Name};
+        if (defined $cachelocal) {
+            my $umask= umask 0; # yes really
+            mkdir "$cachelocal/$subdir", 02777
+                or $!==&EEXIST or die "$cachelocal/$subdir $!";
+            open T, '>', "$cachelocal/$subdir/lock"
+                or die "$cachelocal/$subdir/lock $!";
+            close T or die $!;
+            umask $umask;
+        }
+        $cache.= $subdir;
+    }
+
+    my $mountpoint= '/volatile/git-cache';
+
+    my $mounts= target_cmd_output_root($ho, "mount");
+    return if $mounts =~ m/^\S+ on \Q$mountpoint\E /om;
+
+    target_cmd_root($ho, "mkdir -vp $mountpoint");
+    target_editfile_root($ho, '/etc/fstab', sub {
+        while (<EI>) {
+            next if m/^\S+\s+\Q$mountpoint\E\s/o;
+            print EO or die $!;
+        }
+        printf EO "%s %s nfs rw\n", $cache, $mountpoint or die $!;
+    });
+    target_cmd_root($ho, "mount $mountpoint");
+}
+
+sub cacheing_git_install () {
+    target_install_packages($ho, qw(chiark-utils-bin));
+    target_putfile_root($ho,10, "cacheing-git","/usr/local/bin/git", "-p");
+}
+
 prep();
+cacheing_git_mount();
+cacheing_git_install();
