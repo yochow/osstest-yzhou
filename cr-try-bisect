@@ -26,7 +26,7 @@ fi
 compute_state () {
         reportfile=tmp/$flight.bisection-report
         summaryfile=tmp/$flight.bisection-summary
-        bisleaf=bisect.$branch.$job.${testid//\//--}
+        bisleaf=bisect.$branch.$job.$laundered_testid
 
         echo "computing $branch $job $testid $*"
 
@@ -59,7 +59,8 @@ compute_state () {
 }
 
 perhaps_bisect_step () {
-        flagfile=tmp/bisected.$branch.$job.$testid
+        laundered_testid=${testid//\//--}
+        flagfile=tmp/bisected.$branch.$job.$laundered_testid
         if test -f $flagfile; then
                 echo "already completed $branch $job $testid"
                 return
