@@ -663,7 +663,7 @@ sub odot ($) { print DOT $_[0] or die $!; }
 sub writegraph () {
     return unless length $graphfile;
 
-    open DOT, "> $graphfile.dot" or die $!;
+    open DOT, "> $graphfile.dot" or die "$graphfile.dot $!";
     
     odot(<<END);
 digraph "$job $testid" {
