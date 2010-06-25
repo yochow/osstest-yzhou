@@ -4,6 +4,7 @@ use strict qw(vars);
 use IO::File;
 use IO::Handle;
 no warnings qw(recursion);
+use Data::Dumper;
 
 our $num= 1000;
 our $doupdate= 1;
@@ -55,10 +56,17 @@ sub git_generator ($) {
     my ($tree) = @_;
     print DEBUG "GIT-GEN ".pmap($tree).".\n";
     my $treename= $tree->{Treename};
-    shellcmd("set -e; exec >&2; cd repos/$treename &&".
-             " git-pull && git-fetch --tags")
-        if $doupdate;
-    my $cmd= "cd repos/$treename && git-log --pretty=raw --date-order";
+    my $upcmd= <<END;
+        set -e; exec >&2
+        rm -rf repos/$treename
+        CACHEING_GIT_CACHE=repos/git-cache ./cacheing-git \\
+            clone --bare $tree->{Url} repos/$treename
+END
+    print DEBUG "GIT-GEN UPCMD\n$upcmd\n";
+    shellcmd($upcmd) if $doupdate;
+    my $cmd= "cd repos/$treename &&".
+        " git-log --pretty=raw --date-order $tree->{Latest}";
+    print DEBUG "GIT-GEN CMD $cmd\n";
     my $fh= new IO::File;
     open $fh, "$cmd |" or die $!;
     return sub {
@@ -356,6 +364,7 @@ sub coalesce {
 	    print DEBUG "...end.\n";
 	    return;
 	}
+        $out->{$node}{Parents}= [ ];
 	$out->{$node}{Date}= $explode_date;
 	my $parents= $graphs[$explode_i]{ $node[$explode_i] }{Parents};
 	print DEBUG "#$explode_i $explode_isearliest".
@@ -377,7 +386,7 @@ sub coalesce {
 
 sub tree_get_gen ($) {
     my ($tree)= @_;
-    print DEBUG "TREE-GET-GEN ".pmap($tree).".\n";
+    print DEBUG "TREE-GET-GEN ".pmap($tree).".\n", Dumper($tree);
     return $tree->{Gen}($tree);
 }
 sub makegraph_fromgen ($) {
@@ -402,6 +411,7 @@ sub main () {
             $tree->{Earliest}= $1;
             $tree->{Latest}= $2;
         }
+        $tree->{Url}= $_;
         if (m,/(\w[^/]+)\.git$,) {
             $tree->{Gen}= \&git_generator;
             $tree->{Treename}= $1;
@@ -421,6 +431,65 @@ sub main () {
     print DEBUG "MAIN INIT outixes=".
         (join ' | ', map { @{ $_->{Outixes} } } @trees).".\n";
 
+    
+    # Check that the "earliest" changeset is going to be in the
+    # graph.  If it isn't, we fake up a two-node history.
+    #
+    my @trees_continuous;
+    foreach my $tree (@trees) {
+        my $gen= tree_get_gen($tree);
+        my $count= 1000;
+        my $found= 0;
+        my $top= undef;
+        while ($count-- > 0) {
+            my $rev= $gen->();
+            last unless defined $rev;
+            $top= $rev unless defined $top;
+            next unless $rev->{Commit} eq $tree->{Earliest};
+            $found=1;
+            last;
+        }
+        if ($found) {
+            push @trees_continuous, $tree;
+            next;
+        }
+        printf STDERR "adhoc-revtuple-generator: tree discontiguous: %s\n",
+            $tree->{Treename};
+
+        my $newgen= sub {
+            print DEBUG "TREE DISCONTIG GEN $tree->{Treename}\n";
+            my $ary= [ qw(Latest Earliest) ];
+            my $gen= "discontinuous_generator:$tree->{Treename}";
+            return sub {
+                print DEBUG "TREE DISCONTIG GEN ARY ", Dumper($ary);
+                my $t= shift @$ary;
+                return undef unless defined $t;
+                my $n= {
+                    Generator => $gen,
+                    Commit => $tree->{$t},
+                    Parents => @$ary ? [ $tree->{$ary->[0]} ] : [],
+                    Date => $t eq 'Latest' ? $top->{Date} : 1
+                };
+                print DEBUG "TREE DISCONTIG GEN NODE ", Dumper($n);
+                return $n;
+            };
+        };
+
+        my $new_tree= {
+            MakeGraph => \&makegraph_fromgen,
+            Outixes => $tree->{Outixes},
+            Earliest => $tree->{Earliest},
+            Latest => $tree->{Latest},
+            Treename => $tree->{Treename},
+            Gen => $newgen
+        };
+        push @trees_continuous, $new_tree;
+    }
+    @trees= @trees_continuous;
+
+
+    # Look up referred-to tags in xen-unstable
+    #
     my (@xis, @qis);
     foreach (my $i=0; $i<@trees; $i++) {
         $_= $trees[$i]{Treename};
@@ -448,6 +517,7 @@ sub main () {
     }
 
     @trees= grep { defined $_->{Outixes} } @trees;
+
 
     my @graphs= map { tree2graph($_) } @trees;
     my @outixes= map { my $ox= $_->{Outixes}; defined $ox ? @$ox : () } @trees;
