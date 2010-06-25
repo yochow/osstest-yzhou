@@ -81,6 +81,13 @@ mkdir_p "$cache"/refs
 mkdir_p "$cache"/refs/caches
 mkdir_p "$cache"/refs/caches/"$cacheid"
 
-${RSYNC-rsync} -r "$relevant"/.git/objects/. "$cache"/objects/.
+if test -d "$relevant"/.git; then
+        gitdir="$relevant"/.git
+else
+        # copes with clone --bare
+        gitdir="$relevant"
+fi
+
+${RSYNC-rsync} -r "$gitdir"/objects/. "$cache"/objects/.
 ${RSYNC-rsync} --exclude=HEAD \
-               -r "$relevant"/.git/refs/.    "$cache"/refs/caches/"$cacheid"/.
+               -r "$gitdir"/refs/.    "$cache"/refs/caches/"$cacheid"/.
