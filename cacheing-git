@@ -40,21 +40,18 @@ if ! test -d "$CACHEING_GIT_CACHE"/.git; then
 	(cd "$CACHEING_GIT_CACHE" && git-init-db --shared)
 fi
 
-: ${GIT_ALTERNATE_OBJECT_DIRECTORIES=$CACHEING_GIT_CACHE/.git/objects}
-export GIT_ALTERNATE_OBJECT_DIRECTORIES
-
 case "$1" in
-clone|fetch)
+clone)
 	echo "processing $0 $@..."
+        subcmd="$1"; shift
+        $REAL_GIT "$subcmd" --reference $CACHEING_GIT_CACHE "$@"
 	;;
 *)
 	echo "running git $@..."
 	exec $REAL_GIT "$@" ;;
 esac
 
-$REAL_GIT "$@"
-
-case "$1" in
+case "$subcmd" in
 clone)
 	while [ $# -gt 1 ]; do shift; done
 	if ! test -d "$1"; then
@@ -63,9 +60,7 @@ clone)
 		exit 0
 	fi
 	relevant="$1"
-	;;
-fetch)
-	relevant=.
+        cacheid=`basename "$1"`
 	;;
 *)
 	echo >&2 "$0: internal error $1"
@@ -73,7 +68,19 @@ fetch)
 	;;
 esac
 
-echo "updating cache $CACHEING_GIT_CACHE..."
+echo "updating cache $CACHEING_GIT_CACHE $cacheid..."
 
-${RSYNC-rsync} -r "$relevant"/.git/objects/. \
-	"$CACHEING_GIT_CACHE"/.git/objects/.
+mkdir_p () {
+        if test -d "$1"; then return; fi
+        mkdir "$1"
+}
+
+cache="$CACHEING_GIT_CACHE"/.git
+
+mkdir_p "$cache"/refs
+mkdir_p "$cache"/refs/caches
+mkdir_p "$cache"/refs/caches/"$cacheid"
+
+${RSYNC-rsync} -r "$relevant"/.git/objects/. "$cache"/objects/.
+${RSYNC-rsync} --exclude=HEAD \
+               -r "$relevant"/.git/refs/.    "$cache"/refs/caches/"$cacheid"/.
