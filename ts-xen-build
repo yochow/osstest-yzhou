@@ -110,6 +110,29 @@ sub stash () {
     }
 }
 
+sub checkversions () {
+    my $chk= $dbh_tests->prepare(<<END);
+        SELECT reqd.name, reqd.val, built.val
+          FROM runvars reqd, runvars built
+         WHERE reqd.flight=? and reqd.job=?
+           AND built.flight=? and built.job=?
+           AND built.name = 'built_' || reqd.name
+END
+    $chk->execute($flight,$job,$flight,$job);
+    my $mismatches= 0;
+    while (my $row= $chk->fetchrow_arrayref()) {
+        my ($tree, $reqd, $built) = @$row;
+        next unless defined $reqd && defined $built;
+        $reqd =~ s/^.*://;
+        $built =~ s/^.*://;
+        next if substr($reqd,0,length($built))
+             eq substr($built,0,length($reqd));
+        print STDERR "version mismatch! $tree requested=$reqd built=$built\n";
+        $mismatches++;
+    }
+    die "version mismatches ($mismatches)" if $mismatches;
+}
+
 our $ok=1;
 
 sub trapping ($) {
@@ -117,7 +140,6 @@ sub trapping ($) {
     my $tok= eval { $sub->(); 1; };
     if (!$tok) { $ok=0; print STDERR "failure (trapped): $@\n"; }
 }
-
 
 checkout();
 
@@ -129,3 +151,4 @@ die "something failed" unless $ok;
 
 divide();
 stash();
+checkversions();
