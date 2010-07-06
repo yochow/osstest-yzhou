@@ -197,6 +197,8 @@ d-i clock-setup/ntp boolean true
 d-i partman-auto/method string lvm
 #d-i partman-auto/method string regular
 
+d-i hw-detect/load_firmware boolean false
+
 d-i partman-md/device_remove_md boolean true
 d-i partman-lvm/device_remove_lvm boolean true
 d-i partman-partitioning/confirm_write_new_label boolean true
