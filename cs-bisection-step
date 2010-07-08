@@ -430,8 +430,16 @@ sub consolidateresults () {
         my %r;
         $r{ $_->{Result} }=1 foreach @$fs;
         next unless %r;
-        $n->{Result}= (keys %r)[0] if scalar(keys %r) == 1;
-        if (scalar(keys %r) > 1) {
+
+        # We're willing to believe a specific result if we also got
+        # "blocked", because "blocked" can happen due to environmental
+        # failures.
+        my @interesting= grep { $_ ne 'blocked' } keys %r;
+        if (@interesting == 1) {
+            $n->{Result}= $interesting[0];
+        } elsif (scalar(keys %r) == 1) {
+            $n->{Result}= (scalar keys %r)[0];
+        } else {
             $n->{Conflicted}= 1;
             push @conflicted, $n;
         }
