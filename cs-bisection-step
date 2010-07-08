@@ -519,12 +519,17 @@ sub do_choose_this ($) {
 sub conflicted_warning ($$) {
     my ($n, $what) = @_;
     if ($n->{Conflicted}) {
+        my $show_rtuple= $n->{Rtuple};
+        foreach my $flight (@{ $n->{Flights} }) {
+            $show_rtuple .= "\n flight $flight->{Flight}".
+                " (blessed $flight->{Blessing}) result $flight->{Result}";
+        }
         summary_report(<<END, <<END, 16);
 Not reproducible - supposed $what
 END
 Could not reproduce problem, or could not reproduce basis pass.
 Inconsistent test results at this revision (supposed $what):
-$n->{Rtuple}
+$show_rtuple
 END
         $n->{Target}= 1;
         return 1;
