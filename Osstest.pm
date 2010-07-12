@@ -556,13 +556,13 @@ END
     $r{$param}= get_runvar($param, "$flight.$job");
 }
 
-sub get_runvar ($$$) {
+sub get_runvar ($$) {
     my ($param, $otherflightjob) = @_;
     my $r= get_runvar_maybe($param,$otherflightjob);
     die "need $param in $otherflightjob" unless defined $r;
     return $r;
 }    
-sub get_runvar_maybe ($$$) {
+sub get_runvar_maybe ($$) {
     my ($param, $otherflightjob) = @_;
     my ($oflight, $ojob) = otherflightjob($otherflightjob);
     my $q= $dbh_tests->prepare(<<END);
