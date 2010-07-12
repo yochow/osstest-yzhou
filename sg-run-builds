@@ -79,7 +79,7 @@ proc perhaps-start-job {} {
         set ei $errorInfo
         set ec $errorCode
         run-ts broken * ts-logs-capture
-        setstatus retriable
+        setstatus broken
         return
     }
 
