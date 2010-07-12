@@ -226,6 +226,12 @@ sub flight_rtuple ($) {
     return @revisions;
 }
 
+our $flight_is_not_broken= <<END;
+    (NOT EXISTS (SELECT * FROM steps check_steps
+                  WHERE check_steps.flight = flights.flight
+                    AND check_steps.status = 'broken'))
+END
+
 sub findbasics () {
     my $sth= $dbh_tests->prepare(<<END);
 	SELECT * FROM flights NATURAL JOIN steps
@@ -234,6 +240,7 @@ sub findbasics () {
 	     AND blessing = ?
 	     AND (status = 'fail' OR status = 'pass')
              AND branch = ?
+             AND $flight_is_not_broken
 	   ORDER BY started DESC
 	   LIMIT 1
 END
@@ -256,6 +263,7 @@ END
 	     AND blessing = ?
 	     AND status = 'pass'
              AND branch = ?
+             AND $flight_is_not_broken
 	   ORDER BY started DESC
 END
     $sth->execute($job,$testid,$blessings[0],$branch);
@@ -381,6 +389,7 @@ sub scantests () {
             AND $blessingscond
             AND started >= $basispass_date
             AND branch = ?
+            AND $flight_is_not_broken
     ");
     my $stepq= $dbh_tests->prepare("
        SELECT * FROM steps
