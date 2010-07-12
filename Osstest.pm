@@ -556,6 +556,20 @@ END
     $r{$param}= get_runvar($param, "$flight.$job");
 }
 
+sub broken ($) {
+    my ($m) = @_;
+    my $affected;
+    db_retry($flight, [qw(running)], $dbh_tests, sub {
+        $affected= $dbh_tests->do(<<END, {}, $flight, $job);
+            UPDATE jobs SET status='broken'
+             WHERE flight=? AND job=?
+               AND (status='queued' OR status='running')
+END
+    });
+    die "BROKEN: $m; ". ($affected>0 ? "marked $flight.$job broken"
+                         : "($flight.$job not marked)");
+}
+
 sub get_runvar ($$) {
     my ($param, $otherflightjob) = @_;
     my $r= get_runvar_maybe($param,$otherflightjob);
@@ -565,6 +579,18 @@ sub get_runvar ($$) {
 sub get_runvar_maybe ($$) {
     my ($param, $otherflightjob) = @_;
     my ($oflight, $ojob) = otherflightjob($otherflightjob);
+
+    my $jq= $dbh_tests->prepare(<<END);
+        SELECT * FROM jobs WHERE flight=? AND job=?
+END
+    $jq->execute($oflight,$ojob);
+    my $jrow= $jq->fetchrow_hashref();
+    $jrow or broken("job $flight.$ojob not found (looking for $param)");
+    my $jstatus= $jrow->{'status'};
+    defined $jstatus or broken("job $flight.$ojob no status?!");
+    $jstatus ne 'broken' or broken("job $flight.$ojob (for $param) broken");
+    $jstatus eq 'pass' or die "job $flight.$ojob (for $param): $jstatus";
+
     my $q= $dbh_tests->prepare(<<END);
         SELECT val FROM runvars WHERE flight=? AND job=? AND name=?
 END

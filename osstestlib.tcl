@@ -185,7 +185,8 @@ proc setstatus {st} {
 proc job-set-status {flight job st} {
     pg_execute dbh "
         UPDATE jobs SET status='$st'
-            WHERE flight=$flight AND job='$job' AND status<>'aborted'
+            WHERE flight=$flight AND job='$job'
+              AND status<>'aborted' AND status<>'broken'
     "
 }
 
