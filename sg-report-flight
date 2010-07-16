@@ -47,8 +47,8 @@ push @blessings, 'real' unless @blessings;
 csreadconfig();
 
 # formatting settings
-our $jl= 30;
-our $sl= 30;
+our $jl= 28;
+our $sl= 28;
 our $rl= 9;
 our $cw= 79;
 our $tl= 20;
@@ -249,11 +249,7 @@ END
         my $j= $failv->{Job};
         my $text= (sprintf" %-${jl}s %2s %-${sl}s %-${rl}s",
                    $j->{job}, $s->{stepno}, $s->{testid}, $s->{status});
-        if ($failv->{Regression}) {
-            $text .= 'REGRESSION';
-        } elsif (defined $failv->{Justification}) {
-            $text .= $failv->{Justification};
-        }
+        $text .= $failv->{Summary};
         $text =~ s/ *$//;
         while (length($text) > $cw) { last unless $text =~ s/(.* ) /$1/; }
         print $text, "\n";
@@ -328,6 +324,8 @@ END
         if (!length $s->{stepno}) {
             print MRO "broken-job $j->{job} $j->{status}\n" or die $!;
             print DEBUG " broken job\n";
+            $failv->{Summary}= '';
+            $failv->{Blocker}= 'broken';
             next;
         }
 
@@ -335,50 +333,68 @@ END
         if (!$anypassq->fetchrow_hashref()) {
             print MRO "never-passed $j->{job} $s->{testid} $st\n";
             print DEBUG " never passed\n";
-            $failv->{Justification}= 'never pass';
+            $failv->{Summary}= 'never pass';
+            $failv->{Blocker}= '';
             next;
         }
 
 	if ($st eq 'blocked') {
 	    print MRO "blocked $s->{job} $s->{testid}\n";
 	    print DEBUG " blocked, call it justifiable\n";
-	    $failv->{Justification}= 'n/a';
+	    $failv->{Summary}= 'n/a';
+            $failv->{Blocker}= '';
 	    next;
 	}
         if ($st ne 'fail') {
             print MRO "broken $j->{job} $s->{testid} $st\n";
             print DEBUG " not a fail, unjustifiable\n";
+            $failv->{Summary}= '';
+            $failv->{Blocker}= 'broken';
             next;
         }
-        my $justflight= findaflight('that', sub {
+
+	my @rtups;
+	push @rtups, [ 10, 0, "baseline untested" ];
+
+	findaflight('that', sub {
             my ($chkflight) = @_;
             my $checkq= $dbh_tests->prepare(<<END);
                 SELECT status FROM steps WHERE flight=? AND job=? AND testid=?
 END
             $checkq->execute($chkflight, $j->{job}, $s->{testid});
             my ($chkst) = $checkq->fetchrow_array();
-            return "step not executed" unless defined $chkst;
-            return "that flight had $chkst, looking for $st"
-                unless $chkst eq $st;
-            print DEBUG "  benchmark was $chkst\n";
-            return undef;
+	    my $rtup;
+	    if (!defined $chkst) {
+		$rtup= [ 50, '', "blocked in $chkflight" ];
+	    } elsif ($chkst eq $st) {
+		$rtup= [ 190, '', "like $chkflight" ];
+	    } elsif ($chkst eq 'fail') {
+		$rtup= [ 180, '', "failed in $chkflight" ];
+	    } elsif ($chkst eq 'pass') {
+		$rtup= [ 100, 'regression', "REGR. vs. $chkflight" ];
+	    } else {
+		$rtup= [ 170, '', "$chkst in $chkflight" ];
+	    }
+	    push @rtups, $rtup;
+	    return $rtup->[2];
         });
-        if (!defined $justflight) {
+	@rtups= sort { $a->[0] <=> $b->[0] } @rtups;
+	$failv->{Blocker}= $rtups[0][1];
+	$failv->{Summary}= $rtups[0][2];
+	print DEBUG " so $failv->{Summary}\n";
+        print DEBUG " blocker $failv->{Blocker}\n" if $failv->{Blocker};
+        if ($failv->{Blocker} eq 'regression') {
             print MRO "regression $j->{job} $s->{testid}\n" or die $!;
-            $failv->{Regression}= 1;
-            print DEBUG " unjustified\n";
             next;
         }
-        print DEBUG " justified by $justflight\n";
-        $failv->{Justification}= $justflight;
     }
     if (!@failures) {
         print MRO "tolerable\nperfect\n" or die $!;
          $fi->{Overall}.= "Perfect :-)\n";
-    } elsif (grep { $_->{Regression} } @failures) {
+    } elsif (grep { $_->{Blocker} eq 'regression' } @failures) {
         $fi->{OutcomeSummary}= "regressions - $fi->{OutcomeSummary}";
         $fi->{Overall}.= "Regressions :-(\n";
-    } elsif (!grep { !defined $_->{Justification} } @failures) {
+    } elsif (!grep { $_->{Blocker} } @failures) {
         $fi->{OutcomeSummary}= "tolerable $fi->{OutcomeSummary}";
         print MRO "tolerable\n" or die $!;
         $fi->{Overall}.= "Failures :-/ but no regressions.\n";
