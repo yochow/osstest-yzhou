@@ -266,11 +266,6 @@ END
     if ($specver{that}) {
         print "baseline version:\n" or die $!;
         printversions('that');
-        print <<'END' or die $!;
-(Individual test failures are shown as REGRESSION above if they never failed
-in the baseline.  If they did, a flight in which they failed is shown.
-"never pass" indicates that this test has never passed on this branch.)
-END
     }
 
     print "\njobs:\n", $r->{JobsSummary}, "\n" or die $!;
