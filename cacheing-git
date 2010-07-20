@@ -3,7 +3,7 @@ set -e
 
 : ${CACHEING_GIT_CACHE:=/volatile/git-cache}
 
-echo "using cache $CACHEING_GIT_CACHE..."
+echo >&2 "using cache $CACHEING_GIT_CACHE..."
 
 if ! test -d "${CACHEING_GIT_CACHE}"; then
 	mkdir "${CACHEING_GIT_CACHE}"
@@ -16,7 +16,7 @@ if [ "x$CACHEING_GIT_CACHE_LOCKED" != "x$CACHEING_GIT_CACHE" ]; then
 	exec with-lock-ex -w "$CACHEING_GIT_CACHE/lock" "$0" "$@"
 fi
 
-echo "locked cache $CACHEING_GIT_CACHE..."
+echo >&2 "locked cache $CACHEING_GIT_CACHE..."
 
 if ! test -x "$0"; then
         echo >&2 "myself is $0 but not executable ?"
@@ -36,18 +36,18 @@ if [ "x$REAL_GIT" = x ]; then
 fi
 
 if ! test -d "$CACHEING_GIT_CACHE"/.git; then
-	echo "initialising cache $CACHEING_GIT_CACHE..."
+	echo >&2 "initialising cache $CACHEING_GIT_CACHE..."
 	(cd "$CACHEING_GIT_CACHE" && git-init-db --shared)
 fi
 
 case "$1" in
 clone)
-	echo "processing $0 $@..."
+	echo >&2 "processing $0 $@..."
         subcmd="$1"; shift
         $REAL_GIT "$subcmd" --reference $CACHEING_GIT_CACHE "$@"
 	;;
 *)
-	echo "running git $@..."
+	echo >&2 "running git $@..."
 	exec $REAL_GIT "$@" ;;
 esac
 
@@ -55,7 +55,7 @@ case "$subcmd" in
 clone)
 	while [ $# -gt 1 ]; do shift; done
 	if ! test -d "$1"; then
-		echo \
+		echo >&2 \
  "not updating cache; last arg \`$1' seems not to be dest dir"
 		exit 0
 	fi
@@ -68,7 +68,7 @@ clone)
 	;;
 esac
 
-echo "updating cache $CACHEING_GIT_CACHE $cacheid..."
+echo >&2 "updating cache $CACHEING_GIT_CACHE $cacheid..."
 
 mkdir_p () {
         if test -d "$1"; then return; fi
