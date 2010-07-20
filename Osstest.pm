@@ -125,7 +125,8 @@ END
     }
     $q->finish();
 
-    $stash= "$c{Stash}/$flight.$job";
+    $stash= "$c{Stash}/$flight/$job";
+    ensuredir("$c{Stash}/$flight");
     ensuredir($stash);
 }
 
@@ -216,7 +217,7 @@ sub get_stashed ($$) {
     die "$path $& " if
         $path =~ m,[^-+._0-9a-zA-Z/], or
         $path =~ m/\.\./;
-    return "$c{Stash}/$oflight.$ojob/$path";
+    return "$c{Stash}/$oflight/$ojob/$path";
 }
 
 sub ensuredir ($) {

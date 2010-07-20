@@ -155,7 +155,8 @@ proc spawn-ts {iffail testid ts args} {
               AND stepno=$stepno
     "
 
-    set logdir $c(Logs)/$flight.$jobinfo(job)
+    set logdir $c(Logs)/$flight/$jobinfo(job)
+    file mkdir $c(Logs)/$flight
     file mkdir $logdir
 
     set log $logdir/$stepno.$ts.log
