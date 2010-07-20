@@ -133,12 +133,12 @@ END
     die "version mismatches ($mismatches)" if $mismatches;
 }
 
-our $ok=1;
+our @probs;
 
 sub trapping ($) {
     my ($sub) = @_;
     my $tok= eval { $sub->(); 1; };
-    if (!$tok) { $ok=0; print STDERR "failure (trapped): $@\n"; }
+    if (!$tok) { push @probs, $@; print STDERR "failure (trapped): $@\n"; }
 }
 
 checkout();
@@ -147,7 +147,8 @@ trapping(\&build);
 trapping(\&collectversion_qemu);
 trapping(\&collectversions_kernel);
 
-die "something failed" unless $ok;
+die "*** something failed:\n\n".(join "\n\n",@probs)."\n** something failed"
+    if @probs;
 
 divide();
 stash();
