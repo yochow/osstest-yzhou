@@ -576,7 +576,8 @@ sub get_runvar ($$) {
     my $r= get_runvar_maybe($param,$otherflightjob);
     die "need $param in $otherflightjob" unless defined $r;
     return $r;
-}    
+}
+
 sub get_runvar_maybe ($$) {
     my ($param, $otherflightjob) = @_;
     my ($oflight, $ojob) = otherflightjob($otherflightjob);
@@ -587,12 +588,27 @@ sub get_runvar_maybe ($$) {
 END
         $jq->execute($oflight,$ojob);
         my $jrow= $jq->fetchrow_hashref();
-        $jrow or broken("job $flight.$ojob not found (looking for $param)");
+        $jrow or broken("job $oflight.$ojob not found (looking for $param)");
         my $jstatus= $jrow->{'status'};
-        defined $jstatus or broken("job $flight.$ojob no status?!");
+        defined $jstatus or broken("job $oflight.$ojob no status?!");
         $jstatus ne 'broken' or
-            broken("job $flight.$ojob (for $param) broken");
-        $jstatus eq 'pass' or die "job $flight.$ojob (for $param): $jstatus";
+            broken("job $oflight.$ojob (for $param) broken");
+        if ($jstatus eq 'pass') {
+            # fine
+        } elsif ($jstatus eq 'queued') {
+            $jq->execute($flight,$job);
+            $jrow= $jq->fetchrow_hashref();
+            $jrow or broken("our job $flight.$job not found!");
+            my $ourstatus= $jrow->{'status'};
+            if ($ourstatus eq 'queued') {
+                logm("not running under sg-execute-*:".
+                     " $oflight.$ojob queued ok, for $param");
+            } else {
+                die "job $oflight.$ojob (for $param) queued (we are $ourstatus)";
+            }
+        } else {
+            die "job $flight.$ojob (for $param): $jstatus";
+        }
     }
 
     my $q= $dbh_tests->prepare(<<END);
