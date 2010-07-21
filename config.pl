@@ -17,8 +17,8 @@ $c{GitCache}='teravault-1.cam.xci-test.com:/export/home/xc_osstest/git-cache/';
 $c{GitCacheLocal}= '/home/xc_osstest/git-cache/';
 
 $c{ReportTrailer}= <<END;
-Logs are also available at
-    http://teravault-1.cam.xci-test.com/xc_osstest/
+Logs, config files, etc. are available at
+    http://www.chiark.greenend.org.uk/~xensrcts/logs
 END
 
 $c{SerialLogPattern}= '/root/sympathy/%host%.log*';
@@ -26,6 +26,8 @@ $c{SerialLogPattern}= '/root/sympathy/%host%.log*';
 $c{Stash}= '/home/xc_osstest/logs';
 $c{Images}= '/home/xc_osstest/images';
 $c{Logs}= '/home/xc_osstest/logs';
+$c{LogsPublish}= 
+    'xensrcts@login.chiark.greenend.org.uk:/home/ian/work/xc_osstest/logs';
 
 $c{Tftp}= '/tftpboot/pxe';
 

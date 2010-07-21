@@ -230,7 +230,7 @@ sub printversions ($) {
 sub printout ($) {
     my ($r) = @_;
     print <<END or die $!;
-oss xen test $r->{Flight}: $r->{OutcomeSummary}
+$r->{Flight}: $r->{OutcomeSummary}
 
 flight $r->{Flight} $branch $r->{FlightInfo}{blessing}
 END
@@ -287,7 +287,6 @@ END
 ------------------------------------------------------------
 sg-report-flight on $hostname
 logs: $logs
-stash: $c{Stash}
 images: $c{Images}
 
 $c{ReportTrailer}
