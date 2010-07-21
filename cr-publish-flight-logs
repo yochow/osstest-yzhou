@@ -1,0 +1,21 @@
+#!/usr/bin/perl -w
+
+use strict qw(refs vars);
+
+require 'config.pl';
+
+our %c;
+
+die "usage: ./cr-publish-flight-logs <flight>" unless @ARGV==1;
+
+my $flight= shift @ARGV;
+die unless $flight =~ m/^\d+$/;
+
+our @cmd= qw(rsync --compress --compress-level=9 --stats --delete -auH);
+#--bwlimit=50
+
+push @cmd, "$c{Logs}/$flight/", "$c{LogsPublish}/$flight";
+
+print "+ @cmd\n";
+
+exec @cmd; die $!;
