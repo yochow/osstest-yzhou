@@ -21,7 +21,10 @@ sub try_fetch_logs ($$) {
         if ($logfileslist =~ m/[*?]/) {
             if (!eval {
                 $logfileslist=
-                    target_cmd_output_root($lho, "echo $logfilepat");
+                    target_cmd_output_root($lho, <<END);
+                        chmod a+r $logfilepat >/dev/null 2>&1 ||:
+                        echo $logfilepat
+END
                 1;
             }) {
                 logm("logfile $logfilepat pattern expansion failed: $@");
