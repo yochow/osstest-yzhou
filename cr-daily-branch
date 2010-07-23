@@ -53,7 +53,7 @@ execute_flight $flight $OSSTEST_BLESSING
 
 exec >tmp/$flight.email
 cat $OSSTEST_EMAIL_HEADER
-printf 'Subject: [$branch test] '
+printf 'Subject: [%s test] ' "$branch"
 
 ./sg-report-flight $sgr_args $flight
 
