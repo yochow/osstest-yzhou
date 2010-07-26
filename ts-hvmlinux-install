@@ -1,0 +1,55 @@
+#!/usr/bin/perl -w
+
+use strict qw(vars);
+use DBI;
+use Osstest;
+
+readconfig();
+opendb_state();
+
+our ($whhost,$gn) = @ARGV;
+$whhost ||= 'host';
+$gn ||= 'redhat';
+
+our $ho= selecthost($r{$whhost});
+
+our $ram_mb=    512;
+our $swap_mb=  1000;
+our $disk_mb= 10000;
+
+our $guesthost= "$gn.guest.osstest";
+our $gho;
+
+sub prep () {
+    target_install_packages_norec($ho, qw(lvm2));
+
+    $gho= prepareguest($ho, $gn, $guesthost, 22,
+                       $swap_mb + $disk_mb + 2);
+
+    $
+}
+
+sub ginstall () {
+        
+
+    my $arch= $r{"$gho->{Guest}_arch"};
+    my $archarg= defined($arch) ? "--arch $arch" : '';
+    target_cmd_root($ho, <<END, 1000);
+        xen-create-image \\
+            --dhcp --mac $gho->{Ether} \\
+	    --memory ${ram_mb}M --swap ${swap_mb}M \\
+            --dist $c{GuestSuite} \\
+            --mirror http://$c{DebianMirrorHost}/$c{DebianMirrorSubpath} \\
+            --hostname $gho->{Name} \\
+            --lvm $gho->{Vg} --force \\
+            --kernel $r{xen_kernel_path} \\
+            --initrd /boot/initrd.img-$r{xen_kernel_ver} \\
+            $archarg
+END
+    my $cfg_xend= "/etc/xen/$gho->{Name}.cfg";
+    store_runvar("$gho->{Guest}_cfgpath", $cfg_xend);
+    store_runvar("$gho->{Guest}_swap_lv", "$gho->{Name}-swap");
+}
+
+prep();
+ginstall();

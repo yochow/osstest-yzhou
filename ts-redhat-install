@@ -1,0 +1,40 @@
+#!/usr/bin/perl -w
+
+use strict qw(vars);
+use DBI;
+use Osstest;
+
+readconfig();
+opendb_state();
+
+our ($whhost,$gn) = @ARGV;
+$whhost ||= 'host';
+$gn ||= 'redhat';
+
+our $ho= selecthost($r{$whhost});
+
+our $ram_mb=    256;
+our $disk_mb= 10000;
+
+our $guesthost= "$gn.guest.osstest";
+our $gho;
+
+sub prep () {
+    target_install_packages_norec($ho, qw(lvm2 rsync));
+
+    $gho= prepareguest($ho, $gn, $guesthost, 22,
+                       $swap_mb + $disk_mb + 2);
+
+    
+}
+
+sub start () {
+    target_cmd_root($ho, "xl create $gho->{CfgPath}", 100);
+}
+
+prep();
+hvm_prepareguest($ho,$gho, $ram_mb);
+start();
+
+guest_await_dhcp_tcp($gho,22);
+guest_check_up($gho);

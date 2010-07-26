@@ -854,6 +854,70 @@ sub prepareguest ($$$$$) {
     return $gho;
 }
 
+sub hvmguestprep ($$) {
+    my ($ho, $gho, $ram_mb) = @_;
+    
+    my $passwd= 'xenvnc';
+
+    target_cmd_root($ho, "lvremove -f $gho->{Lvdev} ||:");
+    target_cmd_root($ho, "lvcreate -L ${disk_mb}M -n $gho->{Lv} $gho->{Vg}");
+    target_cmd_root($ho, "dd if=/dev/zero of=$gho->{Lvdev} count=10");
+    
+    my $imageleaf= $r{"$gho->{Guest}_image"};
+    my $limage= "$c{Images}/$imageleaf";
+    $gho->{Rimage}= "/root/$imageleaf";
+    target_putfile_root($ho,200, $limage,$gho->{Rimage}, '-p');
+
+    my $xencfg= <<END;
+name        = '$gho->{Name}'
+#
+kernel      = 'hvmloader'
+builder     = 'hvm'
+#
+disk        = [
+            'phy:$gho->{Lvdev},hda,w',
+            'file:$gho->{Rimage},hdc:cdrom,r'
+            ]
+#
+memory = ${ram_mb}
+#
+usb=1
+usbdevice='tablet'
+#
+#stdvga=1
+keymap='en-gb';
+#
+sdl=0
+opengl=0
+vnc=1
+vncunused=0
+vncdisplay=0
+vnclisten='$ho->{Ip}'
+vncpasswd='$passwd'
+#
+boot = 'dc'
+#
+vif         = [ 'type=ioemu,mac=$gho->{Ether}' ]
+#
+on_poweroff = 'destroy'
+on_reboot   = 'restart'
+on_crash    = 'preserve'
+vcpus = 2
+END
+
+    my $cfgpath= "/etc/xen/$gho->{Name}.cfg";
+    store_runvar("$gho->{Guest}_cfgpath", "$cfgpath");
+    $gho->{CfgPath}= $cfgpath;
+
+    target_putfilecontents_root_stash($ho,10,$xencfg, $cfgpath);
+
+    target_cmd_root($ho, <<END);
+        (echo $passwd; echo $passwd) | vncpasswd $gho->{Guest}.vncpw
+END
+
+    return $cfgpath;
+}
+
 sub guest_check_up ($) {
     my ($gho) = @_;
     guest_await_dhcp_tcp($gho,20);
