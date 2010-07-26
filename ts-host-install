@@ -107,7 +107,8 @@ sub create_preseed ($) {
     $authkeys .= $c{AuthorizedKeysAppend};
     my $authkeys_url= create_webfile($ho, 'authkeys', $authkeys);
 
-    my $hostkey= get_filecontents("overlay/etc/ssh/ssh_host_rsa_key.pub");
+    my $hostkeyfile= "$c{OverlayLocal}/etc/ssh/ssh_host_rsa_key.pub";
+    my $hostkey= get_filecontents($hostkeyfile);
     chomp($hostkey); $hostkey.="\n";
     my $knownhosts= '';
     my $hostsq= $dbh_tests->prepare(<<END);
@@ -132,23 +133,39 @@ END
     $knownhosts.= "localhost,127.0.0.1 ".$hostkey;
     my $knownhosts_url= create_webfile($ho, 'known_hosts', $knownhosts);
 
-    my $overlay_url= create_webfile($ho, 'overlay.tar', sub {
-        my ($fh) = @_;
-        my $child= fork;  defined $child or die $!;
-        if (!$child) {
-            postfork();
-            chdir('overlay') or die $!;
-            open STDIN, 'find ! -name "*~" ! -name "#*" -type f -print0 |'
-                or die $!;
-            open STDOUT, '>&', $fh or die $!;
-            system 'cpio -Hustar -o --quiet -0 -R 1000:1000'; $? and die $?;
-            $!=0; close STDIN; die "$! $?" if $! or $?;
-            exit 0;
-        }
-        waitpid($child, 0) == $child or die $!;
-        $? and die $?;
-    });
-    
+    my $overlays= '';
+    my $create_overlay= sub {
+        my ($srcdir, $tfilename) = @_;
+        my $url= create_webfile($ho, $tfilename, sub {
+            my ($fh) = @_;
+            my $child= fork;  defined $child or die $!;
+            if (!$child) {
+                postfork();
+                chdir($srcdir) or die $!;
+                open STDIN, 'find ! -name "*~" ! -name "#*" -type f -print0 |'
+                    or die $!;
+                open STDOUT, '>&', $fh or die $!;
+                system 'cpio -Hustar -o --quiet -0 -R 1000:1000';
+                $? and die $?;
+                $!=0; close STDIN; die "$! $?" if $! or $?;
+                exit 0;
+            }
+            waitpid($child, 0) == $child or die $!;
+            $? and die $?;
+        });
+        $overlays .= <<END;
+wget -O overlay.tar '$url'
+cd /target
+tar xf \$r/overlay.tar
+cd \$r
+rm overlay.tar
+
+END
+    };
+
+    $create_overlay->('overlay',        'overlay.tar');
+    $create_overlay->($c{OverlayLocal}, 'overlay-local.tar');
+
     my $latecmd_url= create_webfile($ho, 'latecmd', <<END);
 #!/bin/sh
 set -ex
@@ -167,11 +184,7 @@ mkdir /target\$h/.ssh
 cp .ssh/authorized_keys /target\$h/.ssh
 chroot /target chown -R \$u.\$u \$h/.ssh
 
-wget -O overlay.tar '$overlay_url'
-cd /target
-tar xf \$r/overlay.tar
-rm \$r/overlay.tar
-
+$overlays
 
 echo latecmd done.
 END
