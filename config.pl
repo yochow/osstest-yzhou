@@ -19,6 +19,9 @@ $c{GitCacheLocal}= '/home/xc_osstest/git-cache/';
 $c{ReportTrailer}= <<END;
 Logs, config files, etc. are available at
     http://www.chiark.greenend.org.uk/~xensrcts/logs
+
+Test harness code can be found at
+    http://xenbits.xensource.com/gitweb?p=osstest.git;a=summary
 END
 
 $c{SerialLogPattern}= '/root/sympathy/%host%.log*';
@@ -30,6 +33,9 @@ $c{Images}= '/home/xc_osstest/images';
 $c{Logs}= '/home/xc_osstest/logs';
 $c{LogsPublish}= 
     'xensrcts@login.chiark.greenend.org.uk:/home/ian/work/xc_osstest/logs';
+
+$c{HarnessPublishGitUserHost}= 'xen@xenbits.xensource.com';
+$c{HarnessPublishGitRepoDir}= 'git/osstest.git';
 
 $c{Tftp}= '/tftpboot/pxe';
 
