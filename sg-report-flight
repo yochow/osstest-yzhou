@@ -372,7 +372,7 @@ END
 	    push @rtups, $rtup;
 	    return $rtup->[2];
         });
-	@rtups= sort { $a->[0] <=> $b->[0] } @rtups;
+	@rtups= sort { $b->[0] <=> $a->[0] } @rtups;
 	$failv->{Blocker}= $rtups[0][1];
 	$failv->{Summary}= $rtups[0][2];
 	print DEBUG " so $failv->{Summary}\n";
