@@ -39,7 +39,7 @@ BEGIN {
                       target_ping_check_down target_ping_check_up
                       target_kernkind_check target_kernkind_console_inittab
                       target_var target_var_prefix
-                      selectguest prepareguest
+                      selectguest prepareguest more_prepareguest_hvm
                       guest_umount_lv guest_await guest_await_dhcp_tcp
                       guest_checkrunning guest_check_ip guest_find_ether
                       guest_find_domid guest_check_up
@@ -854,8 +854,8 @@ sub prepareguest ($$$$$) {
     return $gho;
 }
 
-sub hvmguestprep ($$) {
-    my ($ho, $gho, $ram_mb) = @_;
+sub more_prepareguest_hvm ($$$$) {
+    my ($ho, $gho, $ram_mb, $disk_mb) = @_;
     
     my $passwd= 'xenvnc';
 

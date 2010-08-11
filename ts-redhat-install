@@ -13,8 +13,8 @@ $gn ||= 'redhat';
 
 our $ho= selecthost($r{$whhost});
 
-our $ram_mb=    256;
-our $disk_mb= 10000;
+our $ram_mb=   1024;
+our $disk_mb= 50000;
 
 our $guesthost= "$gn.guest.osstest";
 our $gho;
@@ -22,10 +22,9 @@ our $gho;
 sub prep () {
     target_install_packages_norec($ho, qw(lvm2 rsync));
 
-    $gho= prepareguest($ho, $gn, $guesthost, 22,
-                       $swap_mb + $disk_mb + 2);
+    $gho= prepareguest($ho, $gn, $guesthost, 22, $disk_mb + 1);
 
-    
+    more_prepareguest_hvm($ho,$gho, $ram_mb, $disk_mb);    
 }
 
 sub start () {
@@ -33,7 +32,6 @@ sub start () {
 }
 
 prep();
-hvm_prepareguest($ho,$gho, $ram_mb);
 start();
 
 guest_await_dhcp_tcp($gho,22);

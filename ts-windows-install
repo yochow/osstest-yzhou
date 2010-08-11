@@ -18,6 +18,7 @@ sub prep () {
     target_install_packages_norec($ho, qw(lvm2 rsync));
 
     $gho= prepareguest($ho, 'win', $guesthost, 8936, $disk_mb + 1);
+    more_prepareguest_hvm($ho,$gho, $ram_mb, $disk_mb);
 
     store_runvar("$gho->{Guest}_pingbroken", 1);
 }
@@ -27,7 +28,6 @@ sub start () {
 }
 
 prep();
-hvm_prepareguest($ho,$gho, $ram_mb);
 start();
 
 guest_await_dhcp_tcp($gho,7000);
