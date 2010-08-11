@@ -184,10 +184,10 @@ our $initscripts_nobridge;
 
 sub setupinitd () {
     my $ts= toolstack();
-    $initscripts_nobridge=
-        !defined($ts->{OldDaemonInitd} ||
+    my $have_xencommons=
         !!target_cmd_output_root($ho,
                         "if test -f /etc/init.d/xencommons; then echo y; fi");
+    $initscripts_nobridge= !defined($ts->{OldDaemonInitd}) || $have_xencommons;
     logm("init.d scripts ".
          ($initscripts_nobridge
           ? 'do not mess with bridge, doing it in interfaces(5)'
@@ -198,13 +198,8 @@ sub setupinitd () {
         $cmd .= "\n    update-rc.d $script start $start 2 .";
     };
     if ($initscripts_nobridge) {
-        foreach my $script (qw(xencommons xenlightdaemons)) {
-            next unless target_cmd_output_root($ho,
-                        "if test -f /etc/init.d/$script; then echo y; fi");
-            logm("init.d scripts: $script exists");
-            $updatercd->($script,92);
-            last;
-        }
+        my $script= $have_xencommons ? 'xencommons' : 'xenlightdaemons';
+        $updatercd->($script,92);
         my $pri= 93;
         foreach my $d (@{ $ts->{NewDaemons} }) {
             $updatercd->("$d",$pri);
