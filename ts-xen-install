@@ -193,7 +193,13 @@ sub setupinitd () {
     };
 
     if ($initscripts_nobridge) {
-        $updatercd->('xencommons',92);
+        foreach my $script (qw(xencommons xenlightdaemons)) {
+            next unless target_cmd_output_root($ho,
+                        "if test -f /etc/init.d/$script; then echo y; fi");
+            logm("init.d scripts: $script exists");
+            $updatercd->($script,92);
+            last;
+        }
         my $pri= 93;
         foreach my $d (@{ $ts->{Daemons} }) {
             $updatercd->("$d",$pri);
