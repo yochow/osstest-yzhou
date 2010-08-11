@@ -1199,7 +1199,7 @@ sub target_kernkind_console_inittab ($$$) {
     my $inittabpath= "$root/etc/inittab";
     my $console= target_var($gho,'console');
 
-    if (length $console) {
+    if (defined $console && length $console) {
         target_cmd_root($ho, <<END);
             set -ex
             perl -i~ -ne "
