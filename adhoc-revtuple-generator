@@ -258,6 +258,9 @@ sub xenplusqemu_graph ($) {
 
     my $xhead= $x->{Head};
     my $qhead= $x->{$xhead}{QemuTag};
+
+    print DEBUG "XENPLUSQEMU_GRAPH xhead=$xhead qhead=$qhead\n";
+
     my $head= $xhead.' '.$qhead;
     my $result= {
 	Head => $head,
@@ -266,15 +269,11 @@ sub xenplusqemu_graph ($) {
     my ($xfindparents, $qfindparents);
 
     $qfindparents= sub {
-	my ($xnode, $xparent, $qnode, $qtarg, $depth) = @_;
+	my ($xnode, $qnode, $xparent, $qtarg, $depth) = @_;
 	return unless defined $xparent and defined $qtarg;
         my $node= "$xnode $qnode";
 	printf DEBUG "QFP %d %s %s %s %s ", $depth,
-	    $xnode, $xparent, $qnode, $qtarg;
-        if (exists $result->{$node}) {
-            print DEBUG "already.\n";
-            return;
-        }
+	    $xnode, $qnode, $xparent, $qtarg;
 	if ($qnode eq $qtarg) {
 	    my $chosen= "$xparent $qnode";
 	    print DEBUG "   XP  $node .. $chosen\n";
@@ -286,18 +285,22 @@ sub xenplusqemu_graph ($) {
 	    my $chosen= "$xnode $qparent";
 	    print DEBUG "   QP  $node .. $chosen\n";
 	    push @{ $result->{$node}{Parents} }, $chosen;
-	    $qfindparents->($xnode, $xparent, $qparent, $qtarg, $depth+1);
+	    $qfindparents->($xnode, $qparent, $xparent, $qtarg, $depth+1);
 	}
     };
 
     $xfindparents= sub {
 	my ($xnode,$qnode,$depth) = @_;
 	return unless defined $xnode and defined $qnode;
-	printf DEBUG "XFP %d                    %s %s\n",
+	printf DEBUG "XFP %d %s %s\n",
 	    $depth, $xnode, $qnode;
+        if (exists $result->{"$xnode $qnode"}) {
+            print DEBUG "already.\n";
+            return;
+        }
 	foreach my $xparent (@{ $x->{$xnode}{Parents} }) {
-	    $qfindparents->($xnode, $xparent,
-			    $qnode, $x->{$xparent}{QemuTag}, $depth+1);
+	    $qfindparents->($xnode, $qnode,
+			    $xparent, $x->{$xparent}{QemuTag}, $depth+1);
 	}
     };
 
