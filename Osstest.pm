@@ -854,8 +854,8 @@ sub prepareguest ($$$$$) {
     return $gho;
 }
 
-sub more_prepareguest_hvm ($$$$) {
-    my ($ho, $gho, $ram_mb, $disk_mb) = @_;
+sub more_prepareguest_hvm ($$$$;$) {
+    my ($ho, $gho, $ram_mb, $disk_mb, $postimage_hook) = @_;
     
     my $passwd= 'xenvnc';
 
@@ -866,7 +866,9 @@ sub more_prepareguest_hvm ($$$$) {
     my $imageleaf= $r{"$gho->{Guest}_image"};
     my $limage= "$c{Images}/$imageleaf";
     $gho->{Rimage}= "/root/$imageleaf";
-    target_putfile_root($ho,200, $limage,$gho->{Rimage}, '-p');
+    target_putfile_root($ho,300, $limage,$gho->{Rimage}, '-p');
+
+    $postimage_hook->() if $postimage_hook;
 
     my $xencfg= <<END;
 name        = '$gho->{Name}'
