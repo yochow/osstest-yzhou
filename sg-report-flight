@@ -5,11 +5,13 @@ use strict qw(refs vars);
 use DBI;
 use Osstest;
 use IO::Handle;
+use HTML::Entities;
 
 our $specflight;
 our %specver;
 our @blessings;
 our $mro;
+our $htmlout;
 our $branch;
 
 open DEBUG, ">/dev/null";
@@ -23,6 +25,8 @@ while (@ARGV && $ARGV[0] =~ m/^-/) {
     } elsif (m/^--machine-readable-output=(.*)$/) {
         $mro= $1;
         open MRO, "> $mro.new" or die "$mro.new $!";
+    } elsif (m/^--html-output=(.*)$/) {
+        $htmlout= $1;
     } elsif (m/^--blessings?=(.*)$/) {
         push @blessings, split ',', $1;
     } elsif (m/^--debug/) {
@@ -124,7 +128,11 @@ sub examineflight ($) {
     my %fails;
     my %statuscounts;
     my $jobsummary= '';
-    
+
+    my @gridcol_job;
+    my @gridrow_step;
+    my %grid;
+
     my $flightinfo= $dbh_tests->selectrow_hashref(<<END);
         SELECT * FROM flights
             WHERE flight=$flight
@@ -137,6 +145,8 @@ END
 END
 
     foreach my $j (@$jobs) {
+        push @gridcol_job, $j->{job};
+
 	$statuscounts{$j->{status}}++;
 
 	my $jobtext= sprintf "%s:\n", $j->{job};
@@ -160,15 +170,36 @@ END
                 Step => $s,
             };
             $fails{$failkey}= $failval;
+            return $failval;
         };
+
+        my $gridrow= 0;
 
 	while (my $s= $sth->fetchrow_hashref()) {
 	    $jobtext .= sprintf "%2d %-${sl}s %-${rl}s\n",
 	        $s->{stepno}, $s->{testid}, $s->{status};
+
+            my $fi= { Job => $j, Step => $s };
+            
             if ($s->{status} ne 'pass') {
-                $storefail->($s);
+                $fi= $storefail->($s);
                 $foundfail= 1;
             }
+
+            for (;;) {
+                if ($s->{step} eq 'ts-logs-capture' && $gridrow < 100) {
+                    $gridrow= 100;
+                }
+                if (!defined $gridrow_step[$gridrow]) {
+                    $gridrow_step[$gridrow]= $s->{step};
+                    last;
+                }
+                if ($gridrow_step[$gridrow] eq $s->{step}) {
+                    last;
+                }
+                $gridrow++;
+            }
+            $grid{ $j->{job} }[ $gridrow ]= $fi;
 	}
 
         if ($j->{status} ne 'pass' and !$foundfail) {
@@ -215,6 +246,9 @@ END
         StatusCounts => \%statuscounts,
         OutcomeSummary => $outcome,
         JobsSummary => $jobsummary,
+        GridCols => \@gridcol_job,
+        GridRows => \@gridrow_step,
+        GridGrid => \%grid
     };
 }
 
@@ -233,6 +267,7 @@ sub printout ($) {
 $r->{Flight}: $r->{OutcomeSummary}
 
 flight $r->{Flight} $branch $r->{FlightInfo}{blessing}
+$c{ReportHtmlPubBaseUrl}/$r->{Flight}/
 END
     if (defined $r->{Overall}) {
         print "\n" or die $!;
@@ -397,10 +432,76 @@ END
     }
 }
 
+sub htmlout ($) {
+    my ($fi) = @_;
+    return unless defined $htmlout;
+
+    open H, "> $htmlout.new" or die "$htmlout.new $!";
+    print H <<END;
+<html><head><title>Report on flight $fi->{Flight}</title><head>
+<body>
+<table rules=all>
+END
+    print H "<tr><td></td>\n";
+    my $colmap= sub {
+        local ($_) = @_;
+        s/^(\w+)\-.*\-(\w+)$/$1 $2 $&/;
+        return $_;
+    };
+    my @cols= sort { $colmap->($a) cmp $colmap->($b) } @{ $fi->{GridCols} };
+    foreach my $col (@cols) {
+        my $th= $col;
+        $th =~ s/\-/ $&/g;
+        print H "<th>";
+        print H "<a href=\"".encode_entities($col)."/\">";
+        print H encode_entities($th);
+        print H "</a>";
+        print H "</th>";
+    }
+    print H "\n";
+    foreach my $rowix (0..$#{ $fi->{GridRows} }) {
+        next unless $fi->{GridRows}[$rowix];
+        print H "<tr><th>",encode_entities($fi->{GridRows}[$rowix]),"</th>";
+        foreach my $col (@cols) {
+            my $ei= $fi->{GridGrid}{$col}[$rowix];
+            print H "<td";
+            if ($ei) {
+                my $s= $ei->{Step};
+                my $sum= $ei->{Summary};
+                my $bgc;
+                if (!defined $sum) {
+                    $sum= $s->{status};
+                    $bgc= $sum eq 'pass' ? '#008800' :
+                          $sum eq 'fail' ? '#ff8888' :
+                                           '#ffff00';
+                } else {
+                    $bgc= $ei->{Blocker} eq 'regression'
+                        ? '#ff8888' : '#ffff00';
+                }
+                print H " bgcolor=\"$bgc\">";
+                print H "<a href=\"".encode_entities($col).
+                    "/$s->{stepno}.".encode_entities($s->{step}).".log\">";
+                #print H "[$s->{stepno}] ";
+                print H encode_entities($sum);
+                print H "</a>";
+            } else {
+                print H " bgcolor=\"#444444\">";
+            }
+            print H "</td>";
+        }
+        print H "\n";
+    }
+    print H "</table></body></html>";
+    H->error and die $!;
+    close H or die $!;
+    rename "$htmlout.new", $htmlout or die $!;
+}
+
 findspecflight();
 my $fi= examineflight($specflight);
 justifyfailures($fi);
 printout($fi);
+htmlout($fi);
 
 if (defined $mro) {
     close MRO or die $!;

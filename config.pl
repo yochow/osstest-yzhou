@@ -16,9 +16,11 @@ $c{WebspaceLog}= '/var/log/apache2/access.log';
 $c{GitCache}='teravault-1.cam.xci-test.com:/export/home/xc_osstest/git-cache/';
 $c{GitCacheLocal}= '/home/xc_osstest/git-cache/';
 
+$c{ReportHtmlPubBaseUrl}= 'http://www.chiark.greenend.org.uk/~xensrcts/logs';
+    
 $c{ReportTrailer}= <<END;
 Logs, config files, etc. are available at
-    http://www.chiark.greenend.org.uk/~xensrcts/logs
+    $c{ReportHtmlPubBaseUrl}
 
 Test harness code can be found at
     http://xenbits.xensource.com/gitweb?p=osstest.git;a=summary

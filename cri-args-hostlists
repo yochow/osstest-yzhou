@@ -22,6 +22,7 @@ fi
 
 . ${OSSTEST_CRON_SETTINGS:-$dcs-$OSSTEST_BLESSING}
 
+: ${OSSTEST_HTMLPUB_DIR:=/home/xc_osstest/logs}
 : ${OSSTEST_HTML_DIR:=/home/xc_osstest/$OSSTEST_HTML_SUBDIR}
 : ${OSSTEST_HTML_URL:=http://teravault-1.cam.xci-test.com/xc_osstest/$OSSTEST_HTML_SUBDIR}
 
