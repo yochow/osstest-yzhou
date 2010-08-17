@@ -13,7 +13,7 @@ $gn ||= 'redhat';
 
 our $ho= selecthost($r{$whhost});
 
-our $ram_mb=    512;
+our $ram_mb=    768;
 our $disk_mb= 50000;
 
 our $guesthost= "$gn.guest.osstest";
@@ -41,7 +41,7 @@ bootloader --location=mbr --driveorder=sda --append="crashkernel=auto rhgb quiet
 # here so unless you clear all partitions first, this is
 # not guaranteed to work
 
-clearpart --all
+clearpart --all --initlabel
 #--drives=sda
 #ignoredisk --only-use=sda
 
@@ -129,7 +129,7 @@ END
 }
 
 sub prep () {
-    target_install_packages_norec($ho, qw(lvm2 rsync));
+    target_install_packages_norec($ho, qw(lvm2 rsync genisoimage));
 
     my $isotimeout= 300;
 
@@ -151,7 +151,7 @@ END
             while (<EI>) {
                 if (m/^\s+append/) {
                     s,$, ks=cdrom:/ks.cfg,;
-                    s/\baskmethod\b\S+/ /;
+                    s/\baskmethod\b\S*/ /;
                 }
                 s/^timeout.*/timeout 10/;
                 print EO or die $!;
