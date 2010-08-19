@@ -22,8 +22,7 @@ if [ x$buildflight = x ]; then
 		revision_xen=$REVISION_XEN				     \
 		revision_qemu=$REVISION_QEMU				     \
      tree_linux=git://git.kernel.org/pub/scm/linux/kernel/git/jeremy/xen.git \
-	revision_linux=$REVISION_LINUX_PVOPS				     \
-        revision_pq_linux=$REVISION_PQ_LINUX_PVOPS
+	revision_linux=$REVISION_LINUX_PVOPS
 
     ./cs-job-create $flight build-$arch-oldkern build			\
 		arch=$arch						\
