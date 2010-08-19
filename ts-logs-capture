@@ -165,6 +165,8 @@ sub fetch_logs_host_guests () {
                   /var/log/xen/osstest*
                   /var/log/xen/console/*
 
+                  /boot/config*
+
                   )];
     if (!try_fetch_logs($ho, $logs)) {
         logm("log fetching failed, trying hard host reboot...");
