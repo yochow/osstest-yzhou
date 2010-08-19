@@ -32,7 +32,7 @@ BEGIN {
                       target_getfile target_getfile_root
                       target_putfile target_putfile_root
 		      target_putfilecontents_root_stash
-                      target_editfile_root
+                      target_editfile_root target_file_exists
                       target_install_packages target_install_packages_norec
                       host_reboot target_reboot target_reboot_hard
                       target_choose_vg target_umount_lv target_await_down
@@ -374,6 +374,14 @@ sub target_putfilecontents_root_stash ($$$$;$) {
     print $h $filedata or die $!;
     close $h or die $!;
     target_putfile_root($ho,$timeout, "$stash/$lleaf", $rdest);
+}
+
+sub target_file_exists ($$) {
+    my ($ho,$rfile) = @_;
+    my $out= target_cmd_output_root($ho, "if test -e $rfile; then echo y; fi");
+    return 1 if $out =~ m/^y$/;
+    return 0 if $out !~ m/\S/;
+    die "$rfile $out ?";
 }
 
 sub target_editfile_root ($$$;$$) {
