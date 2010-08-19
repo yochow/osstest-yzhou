@@ -162,6 +162,7 @@ sub fetch_logs_host_guests () {
                   /var/log/xen/xen-hotplug.log*
                   /var/log/xen/domain-builder-ng.log*
                   /var/log/xen/qemu-dm*
+                  /var/log/xen/xl*.log
                   /var/log/xen/osstest*
                   /var/log/xen/console/*
 
