@@ -90,6 +90,27 @@ sub adjustconfig () {
 	}
 	print EO $extra or die $!;
     });
+
+    my $trace_config_file=
+        target_file_exists($ho, '/etc/sysconfig/xencommons')
+        ? '/etc/sysconfig/xencommons'
+        : '/etc/sysconfig/xend';
+
+    target_editfile_root($ho, $trace_config_file, sub {
+        my $prnow;
+        $prnow= sub {
+            print EO "XENCONSOLED_TRACE=guest\n" or die $!;
+            $prnow= sub { };
+        };
+        while (<EI>) {
+            print EO or die $! unless m/^XENCONSOLED_TRACE/;
+            $prnow->() if m/^#XENCONSOLED_TRACE/;
+        }
+        print EO "\n" or die $!;
+        $prnow->();
+    });
+
+    target_cmd_root($ho, 'mkdir -p /var/log/xen/console');
 }
 
 sub setupboot () {
