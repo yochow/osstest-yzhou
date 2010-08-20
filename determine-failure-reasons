@@ -1,0 +1,161 @@
+#!/usr/bin/perl
+
+use strict qw(refs vars);
+
+use DBI;
+use Osstest;
+use POSIX;
+
+csreadconfig();
+
+my $stepsq= $dbh_tests->prepare(<<END);
+    SELECT * FROM steps
+ WHERE flight >= 2000
+             ORDER BY flight, job, stepno
+END
+$stepsq->execute();
+
+our @steps;
+our @histeps;
+
+$|=1;
+
+my $gethostsq= $dbh_tests->prepare(<<END);
+    SELECT val FROM runvars
+              WHERE flight = ?
+                AND job = ?
+                AND name LIKE '%host'
+END
+sub gethosts ($) {
+    my ($step) = @_;
+    $gethostsq->execute($step->{flight}, $step->{job});
+    my @hosts;
+    while (my ($h) = $gethostsq->fetchrow_array()) { push @hosts, $h; }
+}
+
+while (my $step= $stepsq->fetchrow_hashref) {
+    $step->{Log}= "$c{Logs}/$step->{flight}/$step->{job}/".
+        "$step->{stepno}.$step->{step}.log";
+
+    if (!stat $step->{Log}) {
+        die "$step->{Log} $!" unless $!==&ENOENT;
+        next;
+    }
+    $step->{Mtime}= ((stat _)[9]);
+    push @steps, $step;
+
+    if ($step->{step} eq 'ts-host-install-twice' &&
+        $step->{status} eq 'pass') {
+
+        printf "\r%-75.75s\r", $step->{Log};
+
+        open L, $step->{Log} or die "$step->{Log} $!";
+        $step->{HiTo}= 'good';
+        while (<L>) {
+            next unless m/wait timed out/;
+            $step->{HiTo}= 'bad';
+            last;
+        }
+        L->error and die "$step->{Log} $!";
+        close L or die $!;
+
+        push @histeps, $step;
+    }
+}
+
+printf "\r%75s\rsorting\r", '';
+
+@steps= sort { $a->{Mtime} <=> $b->{Mtime} } @steps;
+
+sub debugrange ($$$) {
+    return;
+    my ($str,$ctr,$targ) = @_;
+    print STDERR "\n";
+    for (my $i=$ctr-3; $i<=$ctr+3; $i++) {
+        my $si= $steps[$i];
+        my $diff= ' ';
+        if ($si) {
+            $diff= $si->{Mtime} > $targ ? '>' :
+                   $si->{Mtime} < $targ ? '<' : '=';
+        } else {
+            $si= { Mtime => '', Log => '' };
+        }
+        printf STDERR "%4s #%4d %10s%s %s\n",
+            ($i==$ctr ? $str : ''),
+            $i, $si->{Mtime}, $diff, $si->{Log};
+    }
+}
+
+our %skip_step;
+$skip_step{$_}=1 foreach qw(ts-xen-build-check ts-logs-capture);
+
+sub find_previous ($) {
+    my ($his) = @_;
+
+    my ($min,$max);
+    $min=0; $max=@steps;
+    my $targ= $his->{Mtime};
+    my $mid;
+
+    for (;;) {
+        $mid= ($min+$max)>>1;
+        last if $min==$max;
+
+        #printf STDERR "\n%4s       %10s\n", 'targ', $targ;
+        debugrange('min',$min,$targ);
+        debugrange('mid',$mid,$targ);
+        debugrange('max',$max,$targ);
+
+        return 'too late' if $mid >= @steps;
+        my $here= $steps[$mid]{Mtime};
+        if ($here <= $targ) { $min= $mid+1; }
+        elsif ($here == $targ) { last; }
+        else { $max= $mid; }
+    }
+    my $found= $mid;
+
+    debugrange('got',$found,$targ);
+
+    my @targhosts= gethosts($his);
+    return (scalar(@targhosts).' hosts') if @targhosts!=1;
+
+    my $sf;
+    for (;; $found--) {
+        return 'too early' if $found<0;
+
+        $sf= $steps[$found];
+
+        next unless $sf->{Mtime} < $targ;
+
+        next if $sf->{status} eq 'pass' && $skip_step{ $sf->{step} };
+        
+        my @chkhosts= gethosts($sf);
+        next unless grep { $_ eq $targhosts[0] } @chkhosts;
+
+        last;
+    }
+
+    debugrange('use',$found,$targ);
+
+    return sprintf "%-30s %-30s %s", $sf->{job}, $sf->{step}, $sf->{status};
+}
+
+our %count;
+
+foreach my $his (@histeps) {
+    printf "\r%-75.75s\r", "$his->{HiTo} $his->{Log}";
+
+    my $reason= find_previous($his);
+    $count{ $his->{HiTo} }{$reason}++;
+}
+
+printf "\r%75s\r", '';
+
+foreach my $hito (qw(good bad)) {
+    my $ch= $count{$hito};
+    print "\n";
+    foreach my $reason (sort { $ch->{$b} <=> $ch->{$a} } keys %$ch) {
+        printf "%4s %4d %s\n", $hito, $ch->{$reason}, $reason;
+    }
+    print "\n";
+}
