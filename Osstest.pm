@@ -864,6 +864,7 @@ sub more_prepareguest_hvm ($$$$;$) {
     target_cmd_root($ho, "dd if=/dev/zero of=$gho->{Lvdev} count=10");
     
     my $imageleaf= $r{"$gho->{Guest}_image"};
+    die "$gho->{Guest} ?" unless $imageleaf;
     my $limage= "$c{Images}/$imageleaf";
     $gho->{Rimage}= "/root/$imageleaf";
     target_putfile_root($ho,300, $limage,$gho->{Rimage}, '-p');
