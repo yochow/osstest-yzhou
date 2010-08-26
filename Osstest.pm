@@ -98,7 +98,8 @@ END
 
     my $now= time;  defined $now or die $!;
 
-    db_retry($flight,[qw(running constructing)], $dbh_tests, sub {
+    db_retry($flight,[qw(running constructing)],
+             $dbh_tests,[qw(flights)], sub {
         my $count= $dbh_tests->do(<<END);
            UPDATE flights SET blessing='running'
                WHERE flight=$flight AND blessing='constructing'
@@ -168,7 +169,7 @@ sub dbfl_check ($$) {
 
 sub dbfl_exec {
     my ($fl,$flok, $sh,@rest) = @_;
-    db_retry($fl,$flok, $dbh_tests, sub {
+    db_retry($fl,$flok, $dbh_tests,[], sub {
         $sh->execute(@rest);
     });
 }
@@ -183,15 +184,18 @@ sub ts_get_host_guest { # pass this @ARGV
     return ($ho,$gho);
 }
 
-sub db_retry ($$;$$) {
-    my ($fl,$flok, $dbh,$code) = (@_==4 ? @_ :
-                                  @_==2 ? (undef,undef,@_) :
-                                  die);
+sub db_retry ($$$;$$) {
+    my ($fl,$flok, $dbh,$tables,$code) = (@_==5 ? @_ :
+                                          @_==3 ? (undef,undef,@_) :
+                                          die);
     my $retries= 20;
     my $r;
     for (;;) {
         $dbh->begin_work();
         $dbh->do('SET TRANSACTION ISOLATION LEVEL SERIALIZABLE');
+        foreach my $tab (@$tables) {
+            $dbh->do("LOCK TABLE $tab IN SHARE ROW EXCLUSIVE MODE");
+        }
         if (defined $fl) {
             die unless $dbh eq $dbh_tests;
             dbfl_check($fl,$flok);
@@ -533,7 +537,7 @@ sub system_checked ($) {
 sub unique_incrementing_runvar ($$) {
     my ($param,$start) = @_;
     my $value;
-    db_retry($flight,'running', $dbh_tests, sub {
+    db_retry($flight,'running', $dbh_tests,[qw(runvars)], sub {
 	my $q= $dbh_tests->prepare(<<END);
             SELECT val FROM runvars WHERE flight=? AND job=? AND name=?
 END
@@ -557,7 +561,7 @@ sub store_runvar ($$) {
     my $q= $dbh_tests->prepare(<<END);
         INSERT INTO runvars VALUES (?,?,?,?,'t')
 END
-    db_retry($flight,'running', $dbh_tests, sub {
+    db_retry($flight,'running', $dbh_tests,[qw(runvars)], sub {
         $dbh_tests->do(<<END, undef, $flight, $job, $param);
 	    DELETE FROM runvars WHERE flight=? AND job=? AND name=? AND synth
 END
@@ -569,7 +573,7 @@ END
 sub broken ($) {
     my ($m) = @_;
     my $affected;
-    db_retry($flight, [qw(running)], $dbh_tests, sub {
+    db_retry($flight, $dbh_tests,[qw(running)], sub {
         $affected= $dbh_tests->do(<<END, {}, $flight, $job);
             UPDATE jobs SET status='broken'
              WHERE flight=? AND job=?
@@ -788,7 +792,7 @@ sub select_ether ($) {
     my $ether= $r{$vn};
     return $ether if defined $ether;
     my $prefix= sprintf "%s:%02x", $c{GenEtherPrefix}, $flight & 0xff;
-    db_retry($flight,'running', $dbh_tests, sub {
+    db_retry($flight,'running', $dbh_tests,[qw(runvars)], sub {
         my $previous= $dbh_tests->selectrow_array(<<END, {}, $flight);
             SELECT max(val) FROM runvars WHERE flight=?
                 AND name LIKE E'%\\_ether'

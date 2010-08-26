@@ -10,7 +10,7 @@ csreadconfig();
 our ($branch) = @ARGV;
 
 my ($flight) =
-    db_retry($dbh_tests, sub {
+    db_retry($dbh_tests,[qw(flights)], sub {
         $dbh_tests->do("INSERT INTO flights VALUES".
                        " (DEFAULT,DEFAULT,'constructing',?)", {}, $branch);
         my $fl= $dbh_tests->

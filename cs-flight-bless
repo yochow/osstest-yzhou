@@ -15,7 +15,7 @@ my ($flight,$blessing,@oldblessings) = @ARGV;
 my $q= $dbh_tests->
     prepare("UPDATE FLIGHTS SET blessing=? WHERE flight=?");
 
-db_retry($dbh_tests, sub {
+db_retry($dbh_tests,[qw(flights)], sub {
     dbfl_check($flight, [@oldblessings]);
     $q->execute($blessing, $flight);
 });
