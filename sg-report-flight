@@ -130,7 +130,7 @@ sub examineflight ($) {
     my $jobsummary= '';
 
     my @gridcol_job;
-    my @gridrow_step;
+    my @gridrow_rowspec;
     my %grid;
 
     my $flightinfo= $dbh_tests->selectrow_hashref(<<END);
@@ -186,15 +186,19 @@ END
                 $foundfail= 1;
             }
 
+            my $rowspec= $s->{testid};
+            $rowspec =~ s/\(\d+\)$//;
+
             for (;;) {
                 if ($s->{step} eq 'ts-logs-capture' && $gridrow < 100) {
                     $gridrow= 100;
                 }
-                if (!defined $gridrow_step[$gridrow]) {
-                    $gridrow_step[$gridrow]= $s->{step};
+                if (!defined $gridrow_rowspec[$gridrow]) {
+                    $gridrow_rowspec[$gridrow]= $rowspec;
                     last;
                 }
-                if ($gridrow_step[$gridrow] eq $s->{step}) {
+                if ($gridrow_rowspec[$gridrow] eq $rowspec and
+                    !defined $grid{ $j->{job} }[ $gridrow ]) {
                     last;
                 }
                 $gridrow++;
@@ -247,7 +251,7 @@ END
         OutcomeSummary => $outcome,
         JobsSummary => $jobsummary,
         GridCols => \@gridcol_job,
-        GridRows => \@gridrow_step,
+        GridRows => \@gridrow_rowspec,
         GridGrid => \%grid
     };
 }
