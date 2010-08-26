@@ -100,6 +100,7 @@ proc spawn-ts {iffail testid ts args} {
     if {![string compare . $iffail]} { set iffail fail }
 
     pg_execute dbh BEGIN
+    pg_execute dbh "SET TRANSACTION ISOLATION LEVEL SERIALIZABLE"
     if {[catch {
 	pg_execute -array stepinfo dbh "
             SELECT max(stepno) AS maxstep FROM steps

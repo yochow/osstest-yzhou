@@ -191,6 +191,7 @@ sub db_retry ($$;$$) {
     my $r;
     for (;;) {
         $dbh->begin_work();
+        $dbh->do('SET TRANSACTION ISOLATION LEVEL SERIALIZABLE');
         if (defined $fl) {
             die unless $dbh eq $dbh_tests;
             dbfl_check($fl,$flok);
