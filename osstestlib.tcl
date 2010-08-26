@@ -35,6 +35,11 @@ proc db-open {} {
     pg_connect -conninfo "dbname=osstestdb" -connhandle dbh
 }
 
+proc db-update-1 {stmt} {
+    set nrows [pg_execute dbh $stmt]
+    if {$nrows != 1} { error "$nrows != 1 in < $stmt >" }
+}
+
 proc set-flight {} {
     global flight argv env
 
@@ -145,10 +150,10 @@ proc spawn-ts {iffail testid ts args} {
     regsub {\(\*\)$} $testid ($stepno) testid
 
     set detstr "$flight.$jobinfo(job) $ts $real_args"
-    set details [list $flight $jobinfo(job) $ts $detstr $iffail]
+    set details [list $flight $jobinfo(job) $stepno $detstr $iffail]
     logputs stdout "starting $detstr $testid"
     
-    pg_execute dbh "
+    db-update-1 "
         UPDATE steps SET testid=[pg_quote $testid]
             WHERE flight=$flight
               AND job=[pg_quote $jobinfo(job)]
@@ -184,17 +189,17 @@ proc setstatus {st} {
 }
 
 proc job-set-status {flight job st} {
-    pg_execute dbh "
+    db-update-1 "
         UPDATE jobs SET status='$st'
             WHERE flight=$flight AND job='$job'
               AND status<>'aborted' AND status<>'broken'
     "
 }
 
-proc step-set-status {flight job ts st} {
-    pg_execute dbh "
+proc step-set-status {flight job stepno st} {
+    db-update-1 "
         UPDATE steps SET status='$st'
-            WHERE flight=$flight AND job='$job' AND step='$ts'
+            WHERE flight=$flight AND job='$job' AND stepno=$stepno
     "
 }
 
