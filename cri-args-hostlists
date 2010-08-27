@@ -2,15 +2,17 @@
 
 if test -f stop; then exit 0; fi
 
-case "$branch" in
-xen*)	tree=xen;	xenbranch=$branch ;;
-linux)	tree=linux;	xenbranch=${BRANCHES%% *} ;;
-esac
+select_branch () {
+	case "$branch" in
+	xen*)	tree=xen;	xenbranch=$branch ;;
+	linux)	tree=linux;	xenbranch=xen-4.0-testing ;;
+	esac
 
-if test -f $branch.stop; then exit 0; fi
-if test -f $xenbranch.any.stop; then exit 0; fi
+	if test -f $branch.stop; then exit 0; fi
+	if test -f $xenbranch.any.stop; then exit 0; fi
 
-mrof="$branch.mro"
+	mrof="$branch.mro"
+}
 
 dcs=daily-cron-settings
 

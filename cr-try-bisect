@@ -1,8 +1,9 @@
 #!/bin/bash
 set -ex
 
-branch=$1
 . cri-args-hostlists
+branch=$1; shift
+select_branch
 
 if test -f bisect.stop; then exit 0; fi
 

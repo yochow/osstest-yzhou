@@ -1,16 +1,17 @@
 #!/bin/bash
 set -ex
 
-branch=$1
 . cri-args-hostlists
+branch=$1; shift
+select_branch
 
 if test -f daily.stop; then exit 0; fi
 
 fetch_version () {
 	if [ "x$1" = "x$branch" ]; then
-		ap-fetch-version "$@"
+		./ap-fetch-version "$@"
 	else
-		ap-fetch-version-old "$@"
+		./ap-fetch-version-old "$@"
 	fi
 }
 
@@ -98,7 +99,7 @@ elif $push; then
         echo "Pushing revision $to_push:"
         echo
         to_push=`sed -n "s/^version this $tree //p" <$mrof`
-	case "$to_push" in)
+	case "$to_push" in
 	*[^0-9a-f]*)
 		echo >&2 "BAD PUSH REVISION $to_push"
 		;;

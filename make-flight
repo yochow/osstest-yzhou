@@ -27,6 +27,7 @@ if [ x$buildflight = x ]; then
 		revision_linux=$REVISION_LINUX
 
     if [ "x$REVISION_LINUX_OLD" != xdisable ]; then
+
       ./cs-job-create $flight build-$arch-oldkern build			\
 		arch=$arch						\
 	tree_qemu=git://mariner.uk.xensource.com/qemu-$branch.git	\
@@ -37,6 +38,7 @@ if [ x$buildflight = x ]; then
 		revision_qemu=$REVISION_QEMU				\
 	tree_linux=http://hg.uk.xensource.com/linux-2.6.18-xen.hg	\
         revision_linux=$REVISION_LINUX_OLD
+
     fi
 
     if [ $arch = i386 -a "x$REVISION_LINUX_XCP" != xdisable ]; then
@@ -66,9 +68,17 @@ for xenarch in i386 amd64; do
 	#  -oldkern   does not work on spider
 
     case $kern in
-    '')		kernkind=pvops	;;
-    -oldkern)	kernkind=2618	;;
-    -xcpkern)	kernkind=2627	;;
+    '')
+		kernkind=pvops
+		;;
+    -oldkern)
+		kernkind=2618
+		if [ "x$REVISION_LINUX_OLD" = xdisable ]; then continue; fi
+		;;
+    -xcpkern)
+		kernkind=2627
+		if [ "x$REVISION_LINUX_XCP" = xdisable ]; then continue; fi
+		;;
     *)		echo >&2 "kernkind ?  $kern"; exit 1 ;;
     esac
 
