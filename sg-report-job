@@ -1,0 +1,135 @@
+#!/usr/bin/perl -w
+
+use strict qw(vars);
+
+our ($job,$flight);
+our (@blessings,@branches);
+our $limit= 100;
+
+while (@ARGV && $ARGV[0] =~ m/^-/) {
+    $_= shift @ARGV;
+    last if m/^--?$/;
+    if (m/^--(job|flight)\=(.*)$/) {
+        $$1= $2;
+    } elsif (m/^--(limit)\=([1-9]\d*)$/) {
+        $$1= $2;
+    } elsif (m/^--branches?=(.*)$/) {
+        push @branches, split ',', $1;
+    } elsif (m/^--blessings?=(.*)$/) {
+        push @blessings, split ',', $1;
+    } elsif (m/^--debug/) {
+        open DEBUG, ">&2" or die $!;
+        DEBUG->autoflush(1);
+    } else {
+        die "$_ ?";
+    }
+}
+
+@ARGV==0 or die;
+
+our @jobs;
+
+sub findflight () {
+    my $branches= $dbh_tests->selectcol_arrayref(<<END, {}, $flight)
+        SELECT branch FROM flights WHERE flight=?
+END
+    die "$flight ? @$branches ?" if @$branches!=1;
+    @branches= @$branches;
+
+    my $selectq= $dbh_tests->prepare(<<END);
+        SELECT job FROM jobs WHERE flight=? ORDER BY JOB
+END
+    $selectq->execute($flight);
+    while (my ($j) = $selectq->fetchrow_array) { push @jobs, $j; }
+}
+
+if (defined($flight)) {
+    die if defined $job;
+    die if @branches;
+    findflight();
+} else {
+    die unless defined $job;
+    die unless @branches;
+    push @jobs, $job;
+}
+
+sub run_getinfo ($) {
+    my ($f) = @_;
+    if ($status eq 'blocked') {
+        
+
+sub processjobbranch ($$) {
+    my ($j,$b) = @_;
+    my $blessingscond= '('.join(' OR ', map { "blessing=?" } @blessings).')';
+    my $stmt= <<END;
+        SELECT *
+          FROM jobs NATURAL JOIN flights
+         WHERE job = ?
+           AND $blessingscond
+END
+    my (@params) = $j;
+    if (defined $b) {
+        $stmt .= <<END;
+           AND branch = ?
+END
+        push @params, $b;
+    }
+    $stmt .= <<END;
+      ORDER BY flight DESC
+         LIMIT 100
+END
+    my $flightsq= $dbh_tests->prepare($stmt);
+    $flightsq->execute(@params);
+
+    while (my $f= $flightsq->fetchrow_hashref()) {
+        my $ji= entry_getinfo($f);
+    my $worstq;
+
+        
+    }
+
+    SELECT STEPS
+
+sub processjob ($) {
+    my ($j) = @_;
+    processjobbranch($j,undef);
+    processjobbranch($j,$_) foreach @branches;
+}
+
+foreach my $j (@jobs) { processjob($j); }
+
+
+
+        @jobs= map { $_->[0] } @{ $selectq->fetchall_array
+          FROM flights NATURAL JOIN jobs
+         WHERE $blessingscond
+END
+
+
+    my @selectparams= ();
+    my $selectq= <<END;
+        SELECT DISTINCT job
+          FROM flights NATURAL JOIN jobs
+         WHERE $blessingscond
+END
+    foreach my $k (qw(job flight)) {
+        my $v= $$k;
+        next unless defined $v;
+        $selectq .= <<END
+            AND $k = ?
+END
+        push @selectparams, $v;
+    }
+    $selectq.= <<END
+        ORDER BY job
+END
+    $q= $dbh_tests->prepare($selectq);
+    $q->execute(@selectparams);
+    
+}
+        
+    $addcond->("flight = ?", $flight);
+    $addcond->("
+
+
+flight, branch, job
