@@ -473,7 +473,7 @@ END
                 my $s= $ei->{Step};
                 my $sum= $ei->{Summary};
                 my $bgc;
-                if (!defined $sum) {
+                if (!defined $sum || !length $sum) {
                     $sum= $s->{status};
                     $bgc= $sum eq 'pass' ? '#008800' :
                           $sum eq 'fail' ? '#ff8888' :
