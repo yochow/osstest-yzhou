@@ -53,10 +53,60 @@ if (defined($flight)) {
     push @jobs, $job;
 }
 
+our $failstepq= $dbh->prepare(<<END);
+        SELECT * FROM steps
+         WHERE flight=? AND job=?
+           AND status!='pass'
+      ORDER BY stepno
+         LIMIT 1
+END
+
 sub run_getinfo ($) {
     my ($f) = @_;
-    if ($status eq 'blocked') {
-        
+    if ($status eq 'pass') {
+        return { Summary => '', Colour => green };
+    } elsif ($status eq 'fail') {
+        $failstepq->execute($f->{flight}, $f->{job});
+        my $fs= $failstepq->fetchrow_hashref();
+        if (!defined $fs) {
+            return { Summary => "(unknown)", Colour => yellow };
+        } elsif ($fs->{status} eq 'fail') {
+            return { Summary => "$fs->{testid}", Colour => red };
+        } else {
+            return { Summary => "$fs->{testid} $fs->{status}", Colour => red };
+        }
+    } elsif ($status eq 'blocked') {
+        return { Summary => "blocked", Colour => purple },
+    } else {
+        return { Summary => "($f->{status})", Colour => yellow };
+    }
+}
+
+our $revisionsq= $dbh_tests->prepare(<<END);
+        SELECT * FROM runvars
+         WHERE flight=? AND job=?
+           AND name LIKE 'built\\_revision\\_\%'
+END
+
+sub add_revisions ($$$$) {
+    my ($revmap, $flightnum, $j, $pfx) = @_;
+    $revisionsq->execute($flightnum, $j);
+    while (my $row= $revisionsq->fetchrow_hashref()) {
+        my $n= $row->{name};
+        $n =~ s/^built_revision_//;
+        $revmap{$pfx.$n}= $row->{val};
+    }
+}
+
+our $buildsq= $dbh_tests->prepare(<<END);
+        SELECT * FROM runvars
+         WHERE flight=? AND job=?
+           AND name LIKE '\%buildjob'
+END
+
+our %rev_grid_col;
+our @rev_grid_cols;
+our @test_rows;
 
 sub processjobbranch ($$) {
     my ($j,$b) = @_;
@@ -82,13 +132,34 @@ END
     $flightsq->execute(@params);
 
     while (my $f= $flightsq->fetchrow_hashref()) {
-        my $ji= entry_getinfo($f);
-    my $worstq;
+        my $ri= run_getinfo($f);
 
+        my %revisions;
+        add_revisions(\%revisions, $f->{flight}, $f->{job}, '');
         
-    }
+        $buildsq->execute($f->{flight}, $f->{job});
+        while (my $bld= $buildsq->fetchrow_hashref()) {
+            my $bn= $bld->{name};
+            $bn =~ s/buildjob$/ b. /;
+            $bn =~ s/^ //;
+            my ($oflight,$ojob) = flight_otherjob($f->{flight}, $bld->{val});
+            add_revisions(\%revisions, $oflight, $job, $bn);
+        }
+        my @rev_cols;
+        foreach my $revk (sort keys %revisions) {
+            my $col= $rev_grid_col{$revk};
+            if (!defined $col) {
+                $col= @rev_grid_cols;
+                push @rev_grid_cols, $revk;
+                $rev_grid_col{$revk}= $col;
+            }
+            $rev_cols[$col]= $revisions{$revk};
+        }
+        $ri->{Revisions}= \@rev_cols;
 
-    SELECT STEPS
+        push @test_rows, $ri;
+    }
+}
 
 sub processjob ($) {
     my ($j) = @_;
