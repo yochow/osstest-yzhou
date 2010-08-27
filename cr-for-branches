@@ -9,7 +9,7 @@ wlem=$1; shift
 LOGFILE=tmp/cr-for-branches.log
 export LOGFILE
 
-BRANCHES='xen-4.0-testing xen-3.4-testing xen-unstable'
+BRANCHES='xen-4.0-testing xen-3.4-testing xen-unstable linux'
 export BRANCHES
 
 with-lock-ex $wlem global-lock bash -ec '

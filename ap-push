@@ -4,5 +4,21 @@ set -ex
 branch=$1
 revision=$2
 
-cd repos/$branch.hg
-hg push -r "$revision" ssh://xen@xenbits.xensource.com/HG/$branch.hg
+: ${XENBITS:=xen@xenbits.xensource.com}
+: ${TREE_LINUX:=$XENBITS:git/linux-pvops}
+: ${TAG_LINUX:=master}
+
+case "$branch" in
+xen*)
+	cd repos/$branch.hg
+	hg push -r "$revision" ssh://$XENBITS/HG/$branch.hg
+	;;
+linux)
+	cd repos/xen
+	git push $TREE_LINUX $revision:$TAG_LINUX
+	;;
+*)
+	echo >&2 "branch $branch ?"
+	exit 1
+	;;
+esac

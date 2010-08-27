@@ -6,6 +6,8 @@ buildflight=$2
 
 flight=`./cs-flight-create $branch`
 
+: ${TREE_LINUX:=git://git.kernel.org/pub/scm/linux/kernel/git/jeremy/xen.git}
+
 if [ x$buildflight = x ]; then
 
   for arch in i386 amd64; do
@@ -21,10 +23,11 @@ if [ x$buildflight = x ]; then
 		$RUNVARS $BUILD_RUNVARS $arch_runvars			     \
 		revision_xen=$REVISION_XEN				     \
 		revision_qemu=$REVISION_QEMU				     \
-     tree_linux=git://git.kernel.org/pub/scm/linux/kernel/git/jeremy/xen.git \
-	revision_linux=$REVISION_LINUX_PVOPS
+		tree_linux=$TREE_LINUX					     \
+		revision_linux=$REVISION_LINUX
 
-    ./cs-job-create $flight build-$arch-oldkern build			\
+    if [ "x$REVISION_LINUX_OLD" != xdisable ]; then
+      ./cs-job-create $flight build-$arch-oldkern build			\
 		arch=$arch						\
 	tree_qemu=git://mariner.uk.xensource.com/qemu-$branch.git	\
 	tree_xen=http://hg.uk.xensource.com/$branch.hg			\
@@ -34,8 +37,9 @@ if [ x$buildflight = x ]; then
 		revision_qemu=$REVISION_QEMU				\
 	tree_linux=http://hg.uk.xensource.com/linux-2.6.18-xen.hg	\
         revision_linux=$REVISION_LINUX_OLD
+    fi
 
-    if [ $arch = i386 ]; then
+    if [ $arch = i386 -a "x$REVISION_LINUX_XCP" != xdisable ]; then
       # XCP dom0 kernel is 32-bit only
 
       ./cs-job-create $flight build-$arch-xcpkern build-kern		      \

@@ -3,8 +3,25 @@ set -e
 
 branch=$1
 
-./sg-hg-heads sh -ec '
-        cd repos/"'"$branch.hg"'"
-        hg pull -u >&2
-        eval "$1"
-' x
+: ${TREE_LINUX:=git://git.kernel.org/pub/scm/linux/kernel/git/jeremy/xen.git}
+: ${TAG_LINUX:=xen/next-2.6.32}
+: ${LOCALREV_LINUX:=daily-cron.$branch}
+
+case "$branch" in
+xen*)
+	./sg-hg-heads sh -ec '
+		cd repos/"'"$branch.hg"'"
+	        hg pull -u >&2
+	        eval "$1"
+	' x
+	;;
+linux)
+	cd repos/xen
+	git fetch -f $TREE_LINUX $TAG_LINUX:$LOCALREV_LINUX
+	git-rev-parse $LOCALREV_LINUX
+	;;
+*)
+	echo >&2 "branch $branch ?"
+	exit 1
+	;;
+esac

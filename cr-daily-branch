@@ -1,28 +1,53 @@
 #!/bin/bash
 set -ex
 
+branch=$1
 . cri-args-hostlists
 
-branch=$1; shift
-mrof="$branch.mro"
-
-if test -f $branch.stop; then exit 0; fi
 if test -f daily.stop; then exit 0; fi
 
+fetch_version () {
+	if [ "x$1" = "x$branch" ]; then
+		ap-fetch-version "$@"
+	else
+		ap-fetch-version-old "$@"
+	fi
+}
+
 if [ "x$REVISION_XEN" = x ]; then
-        REVISION_XEN="`./ap-fetch-version $branch`"
+        REVISION_XEN="`fetch_version $xenbranch`"
         export REVISION_XEN
 fi
-if [ "x$OLD_REVISION_XEN" = x ]; then
-        OLD_REVISION_XEN="`./ap-fetch-version-old $branch`"
-        export OLD_REVISION_XEN
+if [ "x$REVISION_LINUX" = x ]; then
+        REVISION_LINUX="`fetch_version linux`"
+        export REVISION_LINUX
+fi
+if [ "x$OLD_REVISION" = x ]; then
+        OLD_REVISION="`./ap-fetch-version-old $branch`"
+        export OLD_REVISION
 fi
 
 wantpush=true
 
-if [ "x$REVISION_XEN" = "x$OLD_REVISION_XEN" ]; then
+case "$tree" in
+xen)
+	NEW_REVISION=$REVISION_XEN
+	;;
+linux)
+	NEW_REVISION=$REVISION_LINUX
+	export REVISION_LINUX_XCP=disable
+	export REVISION_LINUX_OLD=disable
+	;;
+*)
+	NEW_REVISION=''
+	wantpush=false
+	;;
+esac
+
+if [ "x$NEW_REVISION" = "x$OLD_REVISION" ]; then
         wantpush=false
         if [ $branch != xen-unstable ]; then
+		echo 'up to date'
                 exit 0
         fi
 fi
@@ -31,21 +56,21 @@ if test -e $mrof; then mv $mrof $mrof.old; fi
 touch $mrof; rm $mrof
 rm -f bisected.$branch.*
 
-flight=`./make-flight $branch "$@"`
+flight=`./make-flight $xenbranch "$@"`
 
-case "$REVISION_XEN/$OLD_REVISION_XEN" in
+case "$NEW_REVISION/$OLD_REVISION" in
 */*[^0-9a-f]* | *[^0-9a-f]*/*)
-        echo >&2 "NO SGR COMPARISON badchar $REVISION_XEN/$OLD_REVISION_XEN"
+        echo >&2 "NO SGR COMPARISON badchar $NEW_REVISION/$OLD_REVISION"
         ;;
-????????????/????????????)
+[0-9a-f]*/[0-9a-f]*)
         sgr_args+=" --machine-readable-output=$mrof"
-        sgr_args+=" --this-xen=$REVISION_XEN"
+        sgr_args+=" --this-$tree=$NEW_REVISION"
 	if $wantpush; then
-	        sgr_args+=" --that-xen=$OLD_REVISION_XEN"
+	        sgr_args+=" --that-$tree=$OLD_REVISION"
 	fi
         ;;
 *)
-        echo >&2 "NO SGR COMPARISON wronglen $REVISION_XEN/$OLD_REVISION_XEN"
+        echo >&2 "NO SGR COMPARISON wronglen $NEW_REVISION/$OLD_REVISION"
         ;;
 esac
 
@@ -66,20 +91,28 @@ if test -f $branch.block; then push=false; fi
 
 if ! $wantpush; then
         echo
-        echo "Published non-staging tree is already up to date."
+        echo "Published tested tree is already up to date."
         echo
 elif $push; then
         echo
         echo "Pushing revision $to_push:"
         echo
-        to_push=`sed -n 's/^version this xen //p' <$mrof`
-        if ./ap-push $branch $to_push 2>&1; then
-                rm -f $branch.push
-                perl -i~ -pe '
-                        next unless m/^Subject: / && !$subsequent++;
-                        s/$/ - PUSHED/;
-                ' tmp/$flight.email
-        fi
+        to_push=`sed -n "s/^version this $tree //p" <$mrof`
+	case "$to_push" in)
+	*[^0-9a-f]*)
+		echo >&2 "BAD PUSH REVISION $to_push"
+		;;
+	[0-9a-f]*)
+	        if ./ap-push $branch $to_push 2>&1; then
+			rm -f $branch.push
+			perl -i~ -pe '
+	                        next unless m/^Subject: / && !$subsequent++;
+	                        s/$/ - PUSHED/;
+	                ' tmp/$flight.email
+	        fi
+		;;
+	*)	echo >&2 "BAD/MISSING PUSH REVISION $to_push" ;;
+	esac
 else
         echo
         echo Not pushing.

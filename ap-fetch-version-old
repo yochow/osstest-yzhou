@@ -3,7 +3,25 @@ set -e
 
 branch=$1
 
-./sg-hg-heads ssh xen@xenbits.xensource.com '
-        set -e
-        cd HG/"'"$branch.hg"'"
-'
+: ${XENBITS:=xen@xenbits.xensource.com}
+: ${OLD_TREE_LINUX:=$XENBITS:git/linux-pvops}
+: ${OLD_TAG_LINUX:=master}
+: ${OLD_LOCALREV_LINUX:=daily-cron.$branch.old}
+
+case "$branch" in
+xen*)
+	./sg-hg-heads ssh $XENBITS '
+	        set -e
+	        cd HG/"'"$branch.hg"'"
+	'
+	;;
+linux)
+	cd repos/xen
+	git fetch -f $OLD_TREE_LINUX $OLD_TAG_LINUX:$OLD_LOCALREV_LINUX
+	git-rev-parse $OLD_LOCALREV_LINUX
+	;;
+*)
+	echo >&2 "branch $branch ?"
+	exit 1
+	;;
+esac

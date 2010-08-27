@@ -1,15 +1,14 @@
 #!/bin/bash
 set -ex
 
-. cri-args-hostlists
 branch=$1
+. cri-args-hostlists
 
-if test -f $branch.stop; then exit 0; fi
 if test -f bisect.stop; then exit 0; fi
 
 sticky=bisecting-sticky-branch
 
-if ! test -f $branch.mro; then
+if ! test -f $mrof; then
         rm -f $sticky
         echo "$branch no mro"
         exit 0
@@ -34,7 +33,7 @@ compute_state () {
         ./cs-bisection-step --graph-out=$OSSTEST_HTML_DIR/$bisleaf \
                 --summary-out=$summaryfile \
                 --blessings=$OSSTEST_BLESSING,$OSSTEST_BLESSING-bisect \
-                "$@" $branch $job $testid >$reportfile 2>&1
+                "$@" $xenbranch $job $testid >$reportfile 2>&1
         rc=$?
         set -e
 
@@ -66,7 +65,7 @@ perhaps_bisect_step () {
                 return
         fi
 
-        flight=`./cs-flight-create $branch`
+        flight=`./cs-flight-create $xenbranch`
         flight_executed=false
 
         compute_state --flight=$flight
@@ -92,7 +91,8 @@ send_bisection_email () {
         cat >&3 <<END
 Subject: oss xen test: $1
 
-branch $branch
+branch $xenbranch
+xen branch $xenbranch
 job $job
 test $testid
 
@@ -115,7 +115,7 @@ END
         send_email tmp/$flight.email
 }        
 
-exec <$branch.mro
+exec <$mrof
 while read keyword job testid; do
         if [ "x$keyword" = xregression ]; then
                 perhaps_bisect_step
