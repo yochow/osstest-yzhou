@@ -2,9 +2,17 @@
 
 use strict qw(vars);
 
+use DBI;
+use Osstest;
+use IO::Handle;
+use HTML::Entities;
+
 our ($job,$flight);
 our (@blessings,@branches);
 our $limit= 100;
+our $htmlout;
+
+open DEBUG, ">/dev/null";
 
 while (@ARGV && $ARGV[0] =~ m/^-/) {
     $_= shift @ARGV;
@@ -13,6 +21,8 @@ while (@ARGV && $ARGV[0] =~ m/^-/) {
         $$1= $2;
     } elsif (m/^--(limit)\=([1-9]\d*)$/) {
         $$1= $2;
+    } elsif (m/^--html-dir=(.*)$/) {
+        $htmlout= $1;
     } elsif (m/^--branches?=(.*)$/) {
         push @branches, split ',', $1;
     } elsif (m/^--blessings?=(.*)$/) {
@@ -27,10 +37,13 @@ while (@ARGV && $ARGV[0] =~ m/^-/) {
 
 @ARGV==0 or die;
 
+csreadconfig();
+@blessings= qw(real) if !@blessings;
+
 our @jobs;
 
 sub findflight () {
-    my $branches= $dbh_tests->selectcol_arrayref(<<END, {}, $flight)
+    my $branches= $dbh_tests->selectcol_arrayref(<<END, {}, $flight);
         SELECT branch FROM flights WHERE flight=?
 END
     die "$flight ? @$branches ?" if @$branches!=1;
@@ -53,7 +66,7 @@ if (defined($flight)) {
     push @jobs, $job;
 }
 
-our $failstepq= $dbh->prepare(<<END);
+our $failstepq= $dbh_tests->prepare(<<END);
         SELECT * FROM steps
          WHERE flight=? AND job=?
            AND status!='pass'
@@ -61,31 +74,38 @@ our $failstepq= $dbh->prepare(<<END);
          LIMIT 1
 END
 
+our $green=  '#00ff00';
+our $red=    '#ff8888';
+our $yellow= '#ffff00';
+our $purple= '#ff00ff';
+
 sub run_getinfo ($) {
     my ($f) = @_;
+    my $status= $f->{status};
     if ($status eq 'pass') {
-        return { Summary => '', Colour => green };
+        return { Summary => '', Colour => $green };
     } elsif ($status eq 'fail') {
         $failstepq->execute($f->{flight}, $f->{job});
         my $fs= $failstepq->fetchrow_hashref();
         if (!defined $fs) {
-            return { Summary => "(unknown)", Colour => yellow };
+            return { Summary => "(unknown)", Colour => $yellow };
         } elsif ($fs->{status} eq 'fail') {
-            return { Summary => "$fs->{testid}", Colour => red };
+            return { Summary => "$fs->{testid}", Colour => $red };
         } else {
-            return { Summary => "$fs->{testid} $fs->{status}", Colour => red };
+            return { Summary => "$fs->{testid} $fs->{status}",
+                     Colour => $red };
         }
     } elsif ($status eq 'blocked') {
-        return { Summary => "blocked", Colour => purple },
+        return { Summary => "blocked", Colour => $purple },
     } else {
-        return { Summary => "($f->{status})", Colour => yellow };
+        return { Summary => "($f->{status})", Colour => $yellow };
     }
 }
 
 our $revisionsq= $dbh_tests->prepare(<<END);
         SELECT * FROM runvars
          WHERE flight=? AND job=?
-           AND name LIKE 'built\\_revision\\_\%'
+           AND name LIKE E'built\\_revision\\_\%'
 END
 
 sub add_revisions ($$$$) {
@@ -94,22 +114,23 @@ sub add_revisions ($$$$) {
     while (my $row= $revisionsq->fetchrow_hashref()) {
         my $n= $row->{name};
         $n =~ s/^built_revision_//;
-        $revmap{$pfx.$n}= $row->{val};
+        $revmap->{$pfx.$n}= $row->{val};
     }
 }
 
 our $buildsq= $dbh_tests->prepare(<<END);
         SELECT * FROM runvars
          WHERE flight=? AND job=?
-           AND name LIKE '\%buildjob'
+           AND name LIKE E'\%buildjob'
 END
 
-our %rev_grid_col;
-our @rev_grid_cols;
-our @test_rows;
-
 sub processjobbranch ($$) {
-    my ($j,$b) = @_;
+    my ($j,$bra) = @_;
+
+    my %rev_grid_col;
+    my @rev_grid_cols;
+    my @test_rows;
+
     my $blessingscond= '('.join(' OR ', map { "blessing=?" } @blessings).')';
     my $stmt= <<END;
         SELECT *
@@ -117,12 +138,12 @@ sub processjobbranch ($$) {
          WHERE job = ?
            AND $blessingscond
 END
-    my (@params) = $j;
-    if (defined $b) {
+    my (@params) = ($j, @blessings);
+    if (defined $bra) {
         $stmt .= <<END;
            AND branch = ?
 END
-        push @params, $b;
+        push @params, $bra;
     }
     $stmt .= <<END;
       ORDER BY flight DESC
@@ -156,8 +177,49 @@ END
             $rev_cols[$col]= $revisions{$revk};
         }
         $ri->{Revisions}= \@rev_cols;
+        $ri->{Flight}= $f;
 
         push @test_rows, $ri;
+    }
+
+    if (defined $htmlout) {
+        my ($title,$html_file);
+        if (defined $bra) {
+            $title= "$j $bra";
+            $html_file= "history.$j.$bra.html";
+        } else {
+            $title= $j;
+            $html_file= "history.$j.html";
+        }
+        $html_file= "$htmlout/$html_file";
+        open H, "> $html_file.new" or die "$html_file $!";
+        $title= encode_entities($title);
+        print H "<html><head><title>$title</title></head><body>\n";
+        print H "<h1>$title</h1>\n";
+        print H "<table><tr><th>flight</th><th>branch</th><th>failure</th>\n";
+        foreach my $c (@rev_grid_cols) {
+            print H "<th>".encode_entities($c)."</th>\n";
+        }
+        print H "</tr>\n";
+        foreach my $r (@test_rows) {
+            print H "<tr>";
+            print H "<td>$r->{Flight}{flight}</td>\n";
+            print H "<td>".encode_entities($r->{Flight}{branch})."</td>\n";
+            print H "<td bgcolor=\"$r->{Colour}\">".
+                encode_entities($r->{Summary})."</td>\n";
+            foreach my $i (0..$#rev_grid_cols) {
+                my $v= $r->{Revisions}[$i];
+                print H "<td>";
+                print H "<kbd>".encode_entities($v)."</kbd>" if defined $v;
+                print H "</td>";
+            }
+            print H "</tr>\n";
+        }
+        print H "</table></body></html>\n";
+        H->error and die $!;
+        close H or die $!;
+        rename "$html_file.new", $html_file or die "$html_file $!";
+        print "wrote $html_file\n";
     }
 }
 
@@ -168,39 +230,3 @@ sub processjob ($) {
 }
 
 foreach my $j (@jobs) { processjob($j); }
-
-
-
-        @jobs= map { $_->[0] } @{ $selectq->fetchall_array
-          FROM flights NATURAL JOIN jobs
-         WHERE $blessingscond
-END
-
-
-    my @selectparams= ();
-    my $selectq= <<END;
-        SELECT DISTINCT job
-          FROM flights NATURAL JOIN jobs
-         WHERE $blessingscond
-END
-    foreach my $k (qw(job flight)) {
-        my $v= $$k;
-        next unless defined $v;
-        $selectq .= <<END
-            AND $k = ?
-END
-        push @selectparams, $v;
-    }
-    $selectq.= <<END
-        ORDER BY job
-END
-    $q= $dbh_tests->prepare($selectq);
-    $q->execute(@selectparams);
-    
-}
-        
-    $addcond->("flight = ?", $flight);
-    $addcond->("
-
-
-flight, branch, job
