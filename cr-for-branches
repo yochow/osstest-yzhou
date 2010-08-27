@@ -12,6 +12,8 @@ export LOGFILE
 BRANCHES='xen-4.0-testing xen-3.4-testing xen-unstable linux'
 export BRANCHES
 
+export LOCK_ACQUIRE_START=`date +%s`
+
 with-lock-ex $wlem global-lock bash -ec '
         savelog -n 500 $LOGFILE >/dev/null
         exec >>$LOGFILE
@@ -20,6 +22,13 @@ with-lock-ex $wlem global-lock bash -ec '
                 d=`date +"%Y-%m-%d %H:%M:%S %Z"`
                 printf "[%s $$] %s%s\n" "$d" "$m" "$1"
         }
+
+	lock_acquire_done=`date +%s`
+	lock_acquire_delay=$(( $lock_acquire_done - $LOCK_ACQUIRE_START ))
+	lock_acquire_max=86400
+	if [ $lock_acquire_delay -gt $lock_acquire_max ]; then
+		log "$script $lock_acquire_delay > $lock_acquire_max, shedding"
+	fi
 
         script=$1; shift
         for branch in $BRANCHES; do
