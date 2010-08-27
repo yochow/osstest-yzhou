@@ -59,12 +59,12 @@ END
 
 sub fetch_logs_serial () {
     my $logpat= $c{SerialLogPattern};
+    my $vn;
     $logpat =~ s/\%(\w*)\%/
-        !length $1 ? '' :
-        !defined $r{
-	    $1 eq 'host' ? $whhost : $1
-	    } ? die "$c{SerialLogPattern} $1 ?" :
-        $r{$1}
+        !length $1 ? ''
+        : ( ($vn= $1 eq 'host' ? $whhost : $1),
+            (!defined $r{$vn} ? die "$c{SerialLogPattern} $1 ?" : $r{$vn})
+            )
     /ge;
     my $started= $dbh_tests->selectrow_array(<<END);
         SELECT started FROM flights WHERE flight=$flight
