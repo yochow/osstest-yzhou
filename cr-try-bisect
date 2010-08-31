@@ -72,8 +72,8 @@ perhaps_bisect_step () {
         compute_state --flight=$flight
         send_bisection_email "bisecting testing $flight" -bisectrun
 
-        echo $branch >$sticky.new
-        mv -f $sticky.new $sticky
+#        echo $branch >$sticky.new
+#        mv -f $sticky.new $sticky
 
         execute_flight $flight $OSSTEST_BLESSING-bisect
         flight_executed=true
