@@ -188,7 +188,8 @@ sub fetch_logs_host_guests () {
          'xenstore-ls -fp',
          'ifconfig',
          'route -vn',
-         'brctl show'
+         'brctl show',
+    'ps wwwaxf -eo pid,tty,stat,time,nice,psr,pcpu,pmem,nwchan,wchan:25,args',
          ) {
             try_cmd_output_save($cmd);
         }
