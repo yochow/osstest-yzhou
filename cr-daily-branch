@@ -55,7 +55,7 @@ fi
 
 if test -e $mrof; then mv $mrof $mrof.old; fi
 touch $mrof; rm $mrof
-rm -f bisected.$branch.*
+rm -f tmp/bisected.$branch.*
 
 flight=`./make-flight $xenbranch "$@"`
 
