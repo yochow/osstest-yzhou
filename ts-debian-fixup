@@ -73,6 +73,7 @@ sub filesystems () {
     return unless defined($rootdev) && length($rootdev);
     logm("adjusting root: $rootdev");
     $cfg =~ s,^(root \s* = \s* ['"] /dev/)sda(\d+ \s .*)$, $1.$rootdev.$2 ,mxe;
+    $cfg =~ s#('phy: [^,: \t]+ , )sda(\d+ ,w')# $1.$rootdev.$2 #gmxe;
 
     target_cmd_root($ho, <<END);
         set -ex
