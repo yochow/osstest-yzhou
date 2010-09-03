@@ -85,7 +85,7 @@ flight_html_dir=$OSSTEST_HTMLPUB_DIR/
 job_html_dir=$OSSTEST_HTML_DIR/
 
 with-lock-ex -w report-lock \
-  ./sg-report-job-history --html-dir=$job_html_dir/ --flight $flight
+  ./sg-report-job-history --html-dir=$job_html_dir --flight=$flight
 
 ./sg-report-flight --html-dir=$flight_html_dir/$flight/ $sgr_args $flight
 
