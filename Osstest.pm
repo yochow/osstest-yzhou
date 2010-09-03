@@ -39,7 +39,7 @@ BEGIN {
                       target_ping_check_down target_ping_check_up
                       target_kernkind_check target_kernkind_console_inittab
                       target_var target_var_prefix
-                      selectguest prepareguest
+                      selectguest prepareguest more_prepareguest_hvm
                       guest_umount_lv guest_await guest_await_dhcp_tcp
                       guest_checkrunning guest_check_ip guest_find_ether
                       guest_find_domid guest_check_up
@@ -852,6 +852,73 @@ sub prepareguest ($$$$$) {
     guest_find_ether($gho);
     guest_find_tcpcheckport($gho);
     return $gho;
+}
+
+sub more_prepareguest_hvm ($$$$;$) {
+    my ($ho, $gho, $ram_mb, $disk_mb, $postimage_hook) = @_;
+    
+    my $passwd= 'xenvnc';
+
+    target_cmd_root($ho, "lvremove -f $gho->{Lvdev} ||:");
+    target_cmd_root($ho, "lvcreate -L ${disk_mb}M -n $gho->{Lv} $gho->{Vg}");
+    target_cmd_root($ho, "dd if=/dev/zero of=$gho->{Lvdev} count=10");
+    
+    my $imageleaf= $r{"$gho->{Guest}_image"};
+    die "$gho->{Guest} ?" unless $imageleaf;
+    my $limage= "$c{Images}/$imageleaf";
+    $gho->{Rimage}= "/root/$imageleaf";
+    target_putfile_root($ho,300, $limage,$gho->{Rimage}, '-p');
+
+    $postimage_hook->() if $postimage_hook;
+
+    my $xencfg= <<END;
+name        = '$gho->{Name}'
+#
+kernel      = 'hvmloader'
+builder     = 'hvm'
+#
+disk        = [
+            'phy:$gho->{Lvdev},hda,w',
+            'file:$gho->{Rimage},hdc:cdrom,r'
+            ]
+#
+memory = ${ram_mb}
+#
+usb=1
+usbdevice='tablet'
+#
+#stdvga=1
+keymap='en-gb';
+#
+sdl=0
+opengl=0
+vnc=1
+vncunused=0
+vncdisplay=0
+vnclisten='$ho->{Ip}'
+vncpasswd='$passwd'
+#
+boot = 'dc'
+#
+vif         = [ 'type=ioemu,mac=$gho->{Ether}' ]
+#
+on_poweroff = 'destroy'
+on_reboot   = 'restart'
+on_crash    = 'preserve'
+vcpus = 2
+END
+
+    my $cfgpath= "/etc/xen/$gho->{Name}.cfg";
+    store_runvar("$gho->{Guest}_cfgpath", "$cfgpath");
+    $gho->{CfgPath}= $cfgpath;
+
+    target_putfilecontents_root_stash($ho,10,$xencfg, $cfgpath);
+
+    target_cmd_root($ho, <<END);
+        (echo $passwd; echo $passwd) | vncpasswd $gho->{Guest}.vncpw
+END
+
+    return $cfgpath;
 }
 
 sub guest_check_up ($) {

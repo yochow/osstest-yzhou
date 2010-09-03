@@ -14,82 +14,21 @@ our $disk_mb= 10000;
 
 our $guesthost= 'win.guest.osstest';
 
-my $passwd= 'xenvnc';
-
 sub prep () {
     target_install_packages_norec($ho, qw(lvm2 rsync));
 
-    $gho= prepareguest($ho, 'win', $guesthost, 8936,
-		       $disk_mb + 1);
-
-    target_cmd_root($ho, "lvremove -f $gho->{Lvdev} ||:");
-    target_cmd_root($ho, "lvcreate -L ${disk_mb}M -n $gho->{Lv} $gho->{Vg}");
-    target_cmd_root($ho, "dd if=/dev/zero of=$gho->{Lvdev} count=10");
+    $gho= prepareguest($ho, 'win', $guesthost, 8936, $disk_mb + 1);
+    more_prepareguest_hvm($ho,$gho, $ram_mb, $disk_mb);
 
     store_runvar("$gho->{Guest}_pingbroken", 1);
 }
 
-sub image () {
-    my $imageleaf= $r{"$gho->{Guest}_image"};
-    my $limage= "$c{Images}/$imageleaf";
-    $gho->{Rimage}= "/root/$imageleaf";
-    target_putfile_root($ho,200, $limage,$gho->{Rimage}, '-p');
-}
-
-sub config () {
-    my $xencfg= <<END;
-name        = '$gho->{Name}'
-
-kernel      = 'hvmloader'
-builder     = 'hvm'
-
-disk        = [
-            'phy:$gho->{Lvdev},hda,w',
-            'file:$gho->{Rimage},hdc:cdrom,r'
-            ]
-
-memory = ${ram_mb}
-
-usb=1
-usbdevice='tablet'
-
-#stdvga=1
-keymap='en-gb';
-
-sdl=0
-opengl=0
-vnc=1
-vncunused=0
-vncdisplay=0
-vnclisten='$ho->{Ip}'
-vncpasswd='$passwd'
-
-boot = 'dc'
-
-vif         = [ 'type=ioemu,mac=$gho->{Ether}' ]
-
-on_poweroff = 'destroy'
-on_reboot   = 'restart'
-on_crash    = 'preserve'
-vcpus = 2
-END
-
-    my $cfgpath= "/etc/xen/$gho->{Name}.cfg";
-    store_runvar("$gho->{Guest}_cfgpath", "$cfgpath");
-
-    target_putfilecontents_root_stash($ho,10,$xencfg, $cfgpath);
-}
-
 sub start () {
-    target_cmd_root($ho, <<END);
-        (echo $passwd; echo $passwd) | vncpasswd $gho->{Guest}.vncpw
-END
-    target_cmd_root($ho, "xm create $r{$gho->{Guest}.'_cfgpath'}", 100);
+    target_cmd_root($ho, "xm create $gho->{CfgPath}", 100);
 }
 
 prep();
-image();
-config();
 start();
+
 guest_await_dhcp_tcp($gho,7000);
 guest_check_up($gho);
