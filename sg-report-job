@@ -83,7 +83,7 @@ sub run_getinfo ($) {
     my ($f) = @_;
     my $status= $f->{status};
     if ($status eq 'pass') {
-        return { Summary => '', Colour => $green };
+        return { Summary => "($status)", Colour => $green };
     } elsif ($status eq 'fail') {
         $failstepq->execute($f->{flight}, $f->{job});
         my $fs= $failstepq->fetchrow_hashref();
@@ -183,7 +183,7 @@ END
     }
 
     if (defined $htmlout) {
-        my ($title,$html_file);
+        my ($title,$html_file,$url);
         if (defined $bra) {
             $title= "$j $bra";
             $html_file= "history.$j.$bra.html";
@@ -196,24 +196,35 @@ END
         $title= encode_entities($title);
         print H "<html><head><title>$title</title></head><body>\n";
         print H "<h1>$title</h1>\n";
-        print H "<table><tr><th>flight</th><th>branch</th><th>failure</th>\n";
+        print H "<table rules=all>";
+        print H "<tr><th>flight</th><th>branch</th><th>failure</th>\n";
         foreach my $c (@rev_grid_cols) {
             print H "<th>".encode_entities($c)."</th>\n";
         }
         print H "</tr>\n";
+        my $alternate= 0;
         foreach my $r (@test_rows) {
-            print H "<tr>";
-            print H "<td>$r->{Flight}{flight}</td>\n";
+            my $colour= "bgcolor=\"$r->{Colour}\"";
+            my $altcolour= "bgcolor=\"#".(qw(d0d0d0 ffffff))[$alternate]."\"";
+            print H "<tr $altcolour>";
+            my $flt= $r->{Flight}{flight};
+            $url= "$c{ReportHtmlPubBaseUrl}/$flt";
+            print H "<td><a href=\"$url\">$flt</a></td>\n";
             print H "<td>".encode_entities($r->{Flight}{branch})."</td>\n";
-            print H "<td bgcolor=\"$r->{Colour}\">".
-                encode_entities($r->{Summary})."</td>\n";
+            $url= "$c{ReportHtmlPubBaseUrl}/$flt/".encode_entities($j)."/";
+            print H "<td $colour><a href=\"$url\">".
+                encode_entities($r->{Summary})."</a></td>\n";
             foreach my $i (0..$#rev_grid_cols) {
                 my $v= $r->{Revisions}[$i];
                 print H "<td>";
-                print H "<kbd>".encode_entities($v)."</kbd>" if defined $v;
+                if (defined $v) {
+                    $v =~ s/^((?:\d+\:)?[0-9a-f]{12})([0-9a-f].*)$/$1/;
+                    print H "<kbd>".encode_entities($v)."</kbd>";
+                }
                 print H "</td>";
             }
             print H "</tr>\n";
+            $alternate ^= 1;
         }
         print H "</table></body></html>\n";
         H->error and die $!;
