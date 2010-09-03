@@ -23,10 +23,6 @@ with-lock-ex $wlem global-lock bash -ec '
                 printf "[%s $$] %s%s\n" "$d" "$m" "$1"
         }
 
-        if ! git-pull . incoming:master; then
-                git-checkout HEAD
-        fi
-
 	lock_acquire_done=`date +%s`
 	lock_acquire_delay=$(( $lock_acquire_done - $LOCK_ACQUIRE_START ))
 	lock_acquire_max=86400
@@ -37,6 +33,10 @@ with-lock-ex $wlem global-lock bash -ec '
 
         script=$1; shift
         for branch in $BRANCHES; do
+                if ! git-pull . incoming:master; then
+                        git-checkout HEAD
+                fi
+
                 m="$script $branch $*"
                 log ...
                 set +e
