@@ -131,8 +131,10 @@ proc run-job/test-pair {} {
 }
 
 proc test-guest {g} {
-    run-ts . = ts-guest-saverestore + host $g
-    run-ts . = ts-guest-localmigrate + host $g
+    foreach iteration {{} .2} {
+        run-ts . =$iteration ts-guest-saverestore + host $g
+        run-ts . =$iteration ts-guest-localmigrate + host $g
+    }
     run-ts . = ts-guest-stop + host $g
 }
 
