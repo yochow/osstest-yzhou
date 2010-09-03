@@ -57,6 +57,7 @@ our $sl= 28;
 our $rl= 9;
 our $cw= 79;
 our $tl= 20;
+our $htmlleaf= "info.html";
 
 our $blessingscond= '('.join(' OR ', map { "blessing=?" } @blessings).')';
 
@@ -445,7 +446,6 @@ sub htmloutjob ($$) {
     my ($fi,$job) = @_;
     return unless defined $htmldir;
 
-    my $htmlleaf= "info.html";
     my $htmlfile= "$htmldir/$job/$htmlleaf";
     if (!open H, "> $htmlfile.new") {
         return if $!==&ENOENT;
@@ -469,7 +469,7 @@ sub htmloutjob ($$) {
 END
     opendir LOGS, "$htmldir/$job" or die "$htmldir/$job $!";
     my @dents= sort readdir LOGS;
-    closedir LOGS for die $!;
+    closedir LOGS or die $!;
     foreach my $dent (@dents) {
         next if $dent eq "$htmlleaf.new" or $dent eq $htmlleaf
             or $dent eq '..' or $dent eq '.';
@@ -526,7 +526,7 @@ END
         my $th= $col;
         $th =~ s/\-/ $&/g;
         print H "<th>";
-        print H "<a href=\"".encode_entities($col)."/\">";
+        print H "<a href=\"".encode_entities($col)."/$htmlleaf\">";
         print H encode_entities($th);
         print H "</a>";
         print H "</th>";
