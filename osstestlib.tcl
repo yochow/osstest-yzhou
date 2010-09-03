@@ -142,8 +142,8 @@ proc spawn-ts {iffail testid ts args} {
     regsub {^ts-} $ts {} deftestid
     append deftestid /@
 
-    if {![string compare $testid =]} {
-        set testid $deftestid
+    if {[string match =* $testid]} {
+        set testid "$deftestid[string range $testid 1 end]"
     } elseif {![string compare $testid *]} {
         set testid $deftestid
         append testid (*)
