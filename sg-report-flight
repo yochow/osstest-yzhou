@@ -495,7 +495,35 @@ END
         }
         print H "\n";
     }
-    print H "</table></body></html>";
+    print H "</table>";
+
+    my %vercols;
+    foreach my $tt (qw(this that)) {
+        my $ary= $specver{$tt};
+        next unless $ary;
+        $vercols{$_}=1 foreach keys %$ary;
+    }
+    my @vercols= sort keys %vercols;
+    if (@vercols) {
+        print H "<h2>targeted versions</h2>\n";
+        print H "<table rules=all>";
+        print H "<tr><td></td>";
+        print H "<th>".encode_entities($_)."</th>" foreach @vercols;
+        foreach my $tt (qw(this that)) {
+            my $ary= $specver{$tt};
+            next unless $ary;
+            print H "<tr>";
+            print H "<th>".($tt eq 'that' ? 'baseline' : $tt)."</th>";
+            foreach my $vc (@vercols) {
+                my $v= $ary->{$vc};
+                print H "<td>";
+                print H encode_entities($v) if defined $v;
+                print H "</td>";
+            }
+        }
+        print H "</table>";
+    }
+    print H "</body></html>";
     H->error and die $!;
     close H or die $!;
     rename "$htmlout.new", $htmlout or die $!;
