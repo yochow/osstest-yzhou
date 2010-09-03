@@ -88,7 +88,7 @@ proc run-ts {args} {
 }
 
 proc spawn-ts {iffail testid ts args} {
-    global flight c jobinfo reap_details
+    global flight c jobinfo reap_details env
 
     if {[file exists abort]} {
         logputs stdout \
@@ -168,11 +168,14 @@ proc spawn-ts {iffail testid ts args} {
 
     set log $logdir/$stepno.$ts.log
 
+    set xprefix {}
+    if {[info exists env(OSSTEST_SIMULATE)]} { set xprefix echo }
+
     set cmd [concat \
                  [list sh -xc "
                      OSSTEST_JOB=$jobinfo(job)
                      export OSSTEST_JOB
-                     \"$@\" >&2
+                     $xprefix \"$@\" >&2
                      rc=\$?
                      date -u +\"%Y-%m-%d %H:%M:%S Z exit status \$rc\" >&2
                      exit \$rc
