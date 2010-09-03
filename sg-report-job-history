@@ -109,12 +109,12 @@ our $revisionsq= $dbh_tests->prepare(<<END);
 END
 
 sub add_revisions ($$$$) {
-    my ($revmap, $flightnum, $j, $pfx) = @_;
+    my ($revmap, $flightnum, $j, $sfx) = @_;
     $revisionsq->execute($flightnum, $j);
     while (my $row= $revisionsq->fetchrow_hashref()) {
         my $n= $row->{name};
         $n =~ s/^built_revision_//;
-        $revmap->{$pfx.$n}= $row->{val};
+        $revmap->{$n.$sfx}= $row->{val};
     }
 }
 
@@ -123,6 +123,11 @@ our $buildsq= $dbh_tests->prepare(<<END);
          WHERE flight=? AND job=?
            AND name LIKE E'\%buildjob'
 END
+
+sub altcolour ($) {
+    my ($bool) = @_;
+    return "bgcolor=\"#".(qw(d0d0d0 ffffff))[$bool]."\"";
+}
 
 sub processjobbranch ($$) {
     my ($j,$bra) = @_;
@@ -161,10 +166,9 @@ END
         $buildsq->execute($f->{flight}, $f->{job});
         while (my $bld= $buildsq->fetchrow_hashref()) {
             my $bn= $bld->{name};
-            $bn =~ s/buildjob$/ b. /;
-            $bn =~ s/^ //;
+            $bn =~ s/buildjob$//;
             my ($oflight,$ojob) = flight_otherjob($f->{flight}, $bld->{val});
-            add_revisions(\%revisions, $oflight, $job, $bn);
+            add_revisions(\%revisions, $oflight, $ojob, " ($bn)");
         }
         my @rev_cols;
         foreach my $revk (sort keys %revisions) {
@@ -203,9 +207,11 @@ END
         }
         print H "</tr>\n";
         my $alternate= 0;
+        my @last_revs;
+        my @alt_revs= ('0')x $#rev_grid_cols;
         foreach my $r (@test_rows) {
             my $colour= "bgcolor=\"$r->{Colour}\"";
-            my $altcolour= "bgcolor=\"#".(qw(d0d0d0 ffffff))[$alternate]."\"";
+            my $altcolour= altcolour($alternate);
             print H "<tr $altcolour>";
             my $flt= $r->{Flight}{flight};
             $url= "$c{ReportHtmlPubBaseUrl}/$flt";
@@ -214,13 +220,26 @@ END
             $url= "$c{ReportHtmlPubBaseUrl}/$flt/".encode_entities($j)."/";
             print H "<td $colour><a href=\"$url\">".
                 encode_entities($r->{Summary})."</a></td>\n";
+            my $lastrev;
             foreach my $i (0..$#rev_grid_cols) {
                 my $v= $r->{Revisions}[$i];
-                print H "<td>";
+                my $same=
+                    !defined($last_revs[$i]) ? !defined($v) :
+                    !defined($v) ? 0 :
+                    $last_revs[$i] eq $v;
+                $alt_revs[$i] ^= !$same;
+                print H "<td ".altcolour($alt_revs[$i]).">";
                 if (defined $v) {
-                    $v =~ s/^((?:\d+\:)?[0-9a-f]{12})([0-9a-f].*)$/$1/;
-                    print H "<kbd>".encode_entities($v)."</kbd>";
+                    my $vp= $v;
+                    if (defined $lastrev && $v eq $lastrev) {
+                        $vp= '<-';
+                    } else {
+                        $vp =~ s/^((?:\d+\:)?[0-9a-f]{12})([0-9a-f].*)$/$1/;
+                    }
+                    print H "<kbd>".encode_entities($vp)."</kbd>";
                 }
+                $lastrev= $v;
+                $last_revs[$i]= $v;
                 print H "</td>";
             }
             print H "</tr>\n";
