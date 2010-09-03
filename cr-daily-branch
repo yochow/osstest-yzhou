@@ -81,9 +81,8 @@ exec >tmp/$flight.email
 cat $OSSTEST_EMAIL_HEADER
 printf 'Subject: [%s test] ' "$branch"
 
-html_summary=$OSSTEST_HTMLPUB_DIR/$flight/index.html
-
-./sg-report-flight --html-output=$html_summary $sgr_args $flight
+html_dir=$OSSTEST_HTMLPUB_DIR/$flight/
+./sg-report-flight --html-dir=$html_dir $sgr_args $flight
 
 push=false
 if grep '^tolerable$' $mrof >/dev/null 2>&1; then push=$wantpush; fi

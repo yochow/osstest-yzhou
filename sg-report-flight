@@ -11,7 +11,7 @@ our $specflight;
 our %specver;
 our @blessings;
 our $mro;
-our $htmlout;
+our $htmldir;
 our $branch;
 
 open DEBUG, ">/dev/null";
@@ -25,8 +25,8 @@ while (@ARGV && $ARGV[0] =~ m/^-/) {
     } elsif (m/^--machine-readable-output=(.*)$/) {
         $mro= $1;
         open MRO, "> $mro.new" or die "$mro.new $!";
-    } elsif (m/^--html-output=(.*)$/) {
-        $htmlout= $1;
+    } elsif (m/^--html-dir=(.*)$/) {
+        $htmldir= $1;
     } elsif (m/^--blessings?=(.*)$/) {
         push @blessings, split ',', $1;
     } elsif (m/^--debug/) {
@@ -442,8 +442,9 @@ END
 
 sub htmlout ($) {
     my ($fi) = @_;
-    return unless defined $htmlout;
+    return unless defined $htmldir;
 
+    my $htmlout= "$htmldir/index.html";
     open H, "> $htmlout.new" or die "$htmlout.new $!";
     print H <<END;
 <html><head><title>Report on flight $fi->{Flight}</title><head>
