@@ -1,0 +1,232 @@
+#!/usr/bin/perl -w
+
+use strict qw(vars);
+
+use DBI;
+use Osstest;
+use IO::Handle;
+use HTML::Entities;
+
+our ($job,$flight);
+our (@blessings,@branches);
+our $limit= 100;
+our $htmlout;
+
+open DEBUG, ">/dev/null";
+
+while (@ARGV && $ARGV[0] =~ m/^-/) {
+    $_= shift @ARGV;
+    last if m/^--?$/;
+    if (m/^--(job|flight)\=(.*)$/) {
+        $$1= $2;
+    } elsif (m/^--(limit)\=([1-9]\d*)$/) {
+        $$1= $2;
+    } elsif (m/^--html-dir=(.*)$/) {
+        $htmlout= $1;
+    } elsif (m/^--branches?=(.*)$/) {
+        push @branches, split ',', $1;
+    } elsif (m/^--blessings?=(.*)$/) {
+        push @blessings, split ',', $1;
+    } elsif (m/^--debug/) {
+        open DEBUG, ">&2" or die $!;
+        DEBUG->autoflush(1);
+    } else {
+        die "$_ ?";
+    }
+}
+
+@ARGV==0 or die;
+
+csreadconfig();
+@blessings= qw(real) if !@blessings;
+
+our @jobs;
+
+sub findflight () {
+    my $branches= $dbh_tests->selectcol_arrayref(<<END, {}, $flight);
+        SELECT branch FROM flights WHERE flight=?
+END
+    die "$flight ? @$branches ?" if @$branches!=1;
+    @branches= @$branches;
+
+    my $selectq= $dbh_tests->prepare(<<END);
+        SELECT job FROM jobs WHERE flight=? ORDER BY JOB
+END
+    $selectq->execute($flight);
+    while (my ($j) = $selectq->fetchrow_array) { push @jobs, $j; }
+}
+
+if (defined($flight)) {
+    die if defined $job;
+    die if @branches;
+    findflight();
+} else {
+    die unless defined $job;
+    die unless @branches;
+    push @jobs, $job;
+}
+
+our $failstepq= $dbh_tests->prepare(<<END);
+        SELECT * FROM steps
+         WHERE flight=? AND job=?
+           AND status!='pass'
+      ORDER BY stepno
+         LIMIT 1
+END
+
+our $green=  '#00ff00';
+our $red=    '#ff8888';
+our $yellow= '#ffff00';
+our $purple= '#ff00ff';
+
+sub run_getinfo ($) {
+    my ($f) = @_;
+    my $status= $f->{status};
+    if ($status eq 'pass') {
+        return { Summary => '', Colour => $green };
+    } elsif ($status eq 'fail') {
+        $failstepq->execute($f->{flight}, $f->{job});
+        my $fs= $failstepq->fetchrow_hashref();
+        if (!defined $fs) {
+            return { Summary => "(unknown)", Colour => $yellow };
+        } elsif ($fs->{status} eq 'fail') {
+            return { Summary => "$fs->{testid}", Colour => $red };
+        } else {
+            return { Summary => "$fs->{testid} $fs->{status}",
+                     Colour => $red };
+        }
+    } elsif ($status eq 'blocked') {
+        return { Summary => "blocked", Colour => $purple },
+    } else {
+        return { Summary => "($f->{status})", Colour => $yellow };
+    }
+}
+
+our $revisionsq= $dbh_tests->prepare(<<END);
+        SELECT * FROM runvars
+         WHERE flight=? AND job=?
+           AND name LIKE E'built\\_revision\\_\%'
+END
+
+sub add_revisions ($$$$) {
+    my ($revmap, $flightnum, $j, $pfx) = @_;
+    $revisionsq->execute($flightnum, $j);
+    while (my $row= $revisionsq->fetchrow_hashref()) {
+        my $n= $row->{name};
+        $n =~ s/^built_revision_//;
+        $revmap->{$pfx.$n}= $row->{val};
+    }
+}
+
+our $buildsq= $dbh_tests->prepare(<<END);
+        SELECT * FROM runvars
+         WHERE flight=? AND job=?
+           AND name LIKE E'\%buildjob'
+END
+
+sub processjobbranch ($$) {
+    my ($j,$bra) = @_;
+
+    my %rev_grid_col;
+    my @rev_grid_cols;
+    my @test_rows;
+
+    my $blessingscond= '('.join(' OR ', map { "blessing=?" } @blessings).')';
+    my $stmt= <<END;
+        SELECT *
+          FROM jobs NATURAL JOIN flights
+         WHERE job = ?
+           AND $blessingscond
+END
+    my (@params) = ($j, @blessings);
+    if (defined $bra) {
+        $stmt .= <<END;
+           AND branch = ?
+END
+        push @params, $bra;
+    }
+    $stmt .= <<END;
+      ORDER BY flight DESC
+         LIMIT 100
+END
+    my $flightsq= $dbh_tests->prepare($stmt);
+    $flightsq->execute(@params);
+
+    while (my $f= $flightsq->fetchrow_hashref()) {
+        my $ri= run_getinfo($f);
+
+        my %revisions;
+        add_revisions(\%revisions, $f->{flight}, $f->{job}, '');
+        
+        $buildsq->execute($f->{flight}, $f->{job});
+        while (my $bld= $buildsq->fetchrow_hashref()) {
+            my $bn= $bld->{name};
+            $bn =~ s/buildjob$/ b. /;
+            $bn =~ s/^ //;
+            my ($oflight,$ojob) = flight_otherjob($f->{flight}, $bld->{val});
+            add_revisions(\%revisions, $oflight, $job, $bn);
+        }
+        my @rev_cols;
+        foreach my $revk (sort keys %revisions) {
+            my $col= $rev_grid_col{$revk};
+            if (!defined $col) {
+                $col= @rev_grid_cols;
+                push @rev_grid_cols, $revk;
+                $rev_grid_col{$revk}= $col;
+            }
+            $rev_cols[$col]= $revisions{$revk};
+        }
+        $ri->{Revisions}= \@rev_cols;
+        $ri->{Flight}= $f;
+
+        push @test_rows, $ri;
+    }
+
+    if (defined $htmlout) {
+        my ($title,$html_file);
+        if (defined $bra) {
+            $title= "$j $bra";
+            $html_file= "history.$j.$bra.html";
+        } else {
+            $title= $j;
+            $html_file= "history.$j.html";
+        }
+        $html_file= "$htmlout/$html_file";
+        open H, "> $html_file.new" or die "$html_file $!";
+        $title= encode_entities($title);
+        print H "<html><head><title>$title</title></head><body>\n";
+        print H "<h1>$title</h1>\n";
+        print H "<table><tr><th>flight</th><th>branch</th><th>failure</th>\n";
+        foreach my $c (@rev_grid_cols) {
+            print H "<th>".encode_entities($c)."</th>\n";
+        }
+        print H "</tr>\n";
+        foreach my $r (@test_rows) {
+            print H "<tr>";
+            print H "<td>$r->{Flight}{flight}</td>\n";
+            print H "<td>".encode_entities($r->{Flight}{branch})."</td>\n";
+            print H "<td bgcolor=\"$r->{Colour}\">".
+                encode_entities($r->{Summary})."</td>\n";
+            foreach my $i (0..$#rev_grid_cols) {
+                my $v= $r->{Revisions}[$i];
+                print H "<td>";
+                print H "<kbd>".encode_entities($v)."</kbd>" if defined $v;
+                print H "</td>";
+            }
+            print H "</tr>\n";
+        }
+        print H "</table></body></html>\n";
+        H->error and die $!;
+        close H or die $!;
+        rename "$html_file.new", $html_file or die "$html_file $!";
+        print "wrote $html_file\n";
+    }
+}
+
+sub processjob ($) {
+    my ($j) = @_;
+    processjobbranch($j,undef);
+    processjobbranch($j,$_) foreach @branches;
+}
+
+foreach my $j (@jobs) { processjob($j); }

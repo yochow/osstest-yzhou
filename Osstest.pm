@@ -19,7 +19,7 @@ BEGIN {
                       dbfl_do dbfl_check dbfl_exec
                       get_runvar get_runvar_maybe store_runvar get_stashed
 		      unique_incrementing_runvar system_checked
-                      built_stash
+                      built_stash flight_otherjob
                       csreadconfig ts_get_host_guest
                       readconfig opendb_state selecthost need_runvars
                       get_filecontents ensuredir postfork db_retry
@@ -208,11 +208,15 @@ sub db_retry ($$$;$$) {
     return $r;
 }
 
-sub otherflightjob ($) {
-    my ($otherflightjob) = @_;    
+sub flight_otherjob ($$) {
+    my ($thisflight, $otherflightjob) = @_;    
     return $otherflightjob =~ m/^([^.]+)\.([^.]+)$/ ? ($1,$2) :
-           $otherflightjob =~ m/^\.?([^.]+)$/ ? ($flight,$1) :
+           $otherflightjob =~ m/^\.?([^.]+)$/ ? ($thisflight,$1) :
            die "$otherflightjob ?";
+}
+
+sub otherflightjob ($) {
+    return flight_otherjob($flight,$_[0]);
 }
 
 sub get_stashed ($$) {
