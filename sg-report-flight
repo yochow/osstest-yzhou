@@ -464,12 +464,13 @@ sub htmloutjob ($$) {
 <li><a href="$c{ResultsHtmlPubBaseUrl}/history.$job.$branch">History for $job in tests of $branch</a>
 <li><a href="./">Logfiles for $fi->{Flight} $job as webserver directory listing</a>
 </ul>
-<h2>Logfiles for $fi->{Flight} $job</h2>
+<h2>Logfiles</h2>
 <ul>
 END
     opendir LOGS, "$htmldir/$job" or die "$htmldir/$job $!";
-    my $dent;
-    while (defined($dent= readdir LOGS)) {
+    my @dents= sort readdir LOGS;
+    closedir LOGS for die $!;
+    foreach my $dent (@dents) {
         next if $dent eq "$htmlleaf.new" or $dent eq $htmlleaf
             or $dent eq '..' or $dent eq '.';
         my $enc= encode_entities($dent);
