@@ -1,0 +1,5 @@
+#!/bin/sh
+exec 0<>/dev/tty
+exec 1>&0 2>&0
+echo "HELLO $*"
+cat
