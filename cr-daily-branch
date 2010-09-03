@@ -28,7 +28,7 @@ if [ "x$OLD_REVISION" = x ]; then
         export OLD_REVISION
 fi
 
-wantpush=true
+wantpush=$OSSTEST_PUSH
 
 case "$tree" in
 xen)
@@ -91,7 +91,7 @@ with-lock-ex -w report-lock \
 
 push=false
 if grep '^tolerable$' $mrof >/dev/null 2>&1; then push=$wantpush; fi
-if test -f $branch.force; then push=true; fi
+if test -f $branch.force; then push=$OSSTEST_PUSH; fi
 if test -f $branch.block; then push=false; fi
 
 if ! $wantpush; then
