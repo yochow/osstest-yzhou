@@ -249,7 +249,7 @@ END
         H->error and die $!;
         close H or die $!;
         rename "$html_file.new", $html_file or die "$html_file $!";
-        print "wrote $html_file\n";
+        #print "wrote $html_file\n";
     }
 }
 
