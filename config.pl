@@ -16,7 +16,9 @@ $c{WebspaceLog}= '/var/log/apache2/access.log';
 $c{GitCache}='teravault-1.cam.xci-test.com:/export/home/xc_osstest/git-cache/';
 $c{GitCacheLocal}= '/home/xc_osstest/git-cache/';
 
-$c{ReportHtmlPubBaseUrl}= 'http://www.chiark.greenend.org.uk/~xensrcts/logs';
+$c{PubBaseUrl}= 'http://www.chiark.greenend.org.uk/~xensrcts';
+$c{ReportHtmlPubBaseUrl}= "$c{PubBaseUrl}/logs";
+$c{ResultsHtmlPubBaseUrl}= "$c{PubBaseUrl}/results";
     
 $c{ReportTrailer}= <<END;
 Logs, config files, etc. are available at
