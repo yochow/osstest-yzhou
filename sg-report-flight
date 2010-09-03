@@ -6,6 +6,7 @@ use DBI;
 use Osstest;
 use IO::Handle;
 use HTML::Entities;
+use POSIX;
 
 our $specflight;
 our %specver;
@@ -440,9 +441,76 @@ END
     }
 }
 
+sub htmloutjob ($$) {
+    my ($fi,$job) = @_;
+    return unless defined $htmldir;
+
+    my $htmlleaf= "info.html";
+    my $htmlfile= "$htmldir/$job/$htmlleaf";
+    if (!open H, "> $htmlfile.new") {
+        return if $!==&ENOENT;
+        die "$htmlfile.new $!";
+    }
+    my $title= "Info on flight $fi->{Flight} job $job";
+    my $branch= $fi->{FlightInfo}{branch};
+
+    print H <<END;
+<html><head><title>$title</title><head>
+<body>
+<h1>$title</h1>
+<ul>
+<li><a href="../../">Flight $fi->{Flight} scoreboard</a>
+<li><a href="$c{ResultsHtmlPubBaseUrl}/history.$job">History for $job</a>
+<li><a href="$c{ResultsHtmlPubBaseUrl}/history.$job.$branch">History for $job in tests of $branch</a>
+<li><a href="./">Logfiles for $fi->{Flight} $job as webserver directory listing</a>
+</ul>
+<h2>Logfiles for $fi->{Flight} $job</h2>
+<ul>
+END
+    opendir LOGS, "$htmldir/$job" or die "$htmldir/$job $!";
+    my $dent;
+    while (defined($dent= readdir LOGS)) {
+        next if $dent eq "$htmlleaf.new" or $dent eq $htmlleaf
+            or $dent eq '..' or $dent eq '.';
+        my $enc= encode_entities($dent);
+        print H "<li><a href=\"$enc\">$enc</a>\n";
+    }
+    print H <<END;
+</ul>
+<h2>Test control variables</h2>
+<table rules=all><tr><th>Name</th><th>Value</th><th>Source</th></tr>
+END
+    my $varsq= $dbh_tests->prepare(<<END);
+        SELECT * FROM runvars
+                WHERE flight=? AND job=?
+             ORDER BY synth, name
+END
+    $varsq->execute($fi->{Flight}, $job);
+    while (my $varrow= $varsq->fetchrow_hashref()) {
+        print H "<tr><th>".encode_entities($varrow->{name})."</th>";
+        print H "<td>".encode_entities($varrow->{val})."</td>";
+        print H "<td>".($varrow->{synth} ? 'execution' : 'definition')."</td>";
+        print H "\n";
+    }
+    print H "</table></body></html>\n";
+
+    H->error and die $!;
+    close H or die $!;
+    rename "$htmlfile.new", $htmlfile or die $!;
+}
+
 sub htmlout ($) {
     my ($fi) = @_;
     return unless defined $htmldir;
+
+    my $colmap= sub {
+        local ($_) = @_;
+        s/^(\w+)\-.*\-(\w+)$/$1 $2 $&/;
+        return $_;
+    };
+    my @cols= sort { $colmap->($a) cmp $colmap->($b) } @{ $fi->{GridCols} };
+
+    htmloutjob($fi, $_) foreach @cols;
 
     my $htmlout= "$htmldir/index.html";
     open H, "> $htmlout.new" or die "$htmlout.new $!";
@@ -452,12 +520,7 @@ sub htmlout ($) {
 <table rules=all>
 END
     print H "<tr><td></td>\n";
-    my $colmap= sub {
-        local ($_) = @_;
-        s/^(\w+)\-.*\-(\w+)$/$1 $2 $&/;
-        return $_;
-    };
-    my @cols= sort { $colmap->($a) cmp $colmap->($b) } @{ $fi->{GridCols} };
+
     foreach my $col (@cols) {
         my $th= $col;
         $th =~ s/\-/ $&/g;
