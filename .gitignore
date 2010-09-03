@@ -6,5 +6,7 @@ repos
 *.mro
 *.mro.old
 global-lock
+report-lock
+publish-lock
 bisecting-sticky-branch
 stop
