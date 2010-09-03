@@ -40,7 +40,7 @@ $c{Logs}= '/home/xc_osstest/logs';
 $c{Results}= '/home/xc_osstest/results';
 
 $c{LogsPublish}= "$c{Publish}/logs";
-$c{ResultsPublish}= "$c{Publish}/results';
+$c{ResultsPublish}= "$c{Publish}/results";
 
 $c{HarnessPublishGitUserHost}= 'xen@xenbits.xensource.com';
 $c{HarnessPublishGitRepoDir}= 'git/osstest.git';
