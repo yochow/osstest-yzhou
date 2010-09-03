@@ -28,6 +28,7 @@ with-lock-ex $wlem global-lock bash -ec '
 	lock_acquire_max=86400
 	if [ $lock_acquire_delay -gt $lock_acquire_max ]; then
 		log "$script $lock_acquire_delay > $lock_acquire_max, shedding"
+		exit 1
 	fi
 
         script=$1; shift
