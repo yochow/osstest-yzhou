@@ -32,11 +32,15 @@ $c{SerialLogPattern}= '/root/sympathy/%host%.log*';
 
 $c{OverlayLocal}= '/export/home/osstest/overlay-local';
 
+$c{Publish}= 'xensrcts@login.chiark.greenend.org.uk:/home/ian/work/xc_osstest';
+
 $c{Stash}= '/home/xc_osstest/logs';
 $c{Images}= '/home/xc_osstest/images';
 $c{Logs}= '/home/xc_osstest/logs';
-$c{LogsPublish}= 
-    'xensrcts@login.chiark.greenend.org.uk:/home/ian/work/xc_osstest/logs';
+$c{Results}= '/home/xc_osstest/results';
+
+$c{LogsPublish}= "$c{Publish}/logs";
+$c{ResultsPublish}= "$c{Publish}/results';
 
 $c{HarnessPublishGitUserHost}= 'xen@xenbits.xensource.com';
 $c{HarnessPublishGitRepoDir}= 'git/osstest.git';

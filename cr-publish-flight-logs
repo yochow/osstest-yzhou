@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 use strict qw(refs vars);
-
+use Fcntl qw(:flock);
 use Osstest;
 
 our %c;
@@ -13,11 +13,23 @@ die "usage: ./cr-publish-flight-logs <flight>" unless @ARGV==1;
 my $flight= shift @ARGV;
 die unless $flight =~ m/^\d+$/;
 
-system_checked("git-push $c{HarnessPublishGitUserHost}:$c{HarnessPublishGitRepoDir} HEAD:flight-$flight");
-system_checked("ssh $c{HarnessPublishGitUserHost} 'cd $c{HarnessPublishGitRepoDir} && git-update-server-info'");
+open LOCK, "> publish-lock" or die $!;
+flock LOCK, LOCK_EX or die $!;
 
-our @cmd= qw(rsync --compress --compress-level=9 --stats --delete -auH);
-#--bwlimit=50
-push @cmd, "$c{Logs}/$flight/", "$c{LogsPublish}/$flight";
-print "+ @cmd\n";
-$!=0; $?=0; system @cmd; die "rsync $? $!" if $? or $!;
+my $githost= $c{HarnessPublishGitUserHost};
+my $gitdir= $c{HarnessPublishGitRepoDir};
+
+system_checked("git-push $githost:$gitdir HEAD:flight-$flight");
+system_checked("ssh $githost 'cd $gitdir && git-update-server-info'");
+
+sub copydir ($$) {
+    my ($src,$dst) = @_;
+    my @cmd= qw(rsync --compress --compress-level=9 --stats --delete -auH);
+    #--bwlimit=50
+    push @cmd, $src, $dst;
+    print "+ @cmd\n";
+    $!=0; $?=0; system @cmd; die "rsync $? $!" if $? or $!;
+}
+
+copydir("$c{Logs}/$flight/", "$c{LogsPublish}/$flight");
+copydir("$c{Results}/", "$c{ResultsPublish}");
