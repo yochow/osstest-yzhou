@@ -291,7 +291,7 @@ END
         my $j= $failv->{Job};
         my $text= (sprintf" %-${jl}s %2s %-${sl}s %-${rl}s",
                    $j->{job}, $s->{stepno}, $s->{testid}, $s->{status});
-        $text .= $failv->{Summary};
+        $text .= $failv->{Summary} if defined $failv->{Summary};
         $text =~ s/ *$//;
         while (length($text) > $cw) { last unless $text =~ s/(.* ) /$1/; }
         print $text, "\n";
