@@ -419,7 +419,7 @@ END
 	$failv->{SummaryCore}= $rtups[0][2];
 	$failv->{SummaryRefFlight}= $rtups[0][3];
 	$failv->{Summary}= $failv->{SummaryCore};
-        $failv->{Summary}.= $failv->{SummaryRefFlight}
+        $failv->{Summary}.= ' '.$failv->{SummaryRefFlight}
             if defined $failv->{SummaryRefFlight};
 	print DEBUG " so $failv->{Summary}\n";
         print DEBUG " blocker $failv->{Blocker}\n" if $failv->{Blocker};
