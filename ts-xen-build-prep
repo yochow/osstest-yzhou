@@ -18,6 +18,9 @@ sub prep () {
                                libx11-dev git-core uuid-dev gettext gawk
                                libsdl-dev
 			       ccache));
+
+    target_cmd_root($ho, "chmod -R a+r /usr/share/git-core/templates");
+    # workaround for Debian #595728
 }
 
 sub cacheing_git_mount () {
