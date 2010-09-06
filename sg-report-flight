@@ -42,8 +42,8 @@ while (@ARGV && $ARGV[0] =~ m/^-/) {
 
 $_= shift @ARGV;
 if (m/^\d+$/) {
-    print MRO "flight $specflight\n" or die $!;
     $specflight= $_;
+    print MRO "flight $specflight\n" or die $!;
 } else {
     $branch= $_;
 }
