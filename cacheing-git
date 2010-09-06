@@ -44,7 +44,11 @@ case "$1" in
 clone)
 	echo >&2 "processing $0 $@..."
         subcmd="$1"; shift
-        $REAL_GIT "$subcmd" --reference $CACHEING_GIT_CACHE "$@"
+	if test -d $CACHEING_GIT_CACHE/.git/objects; then
+	        $REAL_GIT "$subcmd" --reference $CACHEING_GIT_CACHE "$@"
+	else
+		$REAL_GIT "$subcmd" "$@"
+	fi
 	;;
 *)
 	echo >&2 "running git $@..."
@@ -77,6 +81,7 @@ mkdir_p () {
 
 cache="$CACHEING_GIT_CACHE"/.git
 
+mkdir_p "$cache"/objects
 mkdir_p "$cache"/refs
 mkdir_p "$cache"/refs/caches
 mkdir_p "$cache"/refs/caches/"$cacheid"
