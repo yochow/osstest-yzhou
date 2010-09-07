@@ -74,7 +74,7 @@ our $failstepq= $dbh_tests->prepare(<<END);
          LIMIT 1
 END
 
-our $green=  '#00ff00';
+our $green=  '#008800';
 our $red=    '#ff8888';
 our $yellow= '#ffff00';
 our $purple= '#ff00ff';
