@@ -35,20 +35,19 @@ if [ "x$REAL_GIT" = x ]; then
         exit 127
 fi
 
-if ! test -d "$CACHEING_GIT_CACHE"/.git; then
+if ! test -f "$CACHEING_GIT_CACHE"/ok; then
 	echo >&2 "initialising cache $CACHEING_GIT_CACHE..."
-	(cd "$CACHEING_GIT_CACHE" && git-init-db --shared)
+	rm -rf "$CACHEING_GIT_CACHE"/.git
+	(cd "$CACHEING_GIT_CACHE"; git-init-db --shared)
+	test $? = 0
+	touch "$CACHEING_GIT_CACHE"/ok
 fi
 
 case "$1" in
 clone)
 	echo >&2 "processing $0 $@..."
         subcmd="$1"; shift
-	if test -d $CACHEING_GIT_CACHE/.git/objects; then
-	        $REAL_GIT "$subcmd" --reference $CACHEING_GIT_CACHE "$@"
-	else
-		$REAL_GIT "$subcmd" "$@"
-	fi
+        $REAL_GIT "$subcmd" --reference $CACHEING_GIT_CACHE "$@"
 	;;
 *)
 	echo >&2 "running git $@..."
@@ -81,7 +80,6 @@ mkdir_p () {
 
 cache="$CACHEING_GIT_CACHE"/.git
 
-mkdir_p "$cache"/objects
 mkdir_p "$cache"/refs
 mkdir_p "$cache"/refs/caches
 mkdir_p "$cache"/refs/caches/"$cacheid"
