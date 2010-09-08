@@ -21,6 +21,7 @@ if [ x$buildflight = x ]; then
 	tree_qemu=git://mariner.uk.xensource.com/qemu-$branch.git	     \
 	tree_xen=http://hg.uk.xensource.com/$branch.hg			     \
 		$RUNVARS $BUILD_RUNVARS $arch_runvars			     \
+		xen_kernels=linux-2.6-pvops				     \
 		revision_xen=$REVISION_XEN				     \
 		revision_qemu=$REVISION_QEMU				     \
 		tree_linux=$TREE_LINUX					     \
