@@ -156,7 +156,9 @@ proc spawn-ts {iffail testid ts args} {
     logputs stdout "starting $detstr $testid"
     
     db-update-1 "
-        UPDATE steps SET testid=[pg_quote $testid]
+        UPDATE steps
+              SET testid=[pg_quote $testid],
+                  started=[clock seconds]
             WHERE flight=$flight
               AND job=[pg_quote $jobinfo(job)]
               AND stepno=$stepno
@@ -203,8 +205,10 @@ proc job-set-status {flight job st} {
 
 proc step-set-status {flight job stepno st} {
     db-update-1 "
-        UPDATE steps SET status='$st'
-            WHERE flight=$flight AND job='$job' AND stepno=$stepno
+        UPDATE steps
+           SET status='$st',
+               finished=[clock seconds]
+         WHERE flight=$flight AND job='$job' AND stepno=$stepno
     "
 }
 
