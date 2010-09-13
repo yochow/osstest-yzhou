@@ -1,0 +1,136 @@
+#!/usr/bin/tclsh8.4
+# -*- Tcl -*- 
+# usage: ./ms-ownerdaemon  ... | logger
+
+source osstestlib.tcl
+
+readconfig
+
+proc chan-delete-tasks {chan} {
+    upvar #0 chantasks($chan) tasks
+    if {![info exists tasks]} return
+    transaction {
+        puts-chan-desc $chan "-- $tasks"
+        foreach task $tasks {
+            pg_execute dbh "
+                UPDATE tasks
+                   SET live = 'f'
+                 WHERE taskid = $task
+            "
+        }
+    }
+    puts-chan-desc $chan "== $tasks"
+    unset tasks
+}
+
+proc for-chan {chan script} {
+    uplevel 1 [list upvar \#0 chandesc($chan) desc]
+    if {[catch {
+        uplevel 1 $script
+    } emsg]} {
+        puts stderr "error: $chan: $emsg"
+        chan-delete-tasks $chan
+        catch { close $chan }
+    }
+}
+
+proc transaction {script} {
+    while 1 {
+        set ol {}
+        pg_execute dbh BEGIN
+        pg_execute dbh "SET TRANSACTION ISOLATION LEVEL SERIALIZABLE"
+        uplevel 1 $script
+        if {[catch {
+            pg_execute dbh COMMIT
+        } emsg]} {
+            puts "commit failed: $emsg; retrying ..."
+            after 500
+        } else {
+            return
+        }
+    }
+}        
+    
+proc cmd/create-task {chan desc} {
+    upvar #0 chantasks($chan) tasks
+    if {[info exists tasks]} {
+        set taskdesc "$desc-[llength $tasks]"
+    } else {
+        set taskdesc $desc
+    }
+    transaction {
+        pg_execute dbh "
+            INSERT INTO tasks
+                        ( type,  refkey,           live)
+                 VALUES ('ownd', [pg_quote $taskdesc], 't')
+        "
+        set nrows [pg_execute -array av dbh "
+            SELECT taskid
+              FROM tasks
+             WHERE refkey = [pg_quote $taskdesc]
+        "]
+        if {$nrows != 1} { error "multiple $taskdesc!" }
+        set task $av(taskid)
+    }
+    lappend tasks $task
+    puts-chan $chan "OK created-task $task"
+}
+
+proc chan-read {chan} {
+    for-chan $chan {
+        while {[gets $chan l] > 0} {
+            puts "$desc << $l"
+            cmd/$l $chan $desc
+        }
+        if {[eof $chan]} {
+            puts-chan-desc $chan {$$}
+            chan-delete-tasks $chan
+            close $chan
+        }
+    }
+}
+
+proc puts-chan-desc {chan m} {
+    upvar \#0 chandesc($chan) desc
+    puts "$desc $m"
+}
+
+proc puts-chan {chan m} {
+    upvar \#0 chandesc($chan) desc
+    puts-chan-desc $chan ">> $m"
+    puts $chan $m
+}
+
+proc newconn {chan addr port} {
+    global chandesc
+    set chandesc($chan) "\[$addr\]:$port"
+    for-chan $chan {
+        puts "$desc connected $chan"
+        fconfigure $chan -blocking false -buffering line
+        fileevent $chan readable [list chan-read $chan]
+        puts-chan $chan "OK ms-ownerdaemon"
+    }
+}
+
+proc main {} {
+    global c
+
+    db-open
+
+    transaction {
+        set nrows [pg_execute dbh "
+            UPDATE tasks
+               SET refkey = 'previous ' || refkey
+             WHERE type = 'ownd'
+               AND refkey NOT LIKE 'previous %'
+        "]
+        puts "started ($nrows staler tasks)"
+    }
+
+    fconfigure stdout -buffering line
+    fconfigure stderr -buffering none
+    socket -server newconn -myaddr $c(OwnerDaemonHost) $c(OwnerDaemonPort)
+}
+
+main
+vwait forever
