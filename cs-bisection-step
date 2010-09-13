@@ -234,7 +234,7 @@ END
 
 sub findbasics () {
     my $sth= $dbh_tests->prepare(<<END);
-	SELECT * FROM flights NATURAL JOIN steps
+	SELECT * FROM flights JOIN steps USING (flight)
 	   WHERE job = ?
 	     AND testid = ?
 	     AND blessing = ?
@@ -257,7 +257,7 @@ END
 
     print STDERR "Searching for basis pass:";
     $sth= $dbh_tests->prepare(<<END);
-        SELECT * FROM flights NATURAL JOIN steps
+        SELECT * FROM flights JOIN steps USING (flight)
 	   WHERE job = ?
 	     AND testid = ?
 	     AND blessing = ?
@@ -384,7 +384,7 @@ sub scantests () {
     print STDERR "Searching for test results:\n";
 
     my $jobq= $dbh_tests->prepare("
-       SELECT * FROM flights NATURAL JOIN jobs
+       SELECT * FROM flights JOIN jobs USING (flight)
           WHERE job = ?
             AND $blessingscond
             AND started >= $basispass_date
@@ -851,7 +851,7 @@ END
     if ($cacheok and $recipe =~ m/^build/ and !@$subjobs) {
         my $reuseq= $dbh_tests->prepare(<<END);
             SELECT  *
-            FROM    flights f NATURAL JOIN jobs j
+            FROM    flights f JOIN jobs j USING (flight)
             WHERE   j.job=?
             AND     j.status='pass'
             AND     $blessingscond

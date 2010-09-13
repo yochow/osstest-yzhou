@@ -343,7 +343,7 @@ sub justifyfailures ($) {
     my @failures= values %{ $fi->{Failures} };
 
     my $anypassq= <<END;
-        SELECT * FROM flights NATURAL JOIN steps
+        SELECT * FROM flights JOIN steps USING (flight)
             WHERE branch=?
               AND job=? and testid=? and status='pass'
               AND $blessingscond

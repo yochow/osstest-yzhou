@@ -139,7 +139,7 @@ sub processjobbranch ($$) {
     my $blessingscond= '('.join(' OR ', map { "blessing=?" } @blessings).')';
     my $stmt= <<END;
         SELECT *
-          FROM jobs NATURAL JOIN flights
+          FROM jobs JOIN flights USING (flight)
          WHERE job = ?
            AND $blessingscond
 END
