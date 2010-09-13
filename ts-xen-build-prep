@@ -34,10 +34,23 @@ sub cacheing_git_mount () {
             my $umask= umask 0; # yes really
             mkdir "$cachelocal/$subdir", 02777
                 or $!==&EEXIST or die "$cachelocal/$subdir $!";
-            open T, '>', "$cachelocal/$subdir/lock"
-                or die "$cachelocal/$subdir/lock $!";
-            close T or die $!;
             umask $umask;
+
+            my $cachelock_dir= "/var/run/git-cache";
+            my $cachelock_real= "$cachelock_dir/lock";
+            target_cmd_root($ho, <<END);
+                set -e
+                umask 0
+                mkdir -p $cachelock_dir
+                true >>$cachelock_real
+END
+            my $cachelock_link= "$cachelocal/$subdir/lock";
+            if (lstat $cachelock_link) {
+                die "$cachelock_link is not a symlink" unless -l _;
+            } else {
+                symlink $cachelock_real, $cachelock_link
+                    or die "$cachelock_link $!";
+            }
         }
         $cache.= $subdir;
     }
