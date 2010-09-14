@@ -238,7 +238,11 @@ sub nodhcp () {
     my ($iface,$bridgex);
     if ($initscripts_nobridge) {
         $iface= 'xenbr0';
-        $bridgex= "bridge_ports eth0";
+        $bridgex= <<END;
+    bridge_ports eth0
+    bridge_fd 0
+    bridge_stp off
+END
     } else {
         $iface= 'eth0';
         $bridgex= '';
@@ -258,7 +262,7 @@ iface $iface inet static
     address $ho->{Ip}
     netmask $c{NetNetmask}
     gateway $c{NetGateway}
-    $bridgex
+$bridgex
 END
             }
             print EO or die $!
