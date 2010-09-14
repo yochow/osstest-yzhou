@@ -7,6 +7,7 @@ use Osstest;
 use IO::Handle;
 use HTML::Entities;
 use POSIX;
+use IPC::Open2;
 
 our $specflight;
 our %specver;
@@ -147,6 +148,52 @@ END
             ORDER BY job
 END
 
+    my $stepsq= $dbh_tests->prepare(<<END);
+        SELECT * FROM steps
+            WHERE flight=$flight AND job=?
+            ORDER BY stepno
+END
+
+    my $testid2rowspec= sub {
+        my ($rowspec) = @_;
+        $rowspec =~ s/\(\d+\)$//;
+        return $rowspec;
+    };
+
+    my ($tsout,$tsin);
+    my $tsortpid = open2($tsout, $tsin, 'tsort');
+    defined $tsortpid or die $!;
+    foreach my $j (@$jobs) {
+        my $lasttid;
+        $stepsq->execute($j->{job});
+        while (my $s= $stepsq->fetchrow_hashref()) {
+            my $tid= $s->{testid};
+            my $ref= $testid2rowspec->($tid);
+            print $tsin "$ref $tid\n" or die $!;
+            if (defined $lasttid) {
+                print $tsin "$lasttid $tid\n" or die $!;
+                print $tsin "$lasttid $ref\n" or die $!;
+            }
+            $lasttid= $tid;
+        }
+    }
+    close $tsin or die $!;
+    my $ts_gridrow= 0;
+    my %ts_gridrow;
+    for (;;) {
+        my $tid = <$tsout>;
+        last unless defined $tid;
+        die unless chomp $tid;
+        my $ref= $testid2rowspec->($tid);
+        my $row= $ts_gridrow++;
+        next if defined $ts_gridrow{$ref};
+        $ts_gridrow{$ref}= $row;
+    }
+    $tsout->error and die $!;
+    close $tsout or die $!;
+    waitpid $tsortpid, 0 or die $!;
+    $? and die "tsort $?";
+
     foreach my $j (@$jobs) {
         push @gridcol_job, $j->{job};
 
@@ -154,12 +201,7 @@ END
 
 	my $jobtext= sprintf "%s:\n", $j->{job};
 
-	my $sth= $dbh_tests->prepare(<<END);
-	    SELECT * FROM steps
-		WHERE flight=$flight AND job='$j->{job}'
-		ORDER BY stepno
-END
-        $sth->execute();
+        $stepsq->execute($j->{job});
 
         $jobsummary .= sprintf " %-${jl}s %-${rl}s\n", $j->{job}, $j->{status};
 
@@ -178,7 +220,7 @@ END
 
         my $gridrow= 0;
 
-	while (my $s= $sth->fetchrow_hashref()) {
+	while (my $s= $stepsq->fetchrow_hashref()) {
 	    $jobtext .= sprintf "%2d %-${sl}s %-${rl}s\n",
 	        $s->{stepno}, $s->{testid}, $s->{status};
 
@@ -189,13 +231,15 @@ END
                 $foundfail= 1;
             }
 
-            my $rowspec= $s->{testid};
-            $rowspec =~ s/\(\d+\)$//;
+            my $rowspec= $testid2rowspec->($s->{testid});
+
+            my $mingridrow= $ts_gridrow{$rowspec};
+            if ($s->{step} eq 'ts-logs-capture' && $mingridrow < 100) {
+                  $mingridrow += 100;
+              }
+            $gridrow= $mingridrow if $gridrow < $mingridrow;
 
             for (;;) {
-                if ($s->{step} eq 'ts-logs-capture' && $gridrow < 100) {
-                    $gridrow= 100;
-                }
                 if (!defined $gridrow_rowspec[$gridrow]) {
                     $gridrow_rowspec[$gridrow]= $rowspec;
                     last;
@@ -507,7 +551,10 @@ sub htmlout ($) {
 
     my $colmap= sub {
         local ($_) = @_;
-        s/^(\w+)\-.*\-(\w+)$/$1 $2 $&/;
+        #printf STDERR "CM %40s | ", $_;
+        s#\bx\w+$#_$&#;
+        s#^(\w+)\-(.*)$# $1.' '.(join '-', reverse split /-/, $2).' '. $& #e;
+        #printf STDERR " %40s\n", $_;
         return $_;
     };
     my @cols= sort { $colmap->($a) cmp $colmap->($b) } @{ $fi->{GridCols} };
