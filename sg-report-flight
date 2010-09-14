@@ -145,8 +145,18 @@ END
     my $jobs= $dbh_tests->selectall_arrayref(<<END, { Slice => {} });
         SELECT * FROM jobs
             WHERE flight=$flight
-            ORDER BY job
 END
+
+    my $colmap= sub {
+        local ($_) = @_;
+        $_= $_->{job};
+        #printf STDERR "CM %40s | ", $_;
+        s#\bx\w+$#_$&#;
+        s#^(\w+)\-(.*)$# $1.' '.(join '-', reverse split /-/, $2).' '. $& #e;
+        #printf STDERR " %40s\n", $_;
+        return $_;
+    };
+    $jobs= [ sort { $colmap->($a) cmp $colmap->($b) } @$jobs ];
 
     my $stepsq= $dbh_tests->prepare(<<END);
         SELECT * FROM steps
@@ -549,15 +559,7 @@ sub htmlout ($) {
     my ($fi) = @_;
     return unless defined $htmldir;
 
-    my $colmap= sub {
-        local ($_) = @_;
-        #printf STDERR "CM %40s | ", $_;
-        s#\bx\w+$#_$&#;
-        s#^(\w+)\-(.*)$# $1.' '.(join '-', reverse split /-/, $2).' '. $& #e;
-        #printf STDERR " %40s\n", $_;
-        return $_;
-    };
-    my @cols= sort { $colmap->($a) cmp $colmap->($b) } @{ $fi->{GridCols} };
+    my @cols= @{ $fi->{GridCols} };
 
     htmloutjob($fi, $_) foreach @cols;
 
