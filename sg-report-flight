@@ -584,11 +584,44 @@ END
     print H "\n";
     foreach my $rowix (0..$#{ $fi->{GridRows} }) {
         next unless $fi->{GridRows}[$rowix];
-        print H "<tr><th>",encode_entities($fi->{GridRows}[$rowix]),"</th>";
+        my $rowdesc= encode_entities($fi->{GridRows}[$rowix]);
+        print H "<tr><th>$rowdesc</th>";
+
+        my $ndeferred= 0;
+        my $colix= 0;
+        my $deferred_cells= sub {
+            my ($now) = @_;
+
+            my $min= 3;
+
+            my $label;
+            $label= sub {
+                my ($nuse, $align) = @_;
+                return unless $nuse;
+                die unless $nuse <= $ndeferred;
+
+                print H "<td bgcolor=\"#444444\" colspan=$nuse align=$align>";
+                if ($nuse >= $min) {
+                    print H $rowdesc;
+                }
+                print H "</td>";
+                $ndeferred -= $nuse;
+            };
+
+            if ($colix>$ndeferred && $ndeferred >= ($now ? $min*2 : $min)) {
+                $label->($min, 'left');
+            }
+            while ($ndeferred > $min) {
+                $label->(1, 'right');
+            }
+            $label->($ndeferred, 'right');
+        };
+
         foreach my $col (@cols) {
             my $ei= $fi->{GridGrid}{$col}[$rowix];
-            print H "<td";
             if ($ei) {
+                $deferred_cells->(1);
+                print H "<td";
                 my $s= $ei->{Step};
                 my $sum_core= $ei->{SummaryCore};
                 my $sum_flight= $ei->{SummaryRefFlight};
@@ -612,11 +645,13 @@ END
                 if (defined $sum_flight) {
                     print H " <a href=\"../$sum_flight/\">$sum_flight</a>";
                 }
+                print H "</td>";
             } else {
-                print H " bgcolor=\"#444444\">";
+                $ndeferred++;
             }
-            print H "</td>";
+            $colix++;
         }
+        $deferred_cells->(0);
         print H "\n";
     }
     print H "</table>";
