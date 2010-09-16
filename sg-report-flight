@@ -570,7 +570,10 @@ sub htmlout ($) {
 <body>
 <table rules=all>
 END
-    print H "<tr><td></td>\n";
+    print H "<tr><th>";
+    print H encode_entities($fi->{FlightInfo}{branch}).' ';
+    print H encode_entities($fi->{FlightInfo}{blessing});
+    print H "</th>\n";
 
     foreach my $col (@cols) {
         my $th= $col;
