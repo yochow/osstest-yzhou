@@ -25,7 +25,7 @@ with-lock-ex $wlem global-lock bash -ec '
 
 	lock_acquire_done=`date +%s`
 	lock_acquire_delay=$(( $lock_acquire_done - $LOCK_ACQUIRE_START ))
-	lock_acquire_max=86400
+	lock_acquire_max=28800
 	if [ $lock_acquire_delay -gt $lock_acquire_max ]; then
 		log "$script $lock_acquire_delay > $lock_acquire_max, shedding"
 		exit 1
