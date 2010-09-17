@@ -48,6 +48,8 @@ while (@ARGV && $ARGV[0] =~ m/^\-/) {
         $graphfile= $1;
     } elsif (m/^--no-update$/) {
         push @revtuplegenargs, '-N';
+    } elsif (m/^--nrevisions=(\d+)$/) {
+        push @revtuplegenargs, "-n$1";
     } elsif (m/^--summary-out=(.+)$/) {
         open SUMMARY, "> $1" or die $!;
     } elsif (m/^--no-graph-out$/) {
