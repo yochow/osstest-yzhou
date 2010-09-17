@@ -447,10 +447,17 @@ sub main () {
         while ($count-- > 0) {
             my $rev= $gen->();
             last unless defined $rev;
-            $top= $rev unless defined $top;
-            next unless $rev->{Commit} eq $tree->{Earliest};
-            $found=1;
-            last;
+            if (!defined $top) {
+                if ($rev->{Commit} eq $tree->{Latest}) {
+                    $top = $rev;
+                }
+            }
+            if (defined $top) {
+                if ($rev->{Commit} eq $tree->{Earliest}) {
+                    $found=1;
+                    last;
+                }
+            }
         }
         if ($found) {
             push @trees_continuous, $tree;
