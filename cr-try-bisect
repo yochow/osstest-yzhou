@@ -119,7 +119,7 @@ END
 
 exec <$mrof
 while read keyword value; do
-	if [ "x$keyword" = flight ]; then
+	if [ "x$keyword" = xflight ]; then
 		failflight=$value
 		failflight_arg="--fail-flight=$failflight"
 	fi
