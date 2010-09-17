@@ -16,6 +16,7 @@ use HTML::Entities;
 
 our @blessings= qw(real real-bisect);
 our @revtuplegenargs= ();
+our $broken;
 
 my $graphfile= 'bisection';
 my $popflight= 0;
@@ -371,7 +372,9 @@ sub digraph_relevant () {
 
     foreach my $rtuple ("@latest_rtuple", "@basispass_rtuple") {
         foreach my $relflag (qw(RelvDown RelvUp)) {
-            die "not $relflag at $rtuple" unless $nodes{$rtuple}{$relflag};
+            next if $nodes{$rtuple}{$relflag};
+            warn "*** not $relflag at $rtuple";
+            $broken= 1;
         }
     }
 }
@@ -380,11 +383,24 @@ our @failures;
 
 sub relevant ($) {
     my ($n) = @_;
-    defined($n) and $n->{RelvDown} and $n->{RelvUp};
+    return 0 unless defined($n);
+    return $broken ? $n->{RelvDown} || $n->{RelvUp}
+                   : $n->{RelvDown} && $n->{RelvUp};
 }
 
 sub scantests () {
     my $basispass_date= $nodes{"@basispass_rtuple"}{Date};
+
+    if (!defined $basispass_date) {
+        die unless $broken;
+        die unless defined $basispass_flight;
+        my $dateq= $dbh_tests->prepare("
+            SELECT * FROM flights WHERE flight = $basispass_flight
+        ");
+        $dateq->execute();
+        my $daterow= $dateq->fetchrow_hashref();
+        $basispass_date= $daterow->{started};
+    }
 
     print STDERR "Searching for test results:\n";
 
@@ -564,7 +580,15 @@ sub need_reproduce ($$) {
     return 1 if conflicted_warning($n, $what);
     
     my $fl= $n->{Flights} ;
-    die "$what ?" unless @$fl;
+    if (!defined $fl) {
+        die "$what ?" unless $broken;
+        return 0;
+    }
+    if (!@$fl) {
+        die "$what ?" unless $broken;
+        print STDERR "Broken, need to reproduce $what.\n";
+        return 1;
+    }
     if (@$fl < 2) {
         print STDERR "Need to double-check by reproducing $what.\n";
         do_choose_this($n);
@@ -937,6 +961,7 @@ sub populateflight () {
 }
 
 sub compute_exitstatus () {
+    die if $broken;
     if (defined($choose)) {
         $estatus= 0;
     } else {
