@@ -756,6 +756,12 @@ END
             push @s, ' style="bold,filled"';
         }
 
+        if ($n->{Rtuple} eq "@latest_rtuple") {
+            push @s, ' shape=oval';
+        } elsif ($n->{Rtuple} eq "@basispass_rtuple") {
+            push @s, ' shape=hexagon';
+        }
+
         odot('[');
         odot(join ', ', @s);
         odot("];\n");
