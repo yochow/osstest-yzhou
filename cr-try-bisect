@@ -34,7 +34,7 @@ compute_state () {
         ./cs-bisection-step --graph-out=$OSSTEST_HTML_DIR/$bisleaf \
                 --summary-out=$summaryfile $failflight_arg \
                 --blessings=$OSSTEST_BLESSING,$OSSTEST_BLESSING-bisect \
-                "$@" $xenbranch $job $testid >$reportfile 2>&1
+                "$@" $branch $job $testid >$reportfile 2>&1
         rc=$?
         set -e
 
@@ -66,7 +66,7 @@ perhaps_bisect_step () {
                 return
         fi
 
-        flight=`./cs-flight-create $xenbranch`
+        flight=`./cs-flight-create $branch`
         flight_executed=false
 
         compute_state --flight=$flight
