@@ -91,10 +91,16 @@ sub adjustconfig () {
 	print EO $extra or die $!;
     });
 
-    my $trace_config_file=
-        target_file_exists($ho, '/etc/sysconfig/xencommons')
-        ? '/etc/sysconfig/xencommons'
-        : '/etc/sysconfig/xend';
+    my $trace_config_file;
+    foreach my $try (qw(/etc/default/xencommons
+                        /etc/sysconfig/xencommons
+                        /etc/default/xend
+                        /etc/sysconfig/xend)) {
+        next unless target_file_exists($ho, $try);
+        $trace_config_file= $try;
+        last;
+    }
+    die unless defined $trace_config_file;
 
     target_editfile_root($ho, $trace_config_file, sub {
         my $prnow;
