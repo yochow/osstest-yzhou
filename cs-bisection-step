@@ -20,7 +20,7 @@ our $broken;
 
 my $graphfile= 'bisection';
 my $popflight= 0;
-my $failflight;
+my %specflights;
 my $debug= 0;
 
 our $worst_estatus= -1;
@@ -56,8 +56,8 @@ while (@ARGV && $ARGV[0] =~ m/^\-/) {
         $graphfile= '';
     } elsif (m/^--flight=(\d+)$/) {
         $popflight= $1;
-    } elsif (m/^--fail-flight=(\d+)$/) {
-        $failflight= $1;
+    } elsif (m/^--(fail|basis)-flight=(\d+)$/) {
+        $specflights{$1}= $2;
     } elsif (m/^-D$/) {
         $debug++;
         if ($debug==1) {
@@ -239,7 +239,11 @@ our $flight_is_not_broken= <<END;
 END
 
 sub findbasics () {
-    my $failflight_cond= defined $failflight ? "flight = $failflight" : "TRUE";
+    my %flight_cond;
+    foreach my $fp (qw(basis fail)) {
+        $flight_cond{$fp}= defined $specflights{$fp}
+            ? "flight = $specflights{$fp}" : "TRUE";
+    }
     my $sth= $dbh_tests->prepare(<<END);
 	SELECT * FROM flights JOIN steps USING (flight)
 	   WHERE job = ?
@@ -247,7 +251,7 @@ sub findbasics () {
 	     AND blessing = ?
 	     AND (status = 'fail' OR status = 'pass')
              AND branch = ?
-             AND $failflight_cond
+             AND $flight_cond{fail}
              AND $flight_is_not_broken
 	   ORDER BY flights.started DESC
 	   LIMIT 1
@@ -272,6 +276,7 @@ END
 	     AND status = 'pass'
              AND branch = ?
              AND $flight_is_not_broken
+             AND $flight_cond{basis}
 	   ORDER BY flights.started DESC
 END
     $sth->execute($job,$testid,$blessings[0],$branch);

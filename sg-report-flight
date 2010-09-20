@@ -478,7 +478,8 @@ END
 	print DEBUG " so $failv->{Summary}\n";
         print DEBUG " blocker $failv->{Blocker}\n" if $failv->{Blocker};
         if ($failv->{Blocker} eq 'regression') {
-            print MRO "regression $j->{job} $s->{testid}\n" or die $!;
+            print MRO "regression $j->{job} $s->{testid}".
+                " $failv->{SummaryRefFlight}\n" or die $!;
             next;
         }
     }

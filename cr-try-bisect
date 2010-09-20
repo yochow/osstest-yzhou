@@ -30,9 +30,16 @@ compute_state () {
 
         echo "computing $branch $job $testid $*"
 
+	if [ "x$basisflight" = x ]; then
+		basisflight_arg=''
+	else
+		basisflight_arg=--basis-flight=$basisflight
+	fi
+
         set +e
         ./cs-bisection-step --graph-out=$OSSTEST_HTML_DIR/$bisleaf \
-                --summary-out=$summaryfile $failflight_arg \
+                --summary-out=$summaryfile \
+		$basisflight_arg $failflight_arg \
                 --blessings=$OSSTEST_BLESSING,$OSSTEST_BLESSING-bisect \
                 "$@" $branch $job $testid >$reportfile 2>&1
         rc=$?
@@ -126,7 +133,7 @@ while read keyword value; do
 done
 
 exec <$mrof
-while read keyword job testid; do
+while read keyword job testid basisflight; do
         if [ "x$keyword" = xregression ]; then
                 perhaps_bisect_step
         fi
