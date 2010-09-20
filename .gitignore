@@ -9,3 +9,5 @@ global-lock
 report-lock
 publish-lock
 bisecting-sticky-branch
+[tu].*
+[tu]
