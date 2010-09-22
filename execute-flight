@@ -18,6 +18,9 @@ trap "
 " 0
 
 set -x
+
+./cr-ensure-disk-space
+
 ./cs-flight-bless $flight running constructing
 for hostlist in $1; do
 	(
