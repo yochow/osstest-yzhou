@@ -1,0 +1,91 @@
+#!/usr/bin/perl -w
+#
+# Ensure there's enough free space
+
+use strict qw(vars);
+use Osstest;
+
+our $dryrun= 0;
+
+while (@ARGV && $ARGV[0] =~ m/^\-/) {
+    $_= shift @ARGV;
+    last if $_ eq '--';
+    if (m/^-n$/) {
+        $dryrun= 1;
+    } else {
+	die "$_ ?";
+    }
+}
+
+die if @ARGV;
+
+csreadconfig();
+
+chdir $c{Logs} or die $c{Logs};
+$|=1;
+
+my $chkq= $dbh_tests->prepare("SELECT * FROM flights WHERE flight=?");
+our @flights;
+our @sshopts= qw(-o batchmode=yes);
+
+for (;;) {
+    open P, "df --block-size=1M -P . |" or die $!;
+    $_= <P>;
+    m/^filesystem/i or die "$_ ?";
+    $_= <P>;
+    m,^\S+\s+\d+\s+\d+\s+(\d+)\s+, or die "$_ ?";
+    $!=0; $?=0; close P or die "$! $?";
+    my $space= $1;
+    printf "space: %8d, wanted: %8d ", $space, $c{LogsMinSpaceMby};
+    last if $space >= $c{LogsMinSpaceMby};
+
+    if (!@flights) {
+        opendir D, "." or die $!;
+        $!=0;
+        @flights = sort { $b <=> $a } grep { m/^\d+$/ } readdir D;
+        die if $!;
+        closedir D or die $!;
+        printf "(%d flights) ", scalar @flights;
+        die unless @flights;
+    }
+    my $flight = pop @flights;
+    printf "selected %s ", $flight;
+
+    $chkq->execute($flight);
+    my $row= $chkq->fetchrow_hashref();
+    die $flight unless defined $row;
+    my $age= time - $row->{started};
+
+    printf "(age %dd) ", $age / 86400;
+
+    die "age $age" if $age < $c{LogsMinExpireAge};
+
+    $c{LogsPublish} =~ m/\:/ or die "$c{LogsPublish} ?";
+    my ($pubhost, $pubdir) = ($`,$');
+
+    printf "...";
+
+    my @spawns;
+    my $spawn= sub {
+        my $pid= fork;  defined $pid or die $!;
+        if (!$pid) {
+            unshift @_, 'echo' if $dryrun;
+            exec @_; die "@_ $!";
+        }
+        push @spawns, { Pid => $pid, Cmd => "@_" };
+    };
+    $spawn->(qw(rm -rf), $flight);
+    $spawn->(qw(ssh -n), @sshopts, $pubhost, qw(rm -rf), "$pubdir/$flight");
+
+    while (my $sp= shift @spawns) {
+        my $got= waitpid $sp->{Pid}, 0;
+        die "$got $!" unless $got==$sp->{Pid};
+        die "$sp->{Cmd} $?" if $?;
+    }
+
+    printf "done.\n";
+    exit 0 if $dryrun;
+}
+
+printf "ok.\n";
+exit 0;
