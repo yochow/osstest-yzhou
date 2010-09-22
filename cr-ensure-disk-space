@@ -4,6 +4,7 @@
 
 use strict qw(vars);
 use Osstest;
+use Fcntl qw(:flock);
 
 our $dryrun= 0;
 
@@ -20,6 +21,9 @@ while (@ARGV && $ARGV[0] =~ m/^\-/) {
 die if @ARGV;
 
 csreadconfig();
+
+open LOCK, "> publish-lock" or die $!;
+flock LOCK, LOCK_EX or die $!;
 
 chdir $c{Logs} or die $c{Logs};
 $|=1;
@@ -65,23 +69,14 @@ for (;;) {
 
     printf "...";
 
-    my @spawns;
     my $spawn= sub {
-        my $pid= fork;  defined $pid or die $!;
-        if (!$pid) {
-            unshift @_, 'echo' if $dryrun;
-            exec @_; die "@_ $!";
-        }
-        push @spawns, { Pid => $pid, Cmd => "@_" };
+        $!=0; my $r= system @_; die "@_ $r $!" if $r;
     };
-    $spawn->(qw(rm -rf), $flight);
-    $spawn->(qw(ssh -n), @sshopts, $pubhost, qw(rm -rf), "$pubdir/$flight");
+    $spawn->(qw(ssh -n), @sshopts, $pubhost,
+     "set -e; cd $pubdir; test -e $flight; printf remote...; rm -r $flight");
 
-    while (my $sp= shift @spawns) {
-        my $got= waitpid $sp->{Pid}, 0;
-        die "$got $!" unless $got==$sp->{Pid};
-        die "$sp->{Cmd} $?" if $?;
-    }
+    printf "local..";
+    $spawn->(qw(rm -r), $flight);
 
     printf "done.\n";
     exit 0 if $dryrun;
