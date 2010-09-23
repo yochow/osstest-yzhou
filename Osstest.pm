@@ -442,8 +442,8 @@ END
 sub target_ping_check_core {
     my ($ho, $exp) = @_;
     my $out= `ping -c 5 $ho->{Ip} 2>&1`;
-    $out =~ s/\b\d+(?:\.\d+)?ms\b/XXXms/g;
-    report_once($ho, 'ping_checka',
+    $out =~ s/\b(?:\d+(?:\.\d+)?\/)*\d+(?:\.\d+)? ?ms\b/XXXms/g;
+    report_once($ho, 'ping_check',
 		"ping $ho->{Ip} ".(!$? ? 'up' : $?==256 ? 'down' : "$? ?"));
     return undef if $?==$exp;
     $out =~ s/\n/ | /g;
