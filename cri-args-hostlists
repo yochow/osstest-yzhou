@@ -5,7 +5,7 @@ if test -f stop; then exit 0; fi
 select_branch () {
 	case "$branch" in
 	xen*)	tree=xen;	xenbranch=$branch ;;
-	linux)	tree=linux;	xenbranch=xen-4.0-testing ;;
+	linux)	tree=linux;	xenbranch=xen-unstable ;;
 	esac
 
 	if test -f $branch.stop; then exit 0; fi
