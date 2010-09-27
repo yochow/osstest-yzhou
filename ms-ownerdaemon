@@ -2,11 +2,11 @@
 # -*- Tcl -*- 
 # usage: ./ms-ownerdaemon  ... | logger
 
-source osstestlib.tcl
+source daemonlib.tcl
 
 readconfig
 
-proc chan-delete-tasks {chan} {
+proc chan-destroy-stuff {chan} {
     upvar #0 chantasks($chan) tasks
     if {![info exists tasks]} return
     transaction {
@@ -23,34 +23,6 @@ proc chan-delete-tasks {chan} {
     unset tasks
 }
 
-proc for-chan {chan script} {
-    uplevel 1 [list upvar \#0 chandesc($chan) desc]
-    if {[catch {
-        uplevel 1 $script
-    } emsg]} {
-        puts stderr "error: $chan: $emsg"
-        chan-delete-tasks $chan
-        catch { close $chan }
-    }
-}
-
-proc transaction {script} {
-    while 1 {
-        set ol {}
-        pg_execute dbh BEGIN
-        pg_execute dbh "SET TRANSACTION ISOLATION LEVEL SERIALIZABLE"
-        uplevel 1 $script
-        if {[catch {
-            pg_execute dbh COMMIT
-        } emsg]} {
-            puts "commit failed: $emsg; retrying ..."
-            after 500
-        } else {
-            return
-        }
-    }
-}        
-    
 proc cmd/create-task {chan desc} {
     upvar #0 chantasks($chan) tasks
     if {[info exists tasks]} {
@@ -76,47 +48,13 @@ proc cmd/create-task {chan desc} {
     puts-chan $chan "OK created-task $task"
 }
 
-proc chan-read {chan} {
-    for-chan $chan {
-        while {[gets $chan l] > 0} {
-            puts "$desc << $l"
-            cmd/$l $chan $desc
-        }
-        if {[eof $chan]} {
-            puts-chan-desc $chan {$$}
-            chan-delete-tasks $chan
-            close $chan
-        }
-    }
+proc banner {chan} {
+    return "OK ms-ownerdaemon"
 }
 
-proc puts-chan-desc {chan m} {
-    upvar \#0 chandesc($chan) desc
-    puts "$desc $m"
-}
-
-proc puts-chan {chan m} {
-    upvar \#0 chandesc($chan) desc
-    puts-chan-desc $chan ">> $m"
-    puts $chan $m
-}
-
-proc newconn {chan addr port} {
-    global chandesc
-    set chandesc($chan) "\[$addr\]:$port"
-    for-chan $chan {
-        puts "$desc connected $chan"
-        fconfigure $chan -blocking false -buffering line
-        fileevent $chan readable [list chan-read $chan]
-        puts-chan $chan "OK ms-ownerdaemon"
-    }
-}
-
-proc main {} {
-    global c
-
+main-daemon $c(OwnerDaemonPort) {
     db-open
-
+    
     transaction {
         set nrows [pg_execute dbh "
             UPDATE tasks
@@ -126,11 +64,4 @@ proc main {} {
         "]
         puts "started ($nrows staler tasks)"
     }
-
-    fconfigure stdout -buffering line
-    fconfigure stderr -buffering none
-    socket -server newconn -myaddr $c(OwnerDaemonHost) $c(OwnerDaemonPort)
 }
-
-main
-vwait forever

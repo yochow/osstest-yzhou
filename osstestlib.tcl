@@ -229,3 +229,20 @@ proc reap-ts {reap} {
     logputs stdout "finished $detstr $result $emsg"
     return [expr {![string compare $result pass]}]
 }
+
+proc transaction {script} {
+    while 1 {
+        set ol {}
+        pg_execute dbh BEGIN
+        pg_execute dbh "SET TRANSACTION ISOLATION LEVEL SERIALIZABLE"
+        uplevel 1 $script
+        if {[catch {
+            pg_execute dbh COMMIT
+        } emsg]} {
+            puts "commit failed: $emsg; retrying ..."
+            after 500
+        } else {
+            return
+        }
+    }
+}        

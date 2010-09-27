@@ -1,0 +1,27 @@
+#!/usr/bin/tclsh8.4
+# -*- Tcl -*- 
+# usage: ./ms-queuedaemon  ... | logger
+
+source daemonlib.tcl
+
+readconfig
+
+proc chan-destroy-stuff {chan} {
+}
+
+proc banner {chan} {
+    return "OK ms-queuedaemon"
+}
+
+proc cmd/echo-rhs {chan desc rhs} {
+    puts-chan $chan "($rhs)"
+}
+proc cmd/echo-a-b {chan desc a b} {
+    puts-chan $chan "($a) ($b)"
+}
+proc cmd/echo-x-args {chan desc x args} {
+    puts-chan $chan "($x) ($args)"
+}
+
+main-daemon $c(QueueDaemonPort) {
+}

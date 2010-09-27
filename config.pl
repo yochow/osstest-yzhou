@@ -28,8 +28,9 @@ Test harness code can be found at
     http://xenbits.xensource.com/gitweb?p=osstest.git;a=summary
 END
 
-$c{OwnerDaemonHost}= 'woking.cam.xci-test.com';
+$c{ControlDaemonHost}= 'woking.cam.xci-test.com';
 $c{OwnerDaemonPort}= 4031;
+$c{QueueDaemonPort}= 4032;
 
 $c{SerialLogPattern}= '/root/sympathy/%host%.log*';
 
