@@ -45,7 +45,7 @@ proc cmd/create-task {chan desc} {
         set task $av(taskid)
     }
     lappend tasks $task
-    puts-chan $chan "OK created-task $task"
+    puts-chan $chan "OK created-task $task ownd $taskdesc"
 }
 
 proc banner {chan} {
