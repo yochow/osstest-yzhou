@@ -92,8 +92,17 @@ proc runneeded-perhaps-start {} {
                                WHERE type='magic' AND refkey='allocatable')
          WHERE NOT (SELECT live FROM tasks WHERE taskid=owntaskid)
         }]
+        set cleaned [pg_execute dbh {
+            DELETE FROM tasks
+             WHERE type='ownd'
+               AND taskid + 10 <
+                   (SELECT taskid FROM tasks
+                     WHERE live='t' AND type='ownd'
+                  ORDER BY taskid ASC
+                     LIMIT 1)
+        }]
     }
-    log "runneeded-perhaps-start rows=$nrows"
+    log "runneeded-perhaps-start rows=$nrows cleaned=$cleaned"
 
     if {!($nrows || $needed>=2)} return
 
