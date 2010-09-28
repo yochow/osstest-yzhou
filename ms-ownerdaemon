@@ -62,6 +62,6 @@ main-daemon $c(OwnerDaemonPort) {
              WHERE type = 'ownd'
                AND refkey NOT LIKE 'previous %'
         "]
-        puts "started ($nrows staler tasks)"
+        log "started ($nrows staler tasks)"
     }
 }
