@@ -1,5 +1,6 @@
 # -*- Tcl -*-
 
+package require Tclx
 package require Pgtcl 1.5
 
 proc readconfig {} {
@@ -79,6 +80,7 @@ proc prepare-job {job} {
     }
 
     logputs stdout "prepping $desc"
+
     return 1
 }
 
@@ -245,7 +247,46 @@ proc transaction {script} {
             return
         }
     }
-}        
+}
+
+proc become-task {comment} {
+    global env c
+    if {[info exists env(OSSTEST_TASK)]} return
+
+    set ownerqueue [socket $c(ControlDaemonHost) $c(OwnerDaemonPort)]
+    fconfigure $ownerqueue -buffering line
+    must-gets $ownerqueue {^OK ms-ownerdaemon\M}
+    puts $ownerqueue create-task
+    must-gets $ownerqueue {^OK created-task (\d+) (\w+ [\[\]:.0-9a-f]+)$} \
+        taskid refinfo
+    fcntl $ownerqueue CLOEXEC 0
+    set env(OSSTEST_TASK) "$taskid $refinfo"
+
+    set hostname [info hostname]
+    regsub {\..*} $hostname {} hostname
+    set username "[id user]@$hostname"
+
+    transaction {
+        set nrows [pg_execute dbh "
+            UPDATE tasks
+               SET username = [pg_quote $username],
+                   comment = [pg_quote $comment]
+             WHERE taskid = $taskid
+               AND type = [pg_quote [lindex $refinfo 0]]
+               AND refkey = [pg_quote [lindex $refinfo 1]]
+        "]
+    }
+    if {$nrows != 1} {
+        error "$nrows $taskid $refinfo ?"
+    }
+}
+
+proc must-gets {chan regexp args} {
+    if {[gets $chan l] <= 0} { error "[eof $chan] $regexp" }
+    if {![uplevel 1 [list regexp $regexp $l dummy] $args]} {
+        error "$regexp $l ?"
+    }
+}
 
 proc lremove {listvar item} {
     upvar 1 $listvar list
