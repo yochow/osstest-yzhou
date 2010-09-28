@@ -68,6 +68,8 @@ our %timeout= qw(RebootDown   100
                  RebootUp     400
                  HardRebootUp 600);
 
+#---------- configuration reader etc. ----------
+
 sub csreadconfig () {
     require 'config.pl';
     $dbh_tests= opendb('osstestdb');
@@ -81,6 +83,51 @@ END
         INSERT INTO flights_harness_touched VALUES (?,?)
 END
 }
+
+sub dbfl_do ($$$) {
+    my ($fl,$flok, $stmt) = @_;
+    my $sh= $dbh_tests->prepare($stmt);
+    return dbfl_exec($fl,$flok, $sh);
+}
+
+sub dbfl_check ($$) {
+    my ($fl,$flok) = @_;
+
+    if (!ref $flok) {
+        $flok= [ split /,/, $flok ];
+    }
+    die unless ref($flok) eq 'ARRAY';
+    $dbfl_check->execute($fl);
+    my ($bless) = $dbfl_check->fetchrow_array();
+    die "modifying flight $fl but flight not found\n"
+        unless defined $bless;
+    return if $bless =~ m/\bplay\b/;
+    die "modifying flight $fl blessing $bless expected @$flok\n"
+        unless grep { $_ eq $bless } @$flok;
+
+    $!=0; $?=0; my $rev= `git-rev-parse HEAD`; die "$? $!" unless defined $rev;
+    $rev =~ s/\n$//;
+    die "$rev ?" unless $rev =~ m/^[0-9a-f]+$/;
+    my $diffr= system 'git-diff --exit-code HEAD >/dev/null';
+    if ($diffr) {
+        die "$diffr $! ?" if $diffr != 256;
+        $rev .= '+';
+    }
+    $dbfl_harness_read->execute($fl,$rev);
+    my $already= $dbfl_harness_read->fetchrow_hashref();
+    if (!$already) {
+        $dbfl_harness_add->execute($fl,$rev);
+    }
+}
+
+sub dbfl_exec {
+    my ($fl,$flok, $sh,@rest) = @_;
+    db_retry($fl,$flok, $dbh_tests,[], sub {
+        $sh->execute(@rest);
+    });
+}
+
+#---------- test script startup ----------
 
 sub readconfig () {
     csreadconfig();
@@ -131,49 +178,6 @@ END
     ensuredir($stash);
 }
 
-sub dbfl_do ($$$) {
-    my ($fl,$flok, $stmt) = @_;
-    my $sh= $dbh_tests->prepare($stmt);
-    return dbfl_exec($fl,$flok, $sh);
-}
-
-sub dbfl_check ($$) {
-    my ($fl,$flok) = @_;
-
-    if (!ref $flok) {
-        $flok= [ split /,/, $flok ];
-    }
-    die unless ref($flok) eq 'ARRAY';
-    $dbfl_check->execute($fl);
-    my ($bless) = $dbfl_check->fetchrow_array();
-    die "modifying flight $fl but flight not found\n"
-        unless defined $bless;
-    return if $bless =~ m/\bplay\b/;
-    die "modifying flight $fl blessing $bless expected @$flok\n"
-        unless grep { $_ eq $bless } @$flok;
-
-    $!=0; $?=0; my $rev= `git-rev-parse HEAD`; die "$? $!" unless defined $rev;
-    $rev =~ s/\n$//;
-    die "$rev ?" unless $rev =~ m/^[0-9a-f]+$/;
-    my $diffr= system 'git-diff --exit-code HEAD >/dev/null';
-    if ($diffr) {
-        die "$diffr $! ?" if $diffr != 256;
-        $rev .= '+';
-    }
-    $dbfl_harness_read->execute($fl,$rev);
-    my $already= $dbfl_harness_read->fetchrow_hashref();
-    if (!$already) {
-        $dbfl_harness_add->execute($fl,$rev);
-    }
-}
-
-sub dbfl_exec {
-    my ($fl,$flok, $sh,@rest) = @_;
-    db_retry($fl,$flok, $dbh_tests,[], sub {
-        $sh->execute(@rest);
-    });
-}
-
 sub ts_get_host_guest { # pass this @ARGV
     my ($gn,$whhost) = reverse @_;
     $whhost ||= 'host';
@@ -183,6 +187,8 @@ sub ts_get_host_guest { # pass this @ARGV
     my $gho= selectguest($gn);
     return ($ho,$gho);
 }
+
+#---------- database access ----------#
 
 sub db_retry ($$$;$$) {
     my ($fl,$flok, $dbh,$tables,$code) = (@_==5 ? @_ :
@@ -208,30 +214,8 @@ sub db_retry ($$$;$$) {
     return $r;
 }
 
-sub flight_otherjob ($$) {
-    my ($thisflight, $otherflightjob) = @_;    
-    return $otherflightjob =~ m/^([^.]+)\.([^.]+)$/ ? ($1,$2) :
-           $otherflightjob =~ m/^\.?([^.]+)$/ ? ($thisflight,$1) :
-           die "$otherflightjob ?";
-}
-
-sub otherflightjob ($) {
-    return flight_otherjob($flight,$_[0]);
-}
-
-sub get_stashed ($$) {
-    my ($param, $otherflightjob) = @_; 
-    my ($oflight, $ojob) = otherflightjob($otherflightjob);
-    my $path= get_runvar($param, $otherflightjob);
-    die "$path $& " if
-        $path =~ m,[^-+._0-9a-zA-Z/], or
-        $path =~ m/\.\./;
-    return "$c{Stash}/$oflight/$ojob/$path";
-}
-
-sub ensuredir ($) {
-    my ($dir)= @_;
-    mkdir($dir) or $!==&EEXIST or die "$dir $!";
+sub opendb_state () {
+    $dbh_state= opendb('statedb');
 }
 
 sub opendb ($) {
@@ -261,9 +245,138 @@ sub opendb ($) {
     return $dbh;
 }
 
-sub postfork () {
-    $dbh_state->{InactiveDestroy}= 1;
+#---------- runvars ----------
+
+sub flight_otherjob ($$) {
+    my ($thisflight, $otherflightjob) = @_;    
+    return $otherflightjob =~ m/^([^.]+)\.([^.]+)$/ ? ($1,$2) :
+           $otherflightjob =~ m/^\.?([^.]+)$/ ? ($thisflight,$1) :
+           die "$otherflightjob ?";
 }
+
+sub otherflightjob ($) {
+    return flight_otherjob($flight,$_[0]);
+}
+
+sub get_stashed ($$) {
+    my ($param, $otherflightjob) = @_; 
+    my ($oflight, $ojob) = otherflightjob($otherflightjob);
+    my $path= get_runvar($param, $otherflightjob);
+    die "$path $& " if
+        $path =~ m,[^-+._0-9a-zA-Z/], or
+        $path =~ m/\.\./;
+    return "$c{Stash}/$oflight/$ojob/$path";
+}
+
+sub unique_incrementing_runvar ($$) {
+    my ($param,$start) = @_;
+    my $value;
+    db_retry($flight,'running', $dbh_tests,[qw(runvars)], sub {
+	my $q= $dbh_tests->prepare(<<END);
+            SELECT val FROM runvars WHERE flight=? AND job=? AND name=?
+END
+        $q->execute($flight, $job, $param);
+	my $row= $q->fetchrow_arrayref();
+	$value= $row ? $row->[0] : $start;
+	$dbh_tests->do(<<END, undef, $flight, $job, $param);
+            DELETE FROM runvars WHERE flight=? AND job=? AND name=? AND synth
+END
+	$dbh_tests->do(<<END, undef, $flight, $job, $param, $value+1);
+            INSERT INTO runvars VALUES (?,?,?,?,'t')
+END
+    });
+    logm("runvar increment: $param=$value");
+    return $value;
+}
+
+sub store_runvar ($$) {
+    my ($param,$value) = @_;
+    logm("runvar store: $param=$value");
+    my $q= $dbh_tests->prepare(<<END);
+        INSERT INTO runvars VALUES (?,?,?,?,'t')
+END
+    db_retry($flight,'running', $dbh_tests,[qw(runvars)], sub {
+        $dbh_tests->do(<<END, undef, $flight, $job, $param);
+	    DELETE FROM runvars WHERE flight=? AND job=? AND name=? AND synth
+END
+        $q->execute($flight,$job, $param,$value);
+    });
+    $r{$param}= get_runvar($param, "$flight.$job");
+}
+
+sub broken ($) {
+    my ($m) = @_;
+    my $affected;
+    db_retry($flight, $dbh_tests,[qw(running)], sub {
+        $affected= $dbh_tests->do(<<END, {}, $flight, $job);
+            UPDATE jobs SET status='broken'
+             WHERE flight=? AND job=?
+               AND (status='queued' OR status='running')
+END
+    });
+    die "BROKEN: $m; ". ($affected>0 ? "marked $flight.$job broken"
+                         : "($flight.$job not marked)");
+}
+
+sub get_runvar ($$) {
+    my ($param, $otherflightjob) = @_;
+    my $r= get_runvar_maybe($param,$otherflightjob);
+    die "need $param in $otherflightjob" unless defined $r;
+    return $r;
+}
+
+sub get_runvar_maybe ($$) {
+    my ($param, $otherflightjob) = @_;
+    my ($oflight, $ojob) = otherflightjob($otherflightjob);
+
+    if ("$oflight.$ojob" ne "$flight.$job") {
+        my $jq= $dbh_tests->prepare(<<END);
+            SELECT * FROM jobs WHERE flight=? AND job=?
+END
+        $jq->execute($oflight,$ojob);
+        my $jrow= $jq->fetchrow_hashref();
+        $jrow or broken("job $oflight.$ojob not found (looking for $param)");
+        my $jstatus= $jrow->{'status'};
+        defined $jstatus or broken("job $oflight.$ojob no status?!");
+        $jstatus ne 'broken' or
+            broken("job $oflight.$ojob (for $param) broken");
+        if ($jstatus eq 'pass') {
+            # fine
+        } elsif ($jstatus eq 'queued') {
+            $jq->execute($flight,$job);
+            $jrow= $jq->fetchrow_hashref();
+            $jrow or broken("our job $flight.$job not found!");
+            my $ourstatus= $jrow->{'status'};
+            if ($ourstatus eq 'queued') {
+                logm("not running under sg-execute-*:".
+                     " $oflight.$ojob queued ok, for $param");
+            } else {
+                die "job $oflight.$ojob (for $param) queued (we are $ourstatus)";
+            }
+        } else {
+            die "job $flight.$ojob (for $param): $jstatus";
+        }
+    }
+
+    my $q= $dbh_tests->prepare(<<END);
+        SELECT val FROM runvars WHERE flight=? AND job=? AND name=?
+END
+    $q->execute($oflight,$ojob,$param);
+    my $row= $q->fetchrow_arrayref();
+    if (!$row) { $q->finish(); return undef; }
+    my ($val)= @$row;
+    die "$oflight.$ojob $param" if $q->fetchrow_arrayref();
+    $q->finish();
+    return $val;
+}
+
+sub need_runvars {
+    my @missing= grep { !defined $r{$_} } @_;
+    return unless @missing;
+    die "missing runvars @missing ";
+}
+
+#---------- running commands eg on targets ----------
 
 sub cmd {
     my ($timeout,$stdout,@cmd) = @_;
@@ -459,6 +572,101 @@ sub target_await_down ($$) {
     });
 }    
 
+sub system_checked ($) {
+    my ($cmd) = @_;
+    $!=0; $?=0; system $cmd;
+    die "$cmd $? $!" if $? or $!;
+}
+
+sub tcmd { # $tcmd will be put between '' but not escaped
+    my ($stdout,$user,$ho,$tcmd,$timeout) = @_;
+    $timeout=10 if !defined $timeout;
+    tcmdex($timeout,$stdout,
+           'ssh', sshopts(),
+           sshuho($user,$ho), $tcmd);
+}
+sub target_cmd ($$;$) { tcmd(undef,'osstest',@_); }
+sub target_cmd_root ($$;$) { tcmd(undef,'root',@_); }
+
+sub tcmdout {
+    my $stdout= IO::File::new_tmpfile();
+    tcmd($stdout,@_);
+    $stdout->seek(0,0) or die "$stdout $!";
+    my $r;
+    { local ($/) = undef;
+      $r= <$stdout>; }
+    die "$stdout $!" if !defined $r or $stdout->error or !close $stdout;
+    chomp($r);
+    return $r;
+}
+
+sub target_cmd_output ($$;$) { tcmdout('osstest',@_); }
+sub target_cmd_output_root ($$;$) { tcmdout('root',@_); }
+
+sub poll_loop ($$$&) {
+    my ($maxwait, $interval, $what, $code) = @_;
+    # $code should return undef when all is well
+    
+    logm("$what: waiting ${maxwait}s...");
+    my $start= time;  die $! unless defined $start;
+    my $wantwaited= 0;
+    my $waited= 0;
+    my $reported= '';
+    for (;;) {
+        my $bad= $code->();
+        my $now= time;  die $! unless defined $now;
+        $waited= $now - $start;
+        last if !defined $bad;
+	if ($reported ne $bad) {
+	    logm("$what: $bad (waiting) ...");
+	    $reported= $bad;
+	}
+        $waited <= $maxwait or die "$what: wait timed out: $bad.\n";
+        $wantwaited += $interval;
+        my $needwait= $wantwaited - $waited;
+        sleep($needwait) if $needwait > 0;
+    }
+    logm("$what: ok. (${waited}s)");
+}
+
+#---------- other stuff ----------
+
+sub logm ($) {
+    my ($m) = @_;
+    my @t = gmtime;
+    printf "%04d-%02d-%02d %02d:%02d:%02d Z %s\n",
+        $t[5]+1900,$t[4]+1,$t[3], $t[2],$t[1],$t[0],
+        $m
+    or die $!;
+    STDOUT->flush or die $!;
+}
+
+sub get_filecontents ($;$) {
+    my ($path, $ifnoent) = @_;  # $ifnoent=undef => is error
+    if (!open GFC, '<', $path) {
+        $!==&ENOENT or die "$path $!";
+        die "$path does not exist" unless defined $ifnoent;
+        logm("read $path absent.");
+        return $ifnoent;
+    }
+    local ($/);
+    undef $/;
+    my $data= <GFC>;
+    defined $data or die "$path $!";
+    close GFC or die "$path $!";
+    logm("read $path ok.");
+    return $data;
+}
+
+sub ensuredir ($) {
+    my ($dir)= @_;
+    mkdir($dir) or $!==&EEXIST or die "$dir $!";
+}
+
+sub postfork () {
+    $dbh_state->{InactiveDestroy}= 1;
+}
+
 sub host_reboot ($) {
     my ($ho) = @_;
     target_reboot($ho);
@@ -488,6 +696,8 @@ sub target_reboot_hard ($) {
     power_cycle($ho);
     await_tcp($timeout{HardRebootUp},5,$ho);
 }
+
+#---------- building, vcs's, etc. ----------
 
 sub build_clone ($$$$) {
     my ($ho, $which, $builddir, $subdir) = @_;
@@ -538,167 +748,45 @@ sub store_vcs_revision ($$$) {
     store_runvar("built_revision_$which", $rev);
 }
 
-sub system_checked ($) {
-    my ($cmd) = @_;
-    $!=0; $?=0; system $cmd;
-    die "$cmd $? $!" if $? or $!;
-}
-
-sub unique_incrementing_runvar ($$) {
-    my ($param,$start) = @_;
-    my $value;
-    db_retry($flight,'running', $dbh_tests,[qw(runvars)], sub {
-	my $q= $dbh_tests->prepare(<<END);
-            SELECT val FROM runvars WHERE flight=? AND job=? AND name=?
+sub built_stash ($$$$) {
+    my ($ho, $builddir, $distroot, $item) = @_;
+    target_cmd($ho, <<END, 300);
+	set -xe
+	cd $builddir
+        cd $distroot
+        tar zcf $builddir/$item.tar.gz *
 END
-        $q->execute($flight, $job, $param);
-	my $row= $q->fetchrow_arrayref();
-	$value= $row ? $row->[0] : $start;
-	$dbh_tests->do(<<END, undef, $flight, $job, $param);
-            DELETE FROM runvars WHERE flight=? AND job=? AND name=? AND synth
-END
-	$dbh_tests->do(<<END, undef, $flight, $job, $param, $value+1);
-            INSERT INTO runvars VALUES (?,?,?,?,'t')
-END
-    });
-    logm("runvar increment: $param=$value");
-    return $value;
+    my $build= "build";
+    my $stashleaf= "$build/$item.tar.gz";
+    ensuredir("$stash/$build");
+    target_getfile($ho, 300,
+                   "$builddir/$item.tar.gz",
+                   "$stash/$stashleaf");
+    store_runvar("path_$item", $stashleaf);
 }
 
-sub store_runvar ($$) {
-    my ($param,$value) = @_;
-    logm("runvar store: $param=$value");
-    my $q= $dbh_tests->prepare(<<END);
-        INSERT INTO runvars VALUES (?,?,?,?,'t')
-END
-    db_retry($flight,'running', $dbh_tests,[qw(runvars)], sub {
-        $dbh_tests->do(<<END, undef, $flight, $job, $param);
-	    DELETE FROM runvars WHERE flight=? AND job=? AND name=? AND synth
-END
-        $q->execute($flight,$job, $param,$value);
-    });
-    $r{$param}= get_runvar($param, "$flight.$job");
+sub vcs_dir_revision ($$$) {
+    my ($ho,$builddir,$vcs) = @_;
+    no strict qw(refs);
+    return &{"${vcs}_dir_revision"}($ho,$builddir);
 }
 
-sub broken ($) {
-    my ($m) = @_;
-    my $affected;
-    db_retry($flight, $dbh_tests,[qw(running)], sub {
-        $affected= $dbh_tests->do(<<END, {}, $flight, $job);
-            UPDATE jobs SET status='broken'
-             WHERE flight=? AND job=?
-               AND (status='queued' OR status='running')
-END
-    });
-    die "BROKEN: $m; ". ($affected>0 ? "marked $flight.$job broken"
-                         : "($flight.$job not marked)");
+sub hg_dir_revision ($$) {
+    my ($ho,$builddir) = @_;
+    my $rev= target_cmd_output($ho, "cd $builddir && hg identify -ni", 100);
+    $rev =~ m/^([0-9a-f]{10,}\+?) (\d+\+?)$/ or die "$builddir $rev ?";
+    return "$2:$1";
 }
 
-sub get_runvar ($$) {
-    my ($param, $otherflightjob) = @_;
-    my $r= get_runvar_maybe($param,$otherflightjob);
-    die "need $param in $otherflightjob" unless defined $r;
-    return $r;
+sub git_dir_revision ($$) {
+    my ($ho,$builddir) = @_;
+    my $rev= target_cmd_output($ho, "cd $builddir && git-rev-parse HEAD");
+    $rev =~ m/^([0-9a-f]{10,})$/ or die "$builddir $rev ?";
+    return "$1";
 }
 
-sub get_runvar_maybe ($$) {
-    my ($param, $otherflightjob) = @_;
-    my ($oflight, $ojob) = otherflightjob($otherflightjob);
+#---------- hosts and guests ----------
 
-    if ("$oflight.$ojob" ne "$flight.$job") {
-        my $jq= $dbh_tests->prepare(<<END);
-            SELECT * FROM jobs WHERE flight=? AND job=?
-END
-        $jq->execute($oflight,$ojob);
-        my $jrow= $jq->fetchrow_hashref();
-        $jrow or broken("job $oflight.$ojob not found (looking for $param)");
-        my $jstatus= $jrow->{'status'};
-        defined $jstatus or broken("job $oflight.$ojob no status?!");
-        $jstatus ne 'broken' or
-            broken("job $oflight.$ojob (for $param) broken");
-        if ($jstatus eq 'pass') {
-            # fine
-        } elsif ($jstatus eq 'queued') {
-            $jq->execute($flight,$job);
-            $jrow= $jq->fetchrow_hashref();
-            $jrow or broken("our job $flight.$job not found!");
-            my $ourstatus= $jrow->{'status'};
-            if ($ourstatus eq 'queued') {
-                logm("not running under sg-execute-*:".
-                     " $oflight.$ojob queued ok, for $param");
-            } else {
-                die "job $oflight.$ojob (for $param) queued (we are $ourstatus)";
-            }
-        } else {
-            die "job $flight.$ojob (for $param): $jstatus";
-        }
-    }
-
-    my $q= $dbh_tests->prepare(<<END);
-        SELECT val FROM runvars WHERE flight=? AND job=? AND name=?
-END
-    $q->execute($oflight,$ojob,$param);
-    my $row= $q->fetchrow_arrayref();
-    if (!$row) { $q->finish(); return undef; }
-    my ($val)= @$row;
-    die "$oflight.$ojob $param" if $q->fetchrow_arrayref();
-    $q->finish();
-    return $val;
-}
-
-sub tcmd { # $tcmd will be put between '' but not escaped
-    my ($stdout,$user,$ho,$tcmd,$timeout) = @_;
-    $timeout=10 if !defined $timeout;
-    tcmdex($timeout,$stdout,
-           'ssh', sshopts(),
-           sshuho($user,$ho), $tcmd);
-}
-sub target_cmd ($$;$) { tcmd(undef,'osstest',@_); }
-sub target_cmd_root ($$;$) { tcmd(undef,'root',@_); }
-
-sub tcmdout {
-    my $stdout= IO::File::new_tmpfile();
-    tcmd($stdout,@_);
-    $stdout->seek(0,0) or die "$stdout $!";
-    my $r;
-    { local ($/) = undef;
-      $r= <$stdout>; }
-    die "$stdout $!" if !defined $r or $stdout->error or !close $stdout;
-    chomp($r);
-    return $r;
-}
-
-sub target_cmd_output ($$;$) { tcmdout('osstest',@_); }
-sub target_cmd_output_root ($$;$) { tcmdout('root',@_); }
-
-sub target_choose_vg ($$) {
-    my ($ho, $mbneeded) = @_;
-    my $vgs= target_cmd_output_root($ho, 'vgdisplay --colon');
-    my $bestkb= 1e9;
-    my $bestvg;
-    foreach my $l (split /\n/, $vgs) {
-        $l =~ s/^\s+//; $l =~ s/\s+$//;
-        my @l= split /\:/, $l;
-        my $tvg= $l[0];
-        my $tkb= $l[11];
-        if ($tkb < $mbneeded*1024) {
-            logm("vg $tvg ${tkb}kb free - too small");
-            next;
-        }
-        if ($tkb < $bestkb) {
-            $bestvg= $tvg;
-            $bestkb= $tkb;
-        }
-    }
-    die "no vg of sufficient size"
-        unless defined $bestvg;
-    logm("vg $bestvg ${bestkb}kb free - will use");
-    return $bestvg;
-}
-
-sub opendb_state () {
-    $dbh_state= opendb('statedb');
-}
 sub selecthost ($) {
     my ($name) = @_;
     my $ho= {
@@ -795,6 +883,31 @@ sub guest_check_ip ($) {
 		"guest $gho->{Name}: $gho->{Ether} $gho->{Ip}");
 
     return undef;
+}
+
+sub target_choose_vg ($$) {
+    my ($ho, $mbneeded) = @_;
+    my $vgs= target_cmd_output_root($ho, 'vgdisplay --colon');
+    my $bestkb= 1e9;
+    my $bestvg;
+    foreach my $l (split /\n/, $vgs) {
+        $l =~ s/^\s+//; $l =~ s/\s+$//;
+        my @l= split /\:/, $l;
+        my $tvg= $l[0];
+        my $tkb= $l[11];
+        if ($tkb < $mbneeded*1024) {
+            logm("vg $tvg ${tkb}kb free - too small");
+            next;
+        }
+        if ($tkb < $bestkb) {
+            $bestvg= $tvg;
+            $bestkb= $tkb;
+        }
+    }
+    die "no vg of sufficient size"
+        unless defined $bestvg;
+    logm("vg $bestvg ${bestkb}kb free - will use");
+    return $bestvg;
 }
 
 sub select_ether ($) {
@@ -979,12 +1092,6 @@ sub guest_await_dhcp_tcp ($$) {
     });
 }
 
-sub need_runvars {
-    my @missing= grep { !defined $r{$_} } @_;
-    return unless @missing;
-    die "missing runvars @missing ";
-}
-
 sub guest_check_remus_ok {
     my ($gho, @hos) = @_;
     my @sts;
@@ -1008,32 +1115,6 @@ sub guest_check_remus_ok {
     die "running on multiple hosts $compound" if $runnings > 1;
     die "not running anywhere $compound" unless $runnings;
     die "crashed somewhere $compound" if grep { m/c/ } @ststrings;
-}
-
-sub poll_loop ($$$&) {
-    my ($maxwait, $interval, $what, $code) = @_;
-    # $code should return undef when all is well
-    
-    logm("$what: waiting ${maxwait}s...");
-    my $start= time;  die $! unless defined $start;
-    my $wantwaited= 0;
-    my $waited= 0;
-    my $reported= '';
-    for (;;) {
-        my $bad= $code->();
-        my $now= time;  die $! unless defined $now;
-        $waited= $now - $start;
-        last if !defined $bad;
-	if ($reported ne $bad) {
-	    logm("$what: $bad (waiting) ...");
-	    $reported= $bad;
-	}
-        $waited <= $maxwait or die "$what: wait timed out: $bad.\n";
-        $wantwaited += $interval;
-        my $needwait= $wantwaited - $waited;
-        sleep($needwait) if $needwait > 0;
-    }
-    logm("$what: ok. (${waited}s)");
 }
 
 sub power_cycle ($) {
@@ -1064,15 +1145,7 @@ sub power_state ($$) {
         return "state=\"$got\"";
     });
 }
-sub logm ($) {
-    my ($m) = @_;
-    my @t = gmtime;
-    printf "%04d-%02d-%02d %02d:%02d:%02d Z %s\n",
-        $t[5]+1900,$t[4]+1,$t[3], $t[2],$t[1],$t[0],
-        $m
-    or die $!;
-    STDOUT->flush or die $!;
-}
+
 sub file_link_contents ($$) {
     my ($fn, $contents) = @_;
     # $contents may be a coderef in which case we call it with the
@@ -1200,60 +1273,6 @@ sub create_webfile ($$$) {
     return $wf_url;
 }
 
-sub get_filecontents ($;$) {
-    my ($path, $ifnoent) = @_;  # $ifnoent=undef => is error
-    if (!open GFC, '<', $path) {
-        $!==&ENOENT or die "$path $!";
-        die "$path does not exist" unless defined $ifnoent;
-        logm("read $path absent.");
-        return $ifnoent;
-    }
-    local ($/);
-    undef $/;
-    my $data= <GFC>;
-    defined $data or die "$path $!";
-    close GFC or die "$path $!";
-    logm("read $path ok.");
-    return $data;
-}
-
-sub built_stash ($$$$) {
-    my ($ho, $builddir, $distroot, $item) = @_;
-    target_cmd($ho, <<END, 300);
-	set -xe
-	cd $builddir
-        cd $distroot
-        tar zcf $builddir/$item.tar.gz *
-END
-    my $build= "build";
-    my $stashleaf= "$build/$item.tar.gz";
-    ensuredir("$stash/$build");
-    target_getfile($ho, 300,
-                   "$builddir/$item.tar.gz",
-                   "$stash/$stashleaf");
-    store_runvar("path_$item", $stashleaf);
-}
-
-sub vcs_dir_revision ($$$) {
-    my ($ho,$builddir,$vcs) = @_;
-    no strict qw(refs);
-    return &{"${vcs}_dir_revision"}($ho,$builddir);
-}
-
-sub hg_dir_revision ($$) {
-    my ($ho,$builddir) = @_;
-    my $rev= target_cmd_output($ho, "cd $builddir && hg identify -ni", 100);
-    $rev =~ m/^([0-9a-f]{10,}\+?) (\d+\+?)$/ or die "$builddir $rev ?";
-    return "$2:$1";
-}
-
-sub git_dir_revision ($$) {
-    my ($ho,$builddir) = @_;
-    my $rev= target_cmd_output($ho, "cd $builddir && git-rev-parse HEAD");
-    $rev =~ m/^([0-9a-f]{10,})$/ or die "$builddir $rev ?";
-    return "$1";
-}
-
 sub guest_kernkind_check ($) {
     my ($gho) = @_;
     target_process_kernkind("$gho->{Guest}_");
@@ -1370,6 +1389,8 @@ sub toolstack () {
     }
     return $ts;
 }
+
+#---------- logtailer ----------
 
 package Osstest::Logtailer;
 use Fcntl qw(:seek);
