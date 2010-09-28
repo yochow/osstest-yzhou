@@ -246,3 +246,10 @@ proc transaction {script} {
         }
     }
 }        
+
+proc lremove {listvar item} {
+    upvar 1 $listvar list
+    set ix [lsearch -exact $list $item]
+    if {$ix<0} return
+    set list [lreplace $list $ix $ix]
+}

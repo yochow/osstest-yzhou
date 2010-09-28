@@ -7,21 +7,245 @@ source daemonlib.tcl
 readconfig
 
 proc chan-destroy-stuff {chan} {
+    dequeue-chan $chan destroy
+    upvar #0 chan-info/$chan info
+    catch { unset info }
 }
+
+proc dequeue-chan {chan why} {
+    log-event "dequeue-chan $chan $why"
+
+    global queue queue_running thinking
+    lremove queue $chan
+
+    if {[info exists queue_running]} { lremove queue_running $chan }
+    if {[info exists thinking] &&
+        ![string compare $thinking $chan]} {
+        queuerun-step-done $why
+    }
+}
+
+#---------- debug tracing for queues ----------
+
+proc log-event {m} {
+    global log_state_after
+    log-state $m
+    if {![info exists log_state_after]} {
+        set log_state_after [after idle {
+            unset log_state_after
+            log-state idle
+        }]
+    }
+}
+
+proc log-state {m} {
+    global need_queue_run queue queue_running thinking
+
+    set lhs [format "N=%d Q=%d (%-11.11s) " \
+                 $need_queue_run [llength $queue] $queue]
+
+    if {[info exists queue_running]} {
+        append lhs [format "R=%d " [llength $queue_running]]
+        if {[info exists thinking]} {
+            append lhs [format "T=%s " $thinking]
+        } else {
+            append lhs [format "        "]
+        }
+        append lhs [format "(%-11.11s) " $queue_running]
+    } else {
+        append lhs "                          "
+    }
+    log "$lhs | $m"
+}
+
+#---------- machinery for making sure we run the queue ----------
+#
+# variables:
+#   queue            chans that are waiting for resources
+#   queue_running    unset if not running, list of chans if running
+#   need_queue_run   0: not needed; 1: needed if more resources; 2: force
+
+proc runneeded-ensure-will {need} {
+    log-event "runneeded-ensure-will $need"
+
+    global need_queue_run
+    if {$need > $need_queue_run} { set need_queue_run $need }
+    after idle runneeded-perhaps-start
+}
+
+proc runneeded-perhaps-start {} {
+    log-event runneeded-perhaps-start
+    global queue queue_running thinking need_queue_run
+
+    if {[info exists queue_running]} return
+    if {!$need_queue_run} return
+
+    set needed $need_queue_run
+    set need_queue_run 0
+
+    if {![llength $queue]} return
+
+    transaction {
+        set nrows [pg_execute dbh {
+            UPDATE resources
+               SET owntaskid= (SELECT taskid FROM tasks
+                               WHERE type='magic' AND refkey='allocatable')
+         WHERE NOT (SELECT live FROM tasks WHERE taskid=owntaskid)
+        }]
+    }
+    log "runneeded-perhaps-start rows=$nrows"
+
+    if {!($nrows || $needed>=2)} return
+
+    queuerun-start
+}
+
+proc runneeded-ensure-polling {} {
+    log-event runneeded-ensure-polling
+    global polling_after queue c
+
+    if {[info exists polling_after]} return
+    if {![llength $queue]} return
+
+    set polling_after [after [expr {$c(QueueResourcePollInterval)*1000}] \
+                           runneeded-poll-now]
+}
+
+proc runneeded-poll-now {} {
+    log-event runneeded-poll-now
+    global polling_after
+    unset polling_after
+    runneeded-ensure-will 1
+    runneeded-ensure-polling
+}
+
+#---------- machinery for running the queue ----------
+#
+# variables:
+#    queue             chans waiting, read when we start
+#    queue_running     chans not yet asked
+#    thinking          chan currently asking
+#    thinking_after    timeout
+
+proc queuerun-start {} {
+    log-event queuerun-start
+    global queue_running queue
+    set queue_running $queue
+    after idle queuerun-perhaps-step
+}
+
+proc queuerun-perhaps-step {} {
+    log-event queuerun-perhaps-step
+    global thinking queue_running thinking_after c
+
+    if {[info exists thinking]} return
+    if {![info exists queue_running]} return
+
+    if {![llength $queue_running]} {
+        unset queue_running
+        runneeded-perhaps-start
+        return
+    }
+
+    set thinking [lindex $queue_running 0]
+    set queue_running [lrange $queue_running 1 end]
+    log-event "queuerun-perhaps-step selected"
+
+    set thinking_after [after [expr {$c(QueueThoughtsTimeout) * 1000}] \
+                            queue-thoughts-timedout]
+    for-chan $thinking {
+        puts-chan $thinking "!OK think"
+    }
+}
+
+proc we-are-thinking {chan} {
+    global thinking
+    return [expr {[info exists thinking] && ![string compare $thinking $chan]}]
+}
+
+proc check-we-are-thinking {chan} {
+    if {![we-are-thinking $chan]} {
+        puts-chan $chan "ERROR timed out (too pensive)"
+        return -code return
+    }
+}
+
+proc queuerun-step-done {why} {
+    log-event "queuerun-step-done $why"
+    global queue_running thinking thinking_after
+    puts-chan-desc $thinking "queuerun-step-done $thinking $why"
+    if {[info exists thinking_after]} {
+        after cancel $thinking_after
+        unset thinking_after
+    }
+    unset thinking
+    after idle queuerun-perhaps-step
+}
+
+proc queue-thoughts-timedout {} {
+    log-event queue-thoughts-timedout
+    global thinking thinking_after
+    set chan $thinking
+    unset thinking_after
+    queuerun-step-done timeout
+    for-chan $chan {
+        puts-chan $chan "!ERROR timed out (too pensive)"
+    }
+}
+
+proc cmd/thought-wait {chan desc} {
+    check-we-are-thinking $chan
+    queuerun-step-done thought-wait
+    puts-chan $chan "OK thought"
+}
+
+proc cmd/thought-done {chan desc} {
+    check-we-are-thinking $chan
+    queuerun-step-done thought-done
+    dequeue-chan $chan thought-wait
+    puts-chan $chan "OK thought"
+}
+
+proc cmd/unwait {chan desc} {
+    if {[we-are-thinking $chan]} {
+        queuerun-step-done unwait
+        set res cancel
+    } else {
+        set res noop
+    }
+    dequeue-chan $chan "unwait $res"
+    puts-chan $chan "OK unwait $res"
+}
+
+#---------- general stuff ----------
 
 proc banner {chan} {
     return "OK ms-queuedaemon"
 }
 
-proc cmd/echo-rhs {chan desc rhs} {
-    puts-chan $chan "($rhs)"
+proc cmd/set-info {chan desc var val} {
+    upvar #0 chan-info/$chan info
+    set info($var) val
 }
-proc cmd/echo-a-b {chan desc a b} {
-    puts-chan $chan "($a) ($b)"
+proc cmd/unset-info {chan desc var} {
+    upvar #0 chan-info/$chan info
+    catch { unset info($var) }
 }
-proc cmd/echo-x-args {chan desc x args} {
-    puts-chan $chan "($x) ($args)"
+
+proc cmd/wait {chan desc} {
+    global queue need_queue_run
+    lappend queue $chan
+    puts-chan $chan "OK wait"
+    runneeded-ensure-polling
+    runneeded-ensure-will 2
 }
 
 main-daemon $c(QueueDaemonPort) {
+    db-open
+    
+    set queue {}
+    set need_queue_run 0
+    log-state main-daemon
+    # 1: run queue only if new resources available
+    # 2: definitely run queue
 }

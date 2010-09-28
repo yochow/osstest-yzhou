@@ -13,7 +13,7 @@ proc for-chan {chan script} {
         uplevel 1 $script
     } emsg]} {
         catch { chan-error $chan $emsg }
-        puts stderr "error: $desc: $emsg"
+        log "error: $desc: $emsg"
         chan-destroy-stuff $chan
         catch { close $chan }
     }
@@ -22,7 +22,7 @@ proc for-chan {chan script} {
 proc chan-read {chan} {
     for-chan $chan {
         while {[gets $chan l] > 0} {
-            puts "$desc << $l"
+            log "$desc << $l"
             if {![regexp {^([-0-9a-z]+)(?:\s+(.*))?$} $l dummy cmd rhs]} {
                 chan-error $chan "bad cli cmd syntax"
                 continue
@@ -68,7 +68,7 @@ proc chan-read {chan} {
 
 proc puts-chan-desc {chan m} {
     upvar \#0 chandesc($chan) desc
-    puts "$desc $m"
+    log "$desc $m"
 }
 
 proc puts-chan {chan m} {
@@ -88,6 +88,12 @@ proc newconn {chan addr port} {
     }
 }
 
+proc log {m} {
+    set now [clock seconds]
+    set timestamp [clock format $now -format {%Y-%m-%d %H:%M:%S Z} -gmt 1]
+    puts "$timestamp $m"
+}
+
 proc main-daemon {port setup} {
     global c
 
@@ -97,5 +103,6 @@ proc main-daemon {port setup} {
     uplevel 1 $setup
 
     socket -server newconn -myaddr $c(ControlDaemonHost) $port
+    log "listening $c(ControlDaemonHost):$port"
     vwait forever
 }

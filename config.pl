@@ -31,6 +31,8 @@ END
 $c{ControlDaemonHost}= 'woking.cam.xci-test.com';
 $c{OwnerDaemonPort}= 4031;
 $c{QueueDaemonPort}= 4032;
+$c{QueueThoughtsTimeout}= 30; # seconds
+$c{QueueResourcePollInterval}= 60; # seconds
 
 $c{SerialLogPattern}= '/root/sympathy/%host%.log*';
 
