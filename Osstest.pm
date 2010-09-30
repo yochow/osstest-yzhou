@@ -7,6 +7,7 @@ use warnings;
 use POSIX;
 use IO::File;
 use DBI;
+use Socket;
 
 BEGIN {
     use Exporter ();
@@ -18,7 +19,8 @@ BEGIN {
                       %c %r $dbh_state $dbh_tests $flight $job $stash
                       dbfl_do dbfl_check dbfl_exec
                       get_runvar get_runvar_maybe store_runvar get_stashed
-		      unique_incrementing_runvar system_checked
+                      unique_incrementing_runvar system_checked
+                      tcpconnect findtask alloc_resources
                       built_stash flight_otherjob
                       csreadconfig ts_get_host_guest
                       readconfig opendb_state selecthost need_runvars
@@ -697,6 +699,51 @@ sub target_reboot_hard ($) {
     await_tcp($timeout{HardRebootUp},5,$ho);
 }
 
+sub tcpconnect ($$) {
+    my ($host, $port) = @_;
+    my $h= new IO::Handle;
+    my $proto= getprotobyname('tcp');  die $! unless defined $proto;
+    my $fixedaddr= inet_aton($host);
+    my @addrs; my $atype;
+    if (defined $fixedaddr) {
+        @addrs= $fixedaddr;
+        $atype= AF_INET;
+    } else {
+        $!=0; $?=0; my @hi= gethostbyname($host);
+        @hi or die "host lookup failed for $host: $? $!";
+        $atype= $hi[2];
+        @addrs= @hi[4..$#hi];
+        die "connect $host:$port: no addresses for $host" unless @addrs;
+    }
+    foreach my $addr (@addrs) {
+        my $h= new IO::Handle;
+        my $sin; my $pfam; my $str;
+        if ($atype==AF_INET) {
+            $sin= sockaddr_in $port, $addr;
+            $pfam= PF_INET;
+            $str= inet_ntoa($addr);
+#        } elsif ($atype==AF_INET6) {
+#            $sin= sockaddr_in6 $port, $addr;
+#            $pfam= PF_INET6;
+#            $str= inet_ntoa6($addr);
+        } else {
+            warn "connect $host:$port: unknown AF $atype";
+            next;
+        }
+        if (!socket($h, $pfam, SOCK_STREAM, $proto)) {
+            warn "connect $host:$port: unsupported PF $pfam";
+            next;
+        }
+        if (!connect($h, $sin)) {
+            warn "connect $host:$port: [$str]: $!";
+            next;
+        }
+        return $h;
+
+    }
+    die "$host:$port all failed";
+}
+
 #---------- building, vcs's, etc. ----------
 
 sub build_clone ($$$$) {
@@ -783,6 +830,107 @@ sub git_dir_revision ($$) {
     my $rev= target_cmd_output($ho, "cd $builddir && git-rev-parse HEAD");
     $rev =~ m/^([0-9a-f]{10,})$/ or die "$builddir $rev ?";
     return "$1";
+}
+
+#---------- host (and other resource) allocation ----------
+
+our $taskid;
+
+sub findtask () {
+    return $taskid if defined $taskid;
+    
+    my $spec= $ENV{'OSSTEST_TASK'};
+    my $q;
+    my $what;
+    if (!defined $spec) {
+        $!=0; $?=0; my $whoami= `whoami`;   defined $whoami or die "$? $!";
+        $!=0; $?=0; my $node=   `uname -n`; defined $node   or die "$? $!";
+        chomp($whoami); chomp($node); $node =~ s/\..*//;
+        my $refkey= "$whoami\@$node";
+        $what= "static $refkey";
+        $q= $dbh_tests->prepare(<<END);
+            SELECT * FROM tasks
+                    WHERE type='static' AND refkey=?
+END
+        $q->execute($refkey);
+    } else {
+        my @l = split /\s+/, $spec;
+        @l==3 or die "$spec ".scalar(@l)." ?";
+        $what= $spec;
+        $q= $dbh_tests->prepare(<<END);
+            SELECT * FROM tasks
+                    WHERE taskid=? AND type=? AND refkey=?
+END
+        $q->execute(@l);
+    }
+    my $row= $q->fetchrow_hashref();
+    die "no task $what ?" unless defined $row;
+    die "task $what dead" unless $row->{live};
+    die "task no username" unless defined $row->{username};
+    die "task no comment" unless defined $row->{comment};
+
+    my $newspec= "$row->{taskid} $row->{type} $row->{refkey}";
+    logm("task $newspec: $row->{username} $row->{comment}");
+
+    $taskid= $row->{taskid};
+    $ENV{'OSSTEST_TASK'}= $newspec if !defined $spec;
+
+    return $taskid;
+}        
+
+sub alloc_resources ($) {
+    my ($resourcecall) = @_;
+
+    my $qserv;
+    my $retries=0;
+    my $ok;
+
+    while (!$ok) {
+        if (!eval {
+            if (!defined $qserv) {
+                $qserv= tcpconnect($c{ControlDaemonHost}, $c{QueueDaemonPort});
+                $qserv->autoflush(1);
+            }
+
+            $_= <$qserv>;  m/^OK ms-queuedaemon\s/ or die "$_ ?";
+            print $qserv "wait\n" or die $!;
+
+            $_= <$qserv>;  m/^OK wait\s/ or die "$_ ?";
+            $_= <$qserv>;  m/^\!OK think\s$/ or die "$_ ?";
+
+            db_retry($flight,'running', $dbh_tests,[], sub {
+                if (!eval {
+                    $ok= $resourcecall->();
+                    1;
+                }) {
+                    $ok= -1;
+                    warn "alloc_resources resourcecall $@";
+                    return;
+                }
+                unless ($ok>0) {
+                    $dbh_tests->rollback();
+                    $dbh_tests->commit(); # avoids a stupid warning
+                }
+            });
+
+            if ($ok) {
+                print $qserv "thought-done\n" or die $!;
+            } else {
+                print $qserv "thought-wait\n" or die $!;
+            }
+            $_= <$qserv>;  m/^OK thought\s$/ or die "$_ ?";
+            
+            1;
+        }) {
+            $retries++;
+            die "trouble $@" if $retries > 60;
+            logm("queue-server trouble, sleeping ($@)");
+            sleep 120;
+            $ok= 0;
+        }
+    }
+    die unless $ok>0;
+    logm("allocated");
 }
 
 #---------- hosts and guests ----------
