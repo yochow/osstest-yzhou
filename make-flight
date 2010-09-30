@@ -22,6 +22,7 @@ if [ x$buildflight = x ]; then
 	tree_qemu=git://mariner.uk.xensource.com/qemu-$xenbranch.git	     \
 	tree_xen=http://hg.uk.xensource.com/$xenbranch.hg		     \
 		$RUNVARS $BUILD_RUNVARS $arch_runvars			     \
+                host_hostflags=arch-$arch                                    \
 		xen_kernels=linux-2.6-pvops				     \
 		revision_xen=$REVISION_XEN				     \
 		revision_qemu=$REVISION_QEMU				     \
@@ -35,6 +36,7 @@ if [ x$buildflight = x ]; then
 	tree_qemu=git://mariner.uk.xensource.com/qemu-$xenbranch.git	\
 	tree_xen=http://hg.uk.xensource.com/$xenbranch.hg		\
 		$RUNVARS $BUILD_RUNVARS $arch_runvars			\
+		host_hostflags=arch-$arch				\
 		xen_kernels=linux-2.6-xen				\
 		revision_xen=$REVISION_XEN				\
 		revision_qemu=$REVISION_QEMU				\
@@ -49,6 +51,7 @@ if [ x$buildflight = x ]; then
       ./cs-job-create $flight build-$arch-xcpkern build-kern		      \
 		$RUNVARS $BUILD_RUNVARS $arch_runvars			      \
 		arch=$arch						      \
+		host_hostflags=arch-$arch				      \
 	tree_linux=http://hg.uk.xensource.com/carbon/trunk/linux-2.6.27.hg    \
      tree_pq_linux=http://hg.uk.xensource.com/carbon/trunk/linux-2.6.27.pq.hg \
         revision_linux=$REVISION_LINUX_XCP				      \
@@ -94,34 +97,40 @@ for xenarch in i386 amd64; do
 
       if [ x$kern = x-xcpkern -a $dom0arch != i386 ]; then continue; fi
 
+      most_hostflags="hostflags=arch-$dom0arch,arch-$xenarch"
+
       most_runvars="
-		arch=$dom0arch				\
-		xenbuildjob=${bfi}build-$xenarch	\
-		kernbuildjob=${bfi}build-$dom0arch$kern	\
-		buildjob=${bfi}build-$dom0arch		\
-		kernkind=$kernkind			\
+		arch=$dom0arch			        	\
+		xenbuildjob=${bfi}build-$xenarch        	\
+		kernbuildjob=${bfi}build-$dom0arch$kern 	\
+		buildjob=${bfi}build-$dom0arch	        	\
+		kernkind=$kernkind		        	\
 		$arch_runvars
 		"
 
       ./cs-job-create $flight test-$xenarch$kern-$dom0arch-pv test-debian \
 		$RUNVARS $TEST_RUNVARS $most_runvars			  \
 		debian_kernkind=$kernkind				  \
-		debian_arch=$dom0arch
+		debian_arch=$dom0arch   				  \
+		all_hostflags=$most_hostflags
 
       ./cs-job-create $flight test-$xenarch$kern-$dom0arch-xl test-debian \
 		$RUNVARS $TEST_RUNVARS $most_runvars			  \
 		toolstack=xl						  \
 		debian_kernkind=$kernkind				  \
-		debian_arch=$dom0arch
+		debian_arch=$dom0arch   				  \
+		all_hostflags=$most_hostflags
 
       ./cs-job-create $flight test-$xenarch$kern-$dom0arch-win test-win	\
 		$RUNVARS $TEST_RUNVARS $most_runvars			\
-		win_image=winxpsp2.iso
+		win_image=winxpsp2.iso   				\
+		all_hostflags=$most_hostflags
 
       ./cs-job-create $flight test-$xenarch$kern-$dom0arch-pair test-pair \
                 !host $PAIR_RUNVARS $RUNVARS $TEST_RUNVARS $most_runvars  \
 		debian_kernkind=$kernkind				  \
-		debian_arch=$dom0arch
+		debian_arch=$dom0arch   				  \
+		all_hostflags=$most_hostflags
 
     done
 
