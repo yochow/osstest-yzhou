@@ -203,7 +203,7 @@ sub db_retry ($$$;$$) {
         $dbh->begin_work();
         $dbh->do('SET TRANSACTION ISOLATION LEVEL SERIALIZABLE');
         foreach my $tab (@$tables) {
-            $dbh->do("LOCK TABLE $tab IN SHARE ROW EXCLUSIVE MODE");
+            $dbh->do("LOCK TABLE $tab IN ACCESS EXCLUSIVE MODE");
         }
         if (defined $fl) {
             die unless $dbh eq $dbh_tests;
