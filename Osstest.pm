@@ -18,7 +18,8 @@ BEGIN {
                       $tftptail
                       %c %r $dbh_state $dbh_tests $flight $job $stash
                       dbfl_do dbfl_check dbfl_exec
-                      get_runvar get_runvar_maybe store_runvar get_stashed
+                      get_runvar get_runvar_maybe get_runvar_default
+                      store_runvar get_stashed
                       unique_incrementing_runvar system_checked
                       tcpconnect findtask alloc_resources
                       built_stash flight_otherjob
@@ -325,6 +326,12 @@ sub get_runvar ($$) {
     my $r= get_runvar_maybe($param,$otherflightjob);
     die "need $param in $otherflightjob" unless defined $r;
     return $r;
+}
+
+sub get_runvar_default ($$$) {
+    my ($param, $otherflightjob, $default) = @_;
+    my $r= get_runvar_maybe($param,$otherflightjob);
+    return defined($r) ? $r : $default;
 }
 
 sub get_runvar_maybe ($$) {
