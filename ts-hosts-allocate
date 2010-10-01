@@ -1,0 +1,164 @@
+#!/usr/bin/perl -w
+
+use strict qw(vars);
+use DBI;
+use Osstest;
+
+readconfig();
+opendb_state();
+
+our (@idents) = @ARGV;
+
+our $taskid= findtask();
+
+sub alloc_hosts () {
+
+    my $fi= $dbh_tests->selectrow_hashref(<<END, {}, $flight);
+        SELECT * FROM flights
+         WHERE flight = ?
+END
+
+    my $taskid_allocatable= $dbh_tests->selectrow_array(<<END);
+        SELECT taskid FROM tasks
+         WHERE type='magic' AND refkey='allocatable'
+END
+
+    my $sharedtaskidq= $dbh_tests->prepare(<<END);
+        SELECT taskid FROM tasks
+         WHERE type='shared' AND refkey=?
+END
+
+    my $hostsq= $dbh_tests->prepare(<<END);
+        SELECT *
+          FROM resources JOIN hostflags
+            ON (restype='host' AND resname=hostname AND hostflag=?)
+END
+
+    my $claimq= $dbh_tests->prepare(<<END);
+        UPDATE resources
+           SET taskid = ?
+         WHERE restype='host' AND resname=?
+END
+
+    my @hids;
+    my $allflags;
+    my %taskid_shared;
+
+    # greedy allocator, but we sort by flags wanted so
+    # at least we don't do things obviously stupidly
+    foreach my $ident (@idents) {
+        my $flags= get_runvar_default('all_hostflags',      $job, '').
+                   get_runvar_default("${ident}_hostflags", $job, '');
+        my %flags;
+        $flags{$_}=$allflags{$_}=1 foreach grep /./, split /\,/, $flags;
+        my $hid= { Id => $ident };
+        foreach my $shr (qw(build)) {
+            next unless $flags{$shr};
+            die if exists $hid->{Shared};
+            $hid->{Shared}= $shr;
+            delete $flags{shr};
+
+            next if exists $taskid_shared{$shr};
+            $sharedtaskidq->execute($shr);
+            my $row= $sharedtaskidq->fetchrow_arrayref();
+            $taskid_shared{$shr} = $row->[0];
+        }
+        $hid->{Flags}= \%flags;
+    }
+
+    my $flagscountq= $dbh_tests->prepare(<<END);
+        SELECT count(*)
+          FROM hostflags
+         WHERE hostflag = ?
+END
+    foreach my $f (keys %allflags) {
+        $flagscountq->execute($f);
+        my $row= $flagscountq->fetchrow_arrayref();
+        die unless defined $row;
+        $allflags{$f}= $row->[0];
+    }
+    my @allflags = sort { $allflags{$a} <=> $allflags{$b} } keys %allflags;
+
+    foreach my $hid (@hids) {
+        $hid->{Priority}= map {
+            exists($hid->{Flags}{$_}) ? '1' : '0'
+            } @allflags;
+    }
+    @hids= sort { $b->{Priority} cmp $a->{Priority} } @hids;
+
+    my $flagscheckq= $dbh_tests->prepare(<<END);
+        SELECT 1 FROM hostflags
+         WHERE hostname = ? AND hostflag = ?
+END
+
+    my $recentflightsq= $dbh_tests->prepare(<<END);
+            SELECT * FROM flights f
+                     JOIN jobs j USING (flight)
+                     JOIN runvars r
+                             ON  f.flight=r.flight
+                            AND  r.name='host'
+                    WHERE  j.job=r.job
+                      AND  f.blessing=?
+                      AND  f.branch=?
+                      AND  r.val=?
+                 ORDER BY f.started desc
+                    LIMIT 1
+END
+
+    my $sharingq= $dbh_tests->prepare(<<END);
+            SELECT * FROM host_sharing WHERE hostname=?
+END
+
+    logm("allocating hosts: ".join(' ', map { $_->{Id} } @hids));
+
+    alloc_resources(sub {
+        foreach my $hid (@hids) {
+            my $ident
+            my $use= $r{$hid};
+            if (!defined $use) {
+                $hostsq->prepare("blessed-$fi->{intended}");
+                $hostsq->execute();
+                while (my $candrow= $hostsq->fetchrow_hashref()) {
+                    my $nogood= 0;
+                    foreach my $flag (@{ $hid->{Flags} }) {
+                        $flagscheckq->execute($candrow->{resname}, $flag);
+                        next unless $flagscheckq->fetchrow_arrayref();
+                        $nogood=1;
+                        last;
+                    }
+                    next if $nogood;
+
+                    if ($candrow->{owntaskid} != $taskid_allocatable) {
+                        
+                    if ($candrow->{owntaskid} == $taskid_
+
+                    my $shr= $hid->{Shared};
+                    if (!defined $shr) {
+                        next unless $candrow->{owntaskid}
+                                     == $taskid_allocatable;
+                        $recentflightsq->execute($fi->{intended},
+                                                 $fi->{branch},
+                                                 $candrow->{resname});
+                        my $recent= $recentflightsq->fetchrow_hashref();
+                        $candrow->{Priority}= defined($recent) ? -$recent : 0;
+                    } else {
+                        next unless $candrow->{owntaskid}
+                                    == $taskid_shared{$shr};
+                        
+                    
+                        push @candidates, {
+
+                        $claimq->execute($taskid, 
+
+                }
+
+});
+
+sub alloc_hosts () {
+    my ($idents);
+    # $idents= [ qw(host src_host dst_host ...) ]
+    # $identxflags= { 'src_host' => [ qw(
+}
+
+my $t= findtask();
+
