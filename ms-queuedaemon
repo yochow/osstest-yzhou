@@ -86,6 +86,9 @@ proc runneeded-perhaps-start {} {
     if {![llength $queue]} return
 
     transaction {
+        pg_execute dbh {
+            LOCK TABLE host_sharing_tasks IN ACCESS EXCLUSIVE MODE
+        }
         set nrows [pg_execute dbh {
             UPDATE resources
                SET owntaskid= (SELECT taskid FROM tasks
@@ -96,15 +99,10 @@ proc runneeded-perhaps-start {} {
             DELETE FROM host_sharing_tasks
          WHERE NOT (SELECT live FROM tasks WHERE taskid=owntaskid)
         }]
-        pg_execute dbh {
-            UPDATE host_sharing h
-               SET h.ntasks =
-                 ( SELECT count(*) FROM host_sharing_tasks t
-                    WHERE t.hostname = h.hostname )
-        }
         set cleaned [pg_execute dbh {
             DELETE FROM tasks
              WHERE type='ownd'
+               AND live='f'
                AND taskid + 10 <
                    (SELECT taskid FROM tasks
                      WHERE live='t' AND type='ownd'
