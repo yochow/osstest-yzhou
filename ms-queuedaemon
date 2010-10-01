@@ -92,6 +92,16 @@ proc runneeded-perhaps-start {} {
                                WHERE type='magic' AND refkey='allocatable')
          WHERE NOT (SELECT live FROM tasks WHERE taskid=owntaskid)
         }]
+        set unshared [pg_execute dbh {
+            DELETE FROM host_sharing_tasks
+         WHERE NOT (SELECT live FROM tasks WHERE taskid=owntaskid)
+        }]
+        pg_execute dbh {
+            UPDATE host_sharing h
+               SET h.ntasks =
+                 ( SELECT count(*) FROM host_sharing_tasks t
+                    WHERE t.hostname = h.hostname )
+        }
         set cleaned [pg_execute dbh {
             DELETE FROM tasks
              WHERE type='ownd'
@@ -102,7 +112,7 @@ proc runneeded-perhaps-start {} {
                      LIMIT 1)
         }]
     }
-    log "runneeded-perhaps-start rows=$nrows cleaned=$cleaned"
+    log "runneeded-perhaps-start allocable+=$nrows+$unshared cleaned=$cleaned"
 
     if {!($nrows || $needed>=2)} return
 
