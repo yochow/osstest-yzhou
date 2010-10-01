@@ -899,16 +899,15 @@ sub alloc_resources ($) {
             if (!defined $qserv) {
                 $qserv= tcpconnect($c{ControlDaemonHost}, $c{QueueDaemonPort});
                 $qserv->autoflush(1);
+
+                $_= <$qserv>;  defined and m/^OK ms-queuedaemon\s/ or die "$_ ?";
+                print $qserv "wait\n" or die $!;
+                $_= <$qserv>;  defined and m/^OK wait\s/ or die "$_ ?";
             }
-
-            $_= <$qserv>;  m/^OK ms-queuedaemon\s/ or die "$_ ?";
-            print $qserv "wait\n" or die $!;
-
-            $_= <$qserv>;  m/^OK wait\s/ or die "$_ ?";
 
             logm("resource allocation, awaiting our slot...");
 
-            $_= <$qserv>;  m/^\!OK think\s$/ or die "$_ ?";
+            $_= <$qserv>;  defined and m/^\!OK think\s$/ or die "$_ ?";
 
             db_retry($flight,'running', $dbh_tests,[], sub {
                 if (!eval {
@@ -921,7 +920,7 @@ sub alloc_resources ($) {
                 }
                 unless ($ok>0) {
                     $dbh_tests->rollback();
-                    $dbh_tests->commit(); # avoids a stupid warning
+                    $dbh_tests->begin_work(); # avoids a stupid warning
                     logm("resource allocation rolled back, deferring") if !$ok;
                 }
             });
@@ -931,7 +930,7 @@ sub alloc_resources ($) {
             } else {
                 print $qserv "thought-wait\n" or die $!;
             }
-            $_= <$qserv>;  m/^OK thought\s$/ or die "$_ ?";
+            $_= <$qserv>;  defined and m/^OK thought\s$/ or die "$_ ?";
             
             1;
         }) {
