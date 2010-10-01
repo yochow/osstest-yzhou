@@ -892,6 +892,8 @@ sub alloc_resources ($) {
     my $retries=0;
     my $ok;
 
+    logm("allocating resources...");
+
     while (!$ok) {
         if (!eval {
             if (!defined $qserv) {
@@ -903,6 +905,9 @@ sub alloc_resources ($) {
             print $qserv "wait\n" or die $!;
 
             $_= <$qserv>;  m/^OK wait\s/ or die "$_ ?";
+
+            logm("resource allocation, awaiting our slot...");
+
             $_= <$qserv>;  m/^\!OK think\s$/ or die "$_ ?";
 
             db_retry($flight,'running', $dbh_tests,[], sub {
@@ -917,6 +922,7 @@ sub alloc_resources ($) {
                 unless ($ok>0) {
                     $dbh_tests->rollback();
                     $dbh_tests->commit(); # avoids a stupid warning
+                    logm("resource allocation rolled back, deferring") if !$ok;
                 }
             });
 
@@ -937,7 +943,7 @@ sub alloc_resources ($) {
         }
     }
     die unless $ok>0;
-    logm("allocated");
+    logm("resources allocated.");
 }
 
 #---------- hosts and guests ----------
