@@ -7,9 +7,9 @@ use Osstest;
 readconfig();
 opendb_state();
 
-our (@idents) = @ARGV;
+die if @ARGV;
 
-our $taskid= findtask();
+our $taskid;
 
 sub alloc_hosts () {
 
@@ -18,15 +18,13 @@ sub alloc_hosts () {
          WHERE flight = ?
 END
 
-    my $taskid_allocatable= $dbh_tests->selectrow_array(<<END);
-        SELECT taskid FROM tasks
-         WHERE type='magic' AND refkey='allocatable'
+    my %magictaskid;
+    foreach my $rk (qw(allocatable shared)) {
+        $magictaskid{$rk}= $dbh_tests->selectrow_array(<<END, {}, $rk);
+            SELECT taskid FROM tasks
+             WHERE type='magic' AND refkey=?
 END
-
-    my $sharedtaskidq= $dbh_tests->prepare(<<END);
-        SELECT taskid FROM tasks
-         WHERE type='shared' AND refkey=?
-END
+    }
 
     my $hostsq= $dbh_tests->prepare(<<END);
         SELECT *
@@ -34,15 +32,37 @@ END
             ON (restype='host' AND resname=hostname AND hostflag=?)
 END
 
-    my $claimq= $dbh_tests->prepare(<<END);
+    my $host1q= $dbh_tests->prepare(<<END);
+        SELECT *
+          FROM resources
+         WHERE restype='host' AND resname=?
+END
+
+    my $claim_setres_q= $dbh_tests->prepare(<<END);
         UPDATE resources
            SET taskid = ?
          WHERE restype='host' AND resname=?
 END
 
+    my $claim_share_reuse_q= $dbh_tests->prepare(<<END);
+        UPDATE host_sharing
+           SET wear = wearn + 1
+         WHERE hostname = ?
+END
+
+    my $claim_share_new_q= $dbh_tests->prepare(<<END);
+        INSERT INTO host_sharing
+                    (hostname, sharetype, state,  worn)
+             VALUES (?,        ?,         'prep', 1   )
+END
+
+    my $claim_share_addtask_q= $dbh_tests->prepare(<<END);
+        INSERT INTO host_sharing_tasks (owntaskid, hostname)
+             VALUES (?,?)
+END
+
     my @hids;
     my $allflags;
-    my %taskid_shared;
 
     # greedy allocator, but we sort by flags wanted so
     # at least we don't do things obviously stupidly
@@ -50,18 +70,22 @@ END
         my $flags= get_runvar_default('all_hostflags',      $job, '').
                    get_runvar_default("${ident}_hostflags", $job, '');
         my %flags;
-        $flags{$_}=$allflags{$_}=1 foreach grep /./, split /\,/, $flags;
-        my $hid= { Id => $ident };
-        foreach my $shr (qw(build)) {
-            next unless $flags{$shr};
-            die if exists $hid->{Shared};
-            $hid->{Shared}= $shr;
-            delete $flags{shr};
-
-            next if exists $taskid_shared{$shr};
-            $sharedtaskidq->execute($shr);
-            my $row= $sharedtaskidq->fetchrow_arrayref();
-            $taskid_shared{$shr} = $row->[0];
+        foreach my $flag (grep /./, split /\,/, $flags) {
+            if ($flag =~ m/^share-/) {
+                die if exists $hid->{Shared};
+                my $shr= $';
+                $hid->{Shared}= $shr;
+                if ($shr =~ m/^build-/) {
+                    $hid->{SharedMaxTasks}= 3;
+                    $hid->{SharedMaxWear}= 10;
+                } else {
+                    # who can say
+                    $hid->{SharedMaxTasks}= 2;
+                    $hid->{SharedMaxWear}= 5;
+                }
+                next;
+            }
+            $flags{$flag}= $allflags{$flag}= 1;
         }
         $hid->{Flags}= \%flags;
     }
@@ -106,59 +130,130 @@ END
 END
 
     my $sharingq= $dbh_tests->prepare(<<END);
-            SELECT * FROM host_sharing WHERE hostname=?
+            SELECT hostname, sharetype, state, worn,
+                   (SELECT count(*) FROM host_sharing_tasks t
+                     WHERE t.hostname = s.hostname) AS ntasks
+              FROM host_sharing s WHERE hostname=?
 END
 
-    logm("allocating hosts: ".join(' ', map { $_->{Id} } @hids));
-
     alloc_resources(sub {
+        logm("allocating hosts: ".join(' ', map { $_->{Id} } @hids));
+
+        $dbh_tests->do(<<END);
+            LOCK TABLE host_sharing_tasks IN ACCESS EXCLUSIVE MODE
+END
+        foreach my $hid (@hids) { delete $hid->{Allocated}; }
+
         foreach my $hid (@hids) {
             my $ident
             my $use= $r{$hid};
-            if (!defined $use) {
-                $hostsq->prepare("blessed-$fi->{intended}");
-                $hostsq->execute();
-                while (my $candrow= $hostsq->fetchrow_hashref()) {
-                    my $nogood= 0;
-                    foreach my $flag (@{ $hid->{Flags} }) {
-                        $flagscheckq->execute($candrow->{resname}, $flag);
-                        next unless $flagscheckq->fetchrow_arrayref();
-                        $nogood=1;
-                        last;
+            my $findhostsq;
+            
+            if (defined $use) {
+                $host1q->execute($use);
+                $findhostsq= $host1q;
+            } else {
+                $hostsq->execute("blessed-$fi->{intended}");
+                $findhostsq= $hostsq;
+            }
+            my @candidates;
+            my $any=0;
+
+            while (my $candrow= $hostsq->fetchrow_hashref()) {
+                my @nogood;
+                foreach my $flag (@{ $hid->{Flags} }) {
+                    $flagscheckq->execute($candrow->{resname}, $flag);
+                    next unless $flagscheckq->fetchrow_arrayref();
+                    push @nogood, $flag;
+                }
+                if (@nogood) {
+                    next unless defined $use;
+                    $candrow->{Warnings}=
+                        "specified host lacks flags @nogood\n";
+                }
+                $any++;
+
+                my $allocatable=
+                    $candrow->{owntaskid} == $magictaskid{allocatable};
+
+                my $sharingrow;
+                if ($candrow->{owntaskid} == $magictaskid{shared}) {
+                    $sharingq->execute($candrow->{hostname});
+                    $sharingrow= $sharingq->fetchrow_hashref();
+                    die $candrow->{hostname} unless $sharingrow;
+
+                    if (!$sharingrow->{ntasks}) {
+                        $candrow->{Sharing}= $sharingrow;
+                        $allocatable= 1;
                     }
-                    next if $nogood;
-
-                    if ($candrow->{owntaskid} != $taskid_allocatable) {
-                        
-                    if ($candrow->{owntaskid} == $taskid_
-
-                    my $shr= $hid->{Shared};
-                    if (!defined $shr) {
-                        next unless $candrow->{owntaskid}
-                                     == $taskid_allocatable;
-                        $recentflightsq->execute($fi->{intended},
-                                                 $fi->{branch},
-                                                 $candrow->{resname});
-                        my $recent= $recentflightsq->fetchrow_hashref();
-                        $candrow->{Priority}= defined($recent) ? -$recent : 0;
-                    } else {
-                        next unless $candrow->{owntaskid}
-                                    == $taskid_shared{$shr};
-                        
-                    
-                        push @candidates, {
-
-                        $claimq->execute($taskid, 
-
                 }
 
-});
+                my $shr= $hid->{Shared};
+                if (defined $shr && defined $sharingrow &&
+                    $sharingrow->{sharetype} eq $shr &&
+                    $sharingrow->{ntasks} < $hid->{SharedMaxTasks} &&
+                    $sharingrow->{worn} < $hid->{SharedMaxWear}) {
+                    # wonderful
+                    if ($sharingrow->{state} eq 'prep') {
+                        # someone else is preparing it, we must wait
+                        # no point thinking any more
+                        logm("host $candrow->{$hostname} shareable $shr".
+                             " for $hid->{Ident} is still being prepared");
+                        return 0;
+                    }
+                    $allocatable= 1;
+                    $candrow->{SharingReuse}= 1;
+                    $candrow->{Cost}= 0;
+                } else {
+                    next unless $allocatable;
+                    $recentflightsq->execute($fi->{intended},
+                                             $fi->{branch},
+                                             $candrow->{resname});
+                    my $recent= $recentflightsq->fetchrow_hashref();
+                    $candrow->{Cost}= defined($recent) ? $recent : 1;
+                }
 
-sub alloc_hosts () {
-    my ($idents);
-    # $idents= [ qw(host src_host dst_host ...) ]
-    # $identxflags= { 'src_host' => [ qw(
+                die unless $allocatable;
+                push @candidates, $candrow;
+            }
+
+            @candidates= sort { $a->{Cost} <=> $b->{Cost} } @candidates;
+            if (!@candidates) {
+                logm("none of $any hosts for $hid->{Ident} available");
+                die "no possible hosts" unless $any;
+                return 0;
+            }
+
+            # Right, allocate this one!
+            my $candrow= $candidates[0];
+            my $hn= $candrow->{hostname};
+
+            if ($candrow->{ShareingReuse}) {
+                $claim_share_reuse_q->execute($hn);
+            } elsif (defined $shr) {
+                $claim_setres_q->execute($magictaskid{shared}, $hn);
+                $claim_share_new_q->execute($hn, $shr);
+            }
+            if (defined $shr) {
+                $claim_share_addtask_q->execute($taskid, $hn);
+            } else {
+                $claim_setres_q->execute($taskid, $hn);
+            }
+            logm("allocating for $hid->{Ident} from $any host $hn");
+
+            $hid->{Allocated}= $hn;
+        }
+
+        # if we get here we have allocated a host for every hid
+        foreach my $hid (@hids) {
+            my $hn= $hid->{Allocated};;
+            die $hid->{Ident} unless defined $hn;
+            
+            store_runvar($hid->{Ident}, $hn);
+        }
+        return 1; # yay
+    });
 }
 
-my $t= findtask();
-
+$taskid= findtask();
+alloc_hosts();
