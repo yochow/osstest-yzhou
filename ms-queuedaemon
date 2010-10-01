@@ -112,7 +112,7 @@ proc runneeded-perhaps-start {} {
     }
     log "runneeded-perhaps-start allocable+=$nrows+$unshared cleaned=$cleaned"
 
-    if {!($nrows || $needed>=2)} return
+    if {!($nrows || $unshared || $needed>=2)} return
 
     queuerun-start
 }
