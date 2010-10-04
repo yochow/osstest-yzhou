@@ -6,6 +6,7 @@ use DBI;
 use Osstest;
 use IO::Handle;
 use HTML::Entities;
+use URI::Escape;
 use POSIX;
 use IPC::Open2;
 
@@ -529,8 +530,8 @@ END
     foreach my $dent (@dents) {
         next if $dent eq "$htmlleaf.new" or $dent eq $htmlleaf
             or $dent eq '..' or $dent eq '.';
-        my $enc= encode_entities($dent);
-        print H "<li><a href=\"$enc\">$enc</a>\n";
+        print H "<li><a href=\"".encode_entities(uri_escape($dent))."\">".
+            encode_entities($dent)."</a>\n";
     }
     print H <<END;
 </ul>
