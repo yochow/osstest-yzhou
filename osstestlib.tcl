@@ -212,6 +212,30 @@ proc step-set-status {flight job stepno st} {
                finished=[clock seconds]
          WHERE flight=$flight AND job='$job' AND stepno=$stepno
     "
+    set pause 0
+    pg_execute -array stopinfo dbh "
+        SELECT val FROM runvars
+         WHERE flight=$flight AND job='$job'
+           AND name='pause_on_$st'
+    " {
+        pg_execute -array stepinfo dbh "
+            SELECT * FROM steps
+             WHERE flight=$flight AND job='$job' AND stepno=$stepno
+        " {
+            foreach col {step testid} {
+                if {![info exists stepinfo($col)]} continue
+                foreach pat [split $stopinfo(val) ,] {
+                    if {[string match $pat $stepinfo($col)]} {
+                        set pause 1
+                    }
+                }
+            }
+        }
+    }
+    if {$pause} {
+        logputs stdout "PAUSING as requested"
+        catch { exec sleep 86400 }
+    }
 }
 
 proc reap-ts {reap} {
