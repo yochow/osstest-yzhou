@@ -1,6 +1,17 @@
 #
 
-if test -f stop; then exit 0; fi
+check_stop () {
+	if test -f ${1}stop; then
+		echo "${1}stop found - stopping"
+		exit 0
+	fi
+	if test -f ${1}.xsettings; then
+		echo "loading ${1}xsettings"
+		. ${1}.xsettings
+	fi
+}
+
+check_stop ''
 
 select_branch () {
 	case "$branch" in
@@ -8,8 +19,8 @@ select_branch () {
 	linux)	tree=linux;	xenbranch=xen-unstable ;;
 	esac
 
-	if test -f $branch.stop; then exit 0; fi
-	if test -f $xenbranch.any.stop; then exit 0; fi
+	check_stop $branch.
+	check_stop $xenbranch.any.
 
 	mrof="$branch.mro"
 }

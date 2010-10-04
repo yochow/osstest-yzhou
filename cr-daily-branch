@@ -5,7 +5,7 @@ set -ex
 branch=$1; shift
 select_branch
 
-if test -f daily.stop; then exit 0; fi
+check_stop daily.
 
 fetch_version () {
 	if [ "x$1" = "x$branch" ]; then
