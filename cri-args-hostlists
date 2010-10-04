@@ -5,9 +5,9 @@ check_stop () {
 		echo "${1}stop found - stopping"
 		exit 0
 	fi
-	if test -f ${1}.xsettings; then
+	if test -f ${1}xsettings; then
 		echo "loading ${1}xsettings"
-		. ${1}.xsettings
+		. ${1}xsettings
 	fi
 }
 
