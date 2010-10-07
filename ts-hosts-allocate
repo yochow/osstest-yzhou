@@ -61,19 +61,24 @@ END
 
     my $claim_share_reuse_q= $dbh_tests->prepare(<<END);
         UPDATE host_sharing
-           SET wear = wearn + 1
+           SET wear = wear + 1
          WHERE hostname = ?
 END
 
     my $claim_share_new_q= $dbh_tests->prepare(<<END);
         INSERT INTO host_sharing
-                    (hostname, sharetype, state,  worn)
+                    (hostname, sharetype, state,  wear)
              VALUES (?,        ?,         'prep', 1   )
 END
 
     my $claim_share_addtask_q= $dbh_tests->prepare(<<END);
-        INSERT INTO host_sharing_tasks (owntaskid, hostname)
-             VALUES (?,?)
+        INSERT INTO host_sharing_tasks (owntaskid, hostname, subtask)
+             VALUES (?,?,?)
+END
+
+    my $claim_unshare_q= $dbh_tests->prepare(<<END);
+        DELETE FROM host_sharing
+              WHERE hostname = ?
 END
 
     my @hids;
@@ -155,7 +160,7 @@ END
 END
 
     my $sharingq= $dbh_tests->prepare(<<END);
-            SELECT hostname, sharetype, state, worn,
+            SELECT hostname, sharetype, state, wear,
                    (SELECT count(*) FROM host_sharing_tasks t
                      WHERE t.hostname = s.hostname) AS ntasks
               FROM host_sharing s WHERE hostname=?
@@ -221,7 +226,7 @@ END
 
                     print DEBUG "$dbg ALLOC ISSHARED".
                         " $sharingrow->{sharetype} $sharingrow->{ntasks}".
-                        " $sharingrow->{worn}\n";
+                        " $sharingrow->{wear}\n";
                     
                     if (!$sharingrow->{ntasks}) {
                         $candrow->{Sharing}= $sharingrow;
@@ -232,18 +237,25 @@ END
                 if (defined $shr && defined $sharingrow &&
                     $sharingrow->{sharetype} eq $shr &&
                     $sharingrow->{ntasks} < $hid->{SharedMaxTasks} &&
-                    $sharingrow->{worn} < $hid->{SharedMaxWear}) {
+                    $sharingrow->{wear} < $hid->{SharedMaxWear}) {
                     print DEBUG "$dbg ALLOC SHARED YES $sharingrow->{state}\n";
-                    if ($sharingrow->{state} eq 'prep') {
+                    if ($sharingrow->{state} eq 'avail') {
+                        $allocatable= 1;
+                        $candrow->{SharingReuse}= 1;
+                        $candrow->{Cost}= 0;
+                    } elsif ($sharingrow->{ntasks}) {
                         # someone else is preparing it, we must wait
                         # no point thinking any more
                         logm("host $candrow->{hostname} shareable $shr".
-                             " for $hid->{Ident} is still being prepared");
+                             " for $hid->{Ident} is being prepared".
+                             " ($sharingrow->{state})");
                         return 0;
+                    } else {
+                        # someone was preparing it but they aren't any more
+                        push @{ $candrow->{Warnings} },
+                            "previous preparation apparently abandoned";
+                        $candrow->{Cost}= 1;
                     }
-                    $allocatable= 1;
-                    $candrow->{SharingReuse}= 1;
-                    $candrow->{Cost}= 0;
                 } else {
                     next unless $allocatable;
                     $recentflightsq->execute($fi->{intended},
@@ -274,22 +286,27 @@ END
 
             print DEBUG "HID $hid->{Ident} YES YES $hn\n";
 
-            if ($candrow->{ShareingReuse}) {
+            if ($candrow->{SharingReuse}) {
                 print DEBUG "HID $hid->{Ident} YES YES $hn REUSE\n";
                 $claim_share_reuse_q->execute($hn);
             } elsif (defined $shr) {
                 print DEBUG "HID $hid->{Ident} YES YES $hn NEW SHARE\n";
                 $claim_setres_q->execute($magictaskid{shared}, $hn);
+                $claim_unshare_q->execute($hn);
                 $claim_share_new_q->execute($hn, $shr);
             }
             if (defined $shr) {
                 print DEBUG "HID $hid->{Ident} YES YES $hn ADD SHARE\n";
-                $claim_share_addtask_q->execute($taskid, $hn);
+                $claim_share_addtask_q->execute($taskid, $hn, "$flight.$job");
             } else {
                 print DEBUG "HID $hid->{Ident} YES YES $hn PLAIN\n";
                 $claim_setres_q->execute($taskid, $hn);
+                $claim_unshare_q->execute($hn);
             }
             logm("allocating for $hid->{Ident} (from $any): $hn");
+            foreach my $warn (@{ $candrow->{Warnings} }) {
+                logm("warning about $hn: $warn");
+            }
 
             $hid->{Allocated}= $hn;
         }
