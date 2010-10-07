@@ -82,6 +82,7 @@ proc newconn {chan addr port} {
     set chandesc($chan) "\[$addr\]:$port"
     for-chan $chan {
         puts "$desc connected $chan"
+        fcntl $chan KEEPALIVE 1
         fconfigure $chan -blocking false -buffering line
         fileevent $chan readable [list chan-read $chan]
         puts-chan $chan [banner $chan]
