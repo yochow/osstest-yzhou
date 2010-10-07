@@ -99,6 +99,11 @@ proc runneeded-perhaps-start {} {
             DELETE FROM host_sharing_tasks
          WHERE NOT (SELECT live FROM tasks WHERE taskid=owntaskid)
         }]
+        set newshares [pg_execute dbh {
+            UPDATE host_sharing
+               SET state='avail'
+             WHERE state='ready'
+        }]
         set cleaned [pg_execute dbh {
             DELETE FROM tasks
              WHERE type='ownd'
@@ -110,9 +115,9 @@ proc runneeded-perhaps-start {} {
                      LIMIT 1)
         }]
     }
-    log "runneeded-perhaps-start allocable+=$nrows+$unshared cleaned=$cleaned"
+    log "runneeded-perhaps-start allocable+=$nrows+$unshared+$newshares cleaned=$cleaned"
 
-    if {!($nrows || $unshared || $needed>=2)} return
+    if {!($nrows || $unshared || $newshares || $needed>=2)} return
 
     queuerun-start
 }
