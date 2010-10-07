@@ -904,14 +904,14 @@ sub alloc_resources ($) {
                 $qserv= tcpconnect($c{ControlDaemonHost}, $c{QueueDaemonPort});
                 $qserv->autoflush(1);
 
-                $_= <$qserv>;  defined and m/^OK ms-queuedaemon\s/ or die "$_ ?";
+                $_= <$qserv>;  defined && m/^OK ms-queuedaemon\s/ or die "$_ ?";
                 print $qserv "wait\n" or die $!;
-                $_= <$qserv>;  defined and m/^OK wait\s/ or die "$_ ?";
+                $_= <$qserv>;  defined && m/^OK wait\s/ or die "$_ ?";
             }
 
             logm("resource allocation, awaiting our slot...");
 
-            $_= <$qserv>;  defined and m/^\!OK think\s$/ or die "$_ ?";
+            $_= <$qserv>;  defined && m/^\!OK think\s$/ or die "$_ ?";
 
             db_retry($flight,'running', $dbh_tests,[], sub {
                 if (!eval {
@@ -934,7 +934,7 @@ sub alloc_resources ($) {
             } else {
                 print $qserv "thought-wait\n" or die $!;
             }
-            $_= <$qserv>;  defined and m/^OK thought\s$/ or die "$_ ?";
+            $_= <$qserv>;  defined && m/^OK thought\s$/ or die "$_ ?";
             
             1;
         }) {
