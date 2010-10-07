@@ -22,9 +22,11 @@ BEGIN {
                       store_runvar get_stashed
                       unique_incrementing_runvar system_checked
                       tcpconnect findtask alloc_resources
+                      resource_check_allocated host_share_mark_ready
                       built_stash flight_otherjob
                       csreadconfig ts_get_host_guest
-                      readconfig opendb_state selecthost need_runvars
+                      readconfig opendb_state selecthost get_hostflags
+                      need_runvars
                       get_filecontents ensuredir postfork db_retry
                       poll_loop logm link_file_contents create_webfile
                       power_state power_cycle
@@ -947,7 +949,89 @@ sub alloc_resources ($) {
     logm("resources allocated.");
 }
 
+sub resource_check_allocated ($$) {
+    my ($restype,$resname) = @_;
+    return db_retry($dbh_tests, [], sub {
+        return resource_check_allocated_core($restype,$resname);
+    });
+}
+
+sub resource_check_allocated_core ($$) {
+    my ($restype,$resname) = @_;
+    my $tid= findtask();
+    my $shared;
+    my $resources_q= $dbh_tests->prepare(<<END);
+        SELECT * FROM resources LEFT JOIN tasks
+                   ON taskid=owntaskid
+                WHERE restype=? AND resname=?
+END
+    my $sharing_q= $dbh_tests->prepare(<<END);
+        SELECT * FROM host_sharing
+                WHERE hostname=?
+END
+    my $sharing_tasks_q= $dbh_tests->prepare(<<END);
+        SELECT * FROM host_sharing_tasks LEFT JOIN tasks
+                   ON taskid=owntaskid
+                WHERE hostname=? AND owntaskid=?
+END
+
+    $resources_q->execute($restype, $resname);
+    my $res= $resources_q->fetchrow_hashref();
+    die "resource $restype $resname not found" unless $res;
+    die "resource $restype $resname no task" unless defined $res->{taskid};
+
+    if ($res->{type} eq 'magic' && $res->{refkey} eq 'shared') {
+        $sharing_q->execute($resname);
+        my $shr= $sharing_q->fetchrow_hashref();
+        die "host $resname shared but no share?" unless $shr;
+
+        $sharing_tasks_q->execute($resname, $tid);
+        my $shrt= $sharing_tasks_q->fetchrow_hashref();
+
+        die "host $resname task $tid not in sharing tasks" unless $shrt;
+        die "host $resname task $tid no longer live" unless $shrt->{live};
+
+        $shared= [ $shr->{sharetype}, $shr->{state} ];
+
+    } else {
+        die "resource $restype $resname task $res->{owntaskid} not $tid"
+            unless $res->{owntaskid} == $tid;
+    }
+    die "resource $restype $resname task $res->{taskid} no longer live"
+        unless $res->{live};
+
+    return $shared;
+}
+
+sub host_share_mark_ready ($$) {
+    my ($hostname, $sharetype) = @_;
+    my $mark_q= $dbh_tests->prepare(<<END);
+        UPDATE host_sharing
+           SET state='ready'
+         WHERE hostname=? AND sharetype=?
+END
+    db_retry($dbh_tests, [qw(host_sharing_tasks host_sharing)], sub {
+        my $oldshr= resource_check_allocated_core('host', $hostname);
+        if (defined $oldshr) {
+            die "host $hostname shared $oldshr->[0] not $sharetype"
+                unless $oldshr->[0] eq $sharetype;
+            die "host $hostname shared state $oldshr->[1] not prep"
+                unless $oldshr->[1] eq 'prep';
+            my $nrows= $mark_q->execute($hostname, $sharetype);
+            die "unexpected not updated state $hostname $sharetype $nrows"
+                unless $nrows==1;
+        }
+    });
+}
+
 #---------- hosts and guests ----------
+
+sub get_hostflags ($) {
+    my ($name) = @_;
+    my $flags= get_runvar_default('all_hostflags',     $job, '').
+               get_runvar_default("${name}_hostflags", $job, '');
+    return grep /./, split /\,/, $flags;
+}
 
 sub selecthost ($) {
     my ($name) = @_;

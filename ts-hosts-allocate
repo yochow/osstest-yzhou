@@ -82,12 +82,11 @@ END
     # greedy allocator, but we sort by flags wanted so
     # at least we don't do things obviously stupidly
     foreach my $ident (@idents) {
-        my $flags= get_runvar_default('all_hostflags',      $job, '').
-                   get_runvar_default("${ident}_hostflags", $job, '');
-        print DEBUG "HID $ident FLAGS $flags\n";
+        my @flags= get_hostflags($ident);
+        print DEBUG "HID $ident FLAGS @flags\n";
         my $hid= { Ident => $ident };
         my %flags;
-        foreach my $flag (grep /./, split /\,/, $flags) {
+        foreach my $flag (@flags) {
             print DEBUG "HID $ident FLAG $flag\n";
             if ($flag =~ m/^share-/) {
                 die if exists $hid->{Shared};
