@@ -194,6 +194,8 @@ sub ts_get_host_guest { # pass this @ARGV
 #---------- database access ----------#
 
 sub db_retry ($$$;$$) {
+    # $code should return whatever it likes, and that will
+    #     be returned by db_retry
     my ($fl,$flok, $dbh,$tables,$code) = (@_==5 ? @_ :
                                           @_==3 ? (undef,undef,@_) :
                                           die);
