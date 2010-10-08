@@ -974,6 +974,12 @@ END
                    ON taskid=owntaskid
                 WHERE hostname=? AND owntaskid=?
 END
+    my $sharing_others_q= $dbh_tests->prepare(<<END);
+        SELECT count(*) AS ntasks
+                 FROM host_sharing_tasks LEFT JOIN tasks
+                   ON taskid=owntaskid
+                WHERE hostname = ? AND live
+END
 
     $resources_q->execute($restype, $resname);
     my $res= $resources_q->fetchrow_hashref();
@@ -991,7 +997,14 @@ END
         die "host $resname task $tid not in sharing tasks" unless $shrt;
         die "host $resname task $tid no longer live" unless $shrt->{live};
 
-        $shared= [ $shr->{sharetype}, $shr->{state} ];
+        $sharing_others_q->execute($resname);
+        my $shrothers= $sharing_others_q->fetchrow_hashref();
+        die "host $resname task $tid unexpectedly ntasks $shrothers->{ntasks}"
+            unless $shrothers->{ntasks} >= 1;
+
+        $shared= { Type => $shr->{sharetype},
+                   State => $shr->{state},
+                   Others => $shrothers->{ntasks} - 1 };
 
     } else {
         die "resource $restype $resname task $res->{owntaskid} not $tid"
@@ -1013,10 +1026,10 @@ END
     db_retry($dbh_tests, [qw(host_sharing_tasks host_sharing)], sub {
         my $oldshr= resource_check_allocated_core('host', $hostname);
         if (defined $oldshr) {
-            die "host $hostname shared $oldshr->[0] not $sharetype"
-                unless $oldshr->[0] eq $sharetype;
-            die "host $hostname shared state $oldshr->[1] not prep"
-                unless $oldshr->[1] eq 'prep';
+            die "host $hostname shared $oldshr->{Type} not $sharetype"
+                unless $oldshr->{Type} eq $sharetype;
+            die "host $hostname shared state $oldshr->{State} not prep"
+                unless $oldshr->{State} eq 'prep';
             my $nrows= $mark_q->execute($hostname, $sharetype);
             die "unexpected not updated state $hostname $sharetype $nrows"
                 unless $nrows==1;
