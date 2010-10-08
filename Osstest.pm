@@ -195,6 +195,11 @@ sub ts_get_host_guest { # pass this @ARGV
 
 #---------- database access ----------#
 
+our $db_retry_stop;
+
+sub db_retry_abort () { $db_retry_stop= 'abort'; undef; }
+sub db_retry_retry () { $db_retry_stop= 'retry'; undef; }
+
 sub db_retry ($$$;$$) {
     # $code should return whatever it likes, and that will
     #     be returned by db_retry
@@ -203,6 +208,7 @@ sub db_retry ($$$;$$) {
                                           die);
     my $retries= 20;
     my $r;
+    local $db_retry_stop;
     for (;;) {
         $dbh->begin_work();
         $dbh->do('SET TRANSACTION ISOLATION LEVEL SERIALIZABLE');
@@ -213,8 +219,14 @@ sub db_retry ($$$;$$) {
             die unless $dbh eq $dbh_tests;
             dbfl_check($fl,$flok);
         }
+        $db_retry_stop= 0;
         $r= &$code;
-        last if eval { $dbh->commit(); 1; };
+        if ($db_retry_stop) {
+            $dbh->rollback();
+            last if $db_retry_stop eq 'abort';
+        } else {
+            last if eval { $dbh->commit(); 1; };
+        }
         die "$dbh $code $@ ?" unless $retries-- > 0;
         sleep(1);
     }
