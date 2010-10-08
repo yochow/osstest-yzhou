@@ -1114,9 +1114,22 @@ sub selecthost ($) {
     $ho->{Ip}=    $get->('ip');
     $ho->{Ether}= $get->('hardware');
     $ho->{Asset}= $get->('asset');
-    logm("host: selected $ho->{Name} $ho->{Asset} $ho->{Ether} $ho->{Ip}");
-    return $ho;
     $dbh->disconnect();
+
+    $ho->{Shared}= resource_check_allocated('host', $name);
+    $ho->{SharedReady}=
+        $ho->{Shared} &&
+        $ho->{Shared}{State} eq 'ready' &&
+        !! grep { $_ eq "share-".$ho->{Shared}{Type} } get_hostflags($ident);
+    $ho->{SharedOthers}=
+        $ho->{Shared} ? $ho->{Shared}{Others} : 0;
+
+    logm("host: selected $ho->{Name} $ho->{Asset} $ho->{Ether} $ho->{Ip}".
+         (!$ho->{Shared} ? '' :
+          sprintf(" - shared %s %s %d", $ho->{Shared}{Type},
+                  $ho->{Shared}{State}, $ho->{Shared}{Others}+1)));
+    
+    return $ho;
 }
 
 sub guest_find_tcpcheckport ($) {

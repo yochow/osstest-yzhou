@@ -10,6 +10,8 @@ opendb_state();
 our ($whhost) = @ARGV;
 $whhost ||= 'host';
 our $ho= selecthost($whhost);
+exit 0 if $ho->{SharedReady};
+die if $ho->{SharedOthers};
 
 our %timeout= qw(ReadPreseed  250
                  Sshd        1200);
