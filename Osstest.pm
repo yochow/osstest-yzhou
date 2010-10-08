@@ -22,7 +22,7 @@ BEGIN {
                       store_runvar get_stashed
                       unique_incrementing_runvar system_checked
                       tcpconnect findtask alloc_resources
-                      resource_check_allocated host_share_mark_ready
+                      resource_check_allocated resource_shared_mark_ready
                       built_stash flight_otherjob
                       csreadconfig ts_get_host_guest
                       readconfig opendb_state selecthost get_hostflags
@@ -903,12 +903,22 @@ END
 
 sub alloc_resources ($) {
     my ($resourcecall) = @_;
+    # $resourcecall should not look at tasks.live;
+    # instead it should look for resources.owntaskid == the allocatable task
 
     my $qserv;
     my $retries=0;
     my $ok;
 
     logm("allocating resources...");
+
+    my $pending_q= $dbh_tests->prepare(<<END);
+        SELECT * FROM resources
+                WHERE owntaskid !=
+     (SELECT taskid FROM tasks WHERE type='magic' AND refkey='allocatable')
+                  AND NOT (SELECT live FROM tasks WHERE taskid=owntaskid)
+                LIMIT 1
+END
 
     while (!$ok) {
         if (!eval {
@@ -925,25 +935,32 @@ sub alloc_resources ($) {
 
             $_= <$qserv>;  defined && m/^\!OK think\s$/ or die "$_ ?";
 
-            db_retry($flight,'running', $dbh_tests,[], sub {
-                if (!eval {
-                    $ok= $resourcecall->();
-                    1;
-                }) {
-                    $ok= -1;
-                    warn "alloc_resources resourcecall $@";
-                    return;
+            db_retry($flight,'running', $dbh_tests,
+		     [qw(resources resource_sharing)], sub {
+                $pending_q->execute();
+                my $pending= $pending_q->fetchrow_hashref();
+                if ($pending) {
+                    logm("resource(s) nearly free".
+                         " ($pending->{restype} $pending->{resname}".
+                         " $pending->{shareix}), deferring");
+                    $ok= 0;
+                } else {
+                    if (!eval {
+                        $ok= $resourcecall->();
+                        1;
+                    }) {
+                        warn "resourcecall $@";
+                        $ok=-1;
+                    }
                 }
-                unless ($ok>0) {
-                    $dbh_tests->rollback();
-                    $dbh_tests->begin_work(); # avoids a stupid warning
-                    logm("resource allocation rolled back, deferring") if !$ok;
-                }
+                return db_retry_abort() unless $ok>0;
             });
-
-            if ($ok) {
+            if ($ok>0) {
                 print $qserv "thought-done\n" or die $!;
+            } elsif ($ok<0) {
+                return 1;
             } else {
+                logm("resource allocation rolled back, deferring");
                 print $qserv "thought-wait\n" or die $!;
             }
             $_= <$qserv>;  defined && m/^OK thought\s$/ or die "$_ ?";
@@ -963,7 +980,7 @@ sub alloc_resources ($) {
 
 sub resource_check_allocated ($$) {
     my ($restype,$resname) = @_;
-    return db_retry($dbh_tests, [], sub {
+    return db_retry($dbh_tests, [qw(resources resource_sharing)], sub {
         return resource_check_allocated_core($restype,$resname);
     });
 }
@@ -978,19 +995,21 @@ sub resource_check_allocated_core ($$) {
                 WHERE restype=? AND resname=?
 END
     my $sharing_q= $dbh_tests->prepare(<<END);
-        SELECT * FROM host_sharing
-                WHERE hostname=?
+        SELECT * FROM resource_sharing
+                WHERE restype=? AND resname=?
 END
-    my $sharing_tasks_q= $dbh_tests->prepare(<<END);
-        SELECT * FROM host_sharing_tasks LEFT JOIN tasks
-                   ON taskid=owntaskid
-                WHERE hostname=? AND owntaskid=?
+    my $shared_resource_q= $dbh_tests->prepare(<<END);
+        SELECT * FROM resources LEFT JOIN tasks ON taskid=owntaskid
+                WHERE restype=? AND resname=? AND owntaskid=?
 END
-    my $sharing_others_q= $dbh_tests->prepare(<<END);
+    my $shared_others_q= $dbh_tests->prepare(<<END);
         SELECT count(*) AS ntasks
-                 FROM host_sharing_tasks LEFT JOIN tasks
-                   ON taskid=owntaskid
-                WHERE hostname = ? AND live
+                 FROM resources LEFT JOIN tasks ON taskid=owntaskid
+                WHERE restype=? AND resname=? AND shareix!=?
+                  AND live
+                  AND owntaskid != (SELECT taskid FROM tasks
+                                     WHERE type='magic'
+                                       AND refkey='preparing')
 END
 
     $resources_q->execute($restype, $resname);
@@ -999,52 +1018,66 @@ END
     die "resource $restype $resname no task" unless defined $res->{taskid};
 
     if ($res->{type} eq 'magic' && $res->{refkey} eq 'shared') {
-        $sharing_q->execute($resname);
+        $sharing_q->execute($restype, $resname);
         my $shr= $sharing_q->fetchrow_hashref();
         die "host $resname shared but no share?" unless $shr;
 
-        $sharing_tasks_q->execute($resname, $tid);
-        my $shrt= $sharing_tasks_q->fetchrow_hashref();
+        my $shrestype= 'share-'.$restype;
+        $shared_resource_q->execute($shrestype, $resname, $tid);
+        my $shrt= $shared_resource_q->fetchrow_hashref();
 
-        die "host $resname task $tid not in sharing tasks" unless $shrt;
-        die "host $resname task $tid no longer live" unless $shrt->{live};
+        die "resource $restype $resname not shared by $tid" unless $shrt;
+        die "resource $resname $resname share $shrt->{shareix} task $tid dead"
+            unless $shrt->{live};
 
-        $sharing_others_q->execute($resname);
-        my $shrothers= $sharing_others_q->fetchrow_hashref();
-        die "host $resname task $tid unexpectedly ntasks $shrothers->{ntasks}"
-            unless $shrothers->{ntasks} >= 1;
+        $shared_others_q->execute($shrt->{restype}, $shrt->{resname},
+                                  $shrt->{shareix});
+        my $others= $shared_others_q->fetchrow_hashref();
 
         $shared= { Type => $shr->{sharetype},
                    State => $shr->{state},
-                   Others => $shrothers->{ntasks} - 1 };
-
+                   ResType => $shrestype,
+                   Others => $others->{ntasks} };
     } else {
         die "resource $restype $resname task $res->{owntaskid} not $tid"
             unless $res->{owntaskid} == $tid;
     }
-    die "resource $restype $resname task $res->{taskid} no longer live"
+    die "resource $restype $resname task $res->{taskid} dead"
         unless $res->{live};
 
     return $shared;
 }
 
-sub host_share_mark_ready ($$) {
-    my ($hostname, $sharetype) = @_;
+sub resource_shared_mark_ready ($$$) {
+    my ($restype, $resname, $sharetype) = @_;
     my $mark_q= $dbh_tests->prepare(<<END);
-        UPDATE host_sharing
+        UPDATE resource_sharing
            SET state='ready'
-         WHERE hostname=? AND sharetype=?
+         WHERE restype=? AND resname=? AND sharetype=?
 END
-    db_retry($dbh_tests, [qw(host_sharing_tasks host_sharing)], sub {
-        my $oldshr= resource_check_allocated_core('host', $hostname);
+    my $setres_q= $dbh_tests->prepare(<<END);
+        UPDATE resources
+           SET owntaskid=(SELECT taskid FROM tasks
+                           WHERE type='magic' AND refkey='idle')
+         WHERE owntaskid=(SELECT taskid FROM tasks
+                           WHERE type='magic' AND refkey='preparing')
+           AND restype=? AND resname=?
+END
+
+    my $what= "resource $restype $resname";
+
+    db_retry($dbh_tests, [qw(resources resource_sharing)], sub {
+        my $oldshr= resource_check_allocated_core($restype, $resname);
         if (defined $oldshr) {
-            die "host $hostname shared $oldshr->{Type} not $sharetype"
+            die "$what shared $oldshr->{Type} not $sharetype"
                 unless $oldshr->{Type} eq $sharetype;
-            die "host $hostname shared state $oldshr->{State} not prep"
+            die "$what shared state $oldshr->{State} not prep"
                 unless $oldshr->{State} eq 'prep';
-            my $nrows= $mark_q->execute($hostname, $sharetype);
-            die "unexpected not updated state $hostname $sharetype $nrows"
+            my $nrows= $mark_q->execute($restype, $resname, $sharetype);
+            die "unexpected not updated state $what $sharetype $nrows"
                 unless $nrows==1;
+
+            $setres_q->execute($oldshr->{ResType}, $resname);
         }
     });
 }

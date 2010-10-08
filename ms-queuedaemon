@@ -86,23 +86,16 @@ proc runneeded-perhaps-start {} {
     if {![llength $queue]} return
 
     transaction {
-        pg_execute dbh {
-            LOCK TABLE host_sharing_tasks IN ACCESS EXCLUSIVE MODE
-        }
+	foreach tab {resources} {
+	    pg_execute dbh "
+		LOCK TABLE $tab IN ACCESS EXCLUSIVE MODE
+            "
+	}
         set nrows [pg_execute dbh {
             UPDATE resources
                SET owntaskid= (SELECT taskid FROM tasks
                                WHERE type='magic' AND refkey='allocatable')
          WHERE NOT (SELECT live FROM tasks WHERE taskid=owntaskid)
-        }]
-        set unshared [pg_execute dbh {
-            DELETE FROM host_sharing_tasks
-         WHERE NOT (SELECT live FROM tasks WHERE taskid=owntaskid)
-        }]
-        set newshares [pg_execute dbh {
-            UPDATE host_sharing
-               SET state='avail'
-             WHERE state='ready'
         }]
         set cleaned [pg_execute dbh {
             DELETE FROM tasks
@@ -115,9 +108,9 @@ proc runneeded-perhaps-start {} {
                      LIMIT 1)
         }]
     }
-    log "runneeded-perhaps-start allocable+=$nrows+$unshared+$newshares cleaned=$cleaned"
+    log "runneeded-perhaps-start allocable+=$nrows cleaned=$cleaned"
 
-    if {!($nrows || $unshared || $newshares || $needed>=2)} return
+    if {!($nrows || $needed>=2)} return
 
     queuerun-start
 }
