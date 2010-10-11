@@ -34,7 +34,10 @@ sub build () {
 		s/^CONFIG_(?: VGA | VIDEO | FRAMEBUFFER | BOOTSPLASH
 			XEN_FRAMEBUFFER ).*//x;
                 s/^\\# CONFIG_BLK_DEV_NBD//;
-          END { print "\\nCONFIG_BLK_DEV_NBD=m\\n"; }
+          END {
+                 print "\\nCONFIG_DEBUG_INFO=y\\n";
+                 print "\\nCONFIG_BLK_DEV_NBD=m\\n";
+          }
 	' buildconfigs/linux-defconfig_*[^~]
 	make -f buildconfigs/Rules.mk defconfig </dev/null
 END

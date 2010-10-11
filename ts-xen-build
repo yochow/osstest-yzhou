@@ -48,6 +48,7 @@ sub build () {
                 print "setopt CONFIG_HIGHPTE n\\n" or die \$!;
                 print "setopt CONFIG_TUN y\\n" or die \$!;
                 print "setopt CONFIG_BLK_DEV_NBD m\\n" or die \$!;
+                print "setopt CONFIG_DEBUG_INFO y\\n" or die \$!;
         ' buildconfigs/enable-xen-config
 END
     target_cmd_build($ho, 9000, $builddir, <<END);
