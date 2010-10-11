@@ -188,7 +188,7 @@ sub ts_get_host_guest { # pass this @ARGV
     $whhost ||= 'host';
     $gn ||= 'guest';
 
-    my $ho= selecthost($r{$whhost});
+    my $ho= selecthost($whhost);
     my $gho= selectguest($gn);
     return ($ho,$gho);
 }
@@ -1092,7 +1092,8 @@ sub get_hostflags ($) {
 }
 
 sub selecthost ($) {
-    my ($name) = @_;
+    my ($ident) = @_;
+    my ($name) = $r{$ident};
     my $ho= {
         Name => $name,
         TcpCheckPort => 22,

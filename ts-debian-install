@@ -11,7 +11,7 @@ our ($whhost,$gn) = @ARGV;
 $whhost ||= 'host';
 $gn ||= 'debian';
 
-our $ho= selecthost($r{$whhost});
+our $ho= selecthost($whhost);
 
 our $ram_mb=    512;
 our $swap_mb=  1000;

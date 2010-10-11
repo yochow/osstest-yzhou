@@ -10,8 +10,8 @@ opendb_state();
 
 our ($srvhost,$clthost,@gns) = @ARGV;
 
-our $sho= selecthost($r{$srvhost});
-our $cho= selecthost($r{$clthost});
+our $sho= selecthost($srvhost);
+our $cho= selecthost($clthost);
 
 our @ghos= map { selectguest($_) } @gns;
 

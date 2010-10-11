@@ -8,8 +8,8 @@ our %timeout= qw(Migrate      400);
 
 readconfig();
 opendb_state();
-our $sho = selecthost($r{$ARGV[0]});
-our $dho = selecthost($r{$ARGV[1]});
+our $sho = selecthost($ARGV[0]);
+our $dho = selecthost($ARGV[1]);
 our $gho = selectguest($ARGV[2]);
 
 sub migrate () {

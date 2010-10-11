@@ -8,7 +8,7 @@ readconfig();
 opendb_state();
 
 our ($whhost) = @ARGV;
-our $ho= selecthost($r{$whhost});
+our $ho= selecthost($whhost);
 
 sub fail () {
     my $log= "/var/log/xen/osstest-hostfail";
