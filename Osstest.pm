@@ -889,8 +889,11 @@ END
     my $row= $q->fetchrow_hashref();
     die "no task $what ?" unless defined $row;
     die "task $what dead" unless $row->{live};
-    warn "task $what no username" unless defined $row->{username};
-    warn "task $what comment" unless defined $row->{comment};
+
+    foreach my $k (qw(username comment)) {
+        next if defined $row->{$k};
+        $row->{$k}= "[no $k]";
+    }
 
     my $newspec= "$row->{taskid} $row->{type} $row->{refkey}";
     logm("task $newspec: $row->{username} $row->{comment}");
