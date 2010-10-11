@@ -73,7 +73,7 @@ perhaps_bisect_step () {
                 return
         fi
 
-        flight=`./cs-flight-create $branch`
+        flight=`./cs-flight-create $OSSTEST_BLESSING $branch`
         flight_executed=false
 
         compute_state --flight=$flight

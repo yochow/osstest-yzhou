@@ -3,9 +3,10 @@ set -e
 
 branch=$1
 xenbranch=$2
-buildflight=$3
+blessing=$3
+buildflight=$4
 
-flight=`./cs-flight-create $branch`
+flight=`./cs-flight-create $blessing $branch`
 
 : ${TREE_LINUX:=git://git.kernel.org/pub/scm/linux/kernel/git/jeremy/xen.git}
 
