@@ -1102,7 +1102,8 @@ sub selecthost ($) {
     my $selname= "$name.$c{TestHostDomain}";
     my $sth= $dbh->prepare('SELECT * FROM ips WHERE reverse_dns = ?');
     $sth->execute($selname);
-    my $row= $sth->fetchrow_hashref();  die "$selname ?" unless $row;
+    my $row= $sth->fetchrow_hashref();
+    die "$ident $name $selname ?" unless $row;
     die if $sth->fetchrow_hashref();
     my $get= sub {
 	my ($k) = @_;
