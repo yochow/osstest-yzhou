@@ -31,7 +31,7 @@ if (@ARGV and $ARGV[0] eq '--check') {
 }
 
 foreach my $k (@ARGV) {
-    push @hos, selecthost($r{$k});
+    push @hos, selecthost($k);
 }
 
 our $ho;

@@ -8,7 +8,7 @@ readconfig();
 opendb_state();
 my $gn= pop(@ARGV);
 our $gho= selectguest($gn);
-our @ho= map { selecthost($r{$_}) } @ARGV;
+our @ho= map { selecthost($_) } @ARGV;
 
 guest_check_remus_ok($gho, @ho);
 guest_check_up($gho);

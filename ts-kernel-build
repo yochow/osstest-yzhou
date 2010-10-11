@@ -6,7 +6,7 @@ use Osstest;
 
 readconfig();
 opendb_state();
-our $ho= selecthost($r{host});
+our $ho= selecthost('host');
 
 my $leaf= "build.$flight.$job";
 my $builddir= "/home/osstest/$leaf";

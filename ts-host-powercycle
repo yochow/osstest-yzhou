@@ -9,6 +9,6 @@ opendb_state();
 
 our ($whhost) = @ARGV;
 $whhost ||= 'host';
-our $ho= selecthost($r{$whhost});
+our $ho= selecthost($whhost);
 
 power_cycle($ho);

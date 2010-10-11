@@ -9,7 +9,7 @@ opendb_state();
 
 our ($whhost) = @ARGV;
 $whhost ||= 'host';
-our $ho= selecthost($r{$whhost});
+our $ho= selecthost($whhost);
 
 our %timeout= qw(ReadPreseed 250
                  Sshd        800);

@@ -11,7 +11,7 @@ our ($whhost,$gn) = @ARGV;
 $whhost ||= 'host';
 $gn ||= 'redhat';
 
-our $ho= selecthost($r{$whhost});
+our $ho= selecthost($whhost);
 
 our $ram_mb=    768;
 our $disk_mb= 50000;

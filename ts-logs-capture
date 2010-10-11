@@ -11,7 +11,7 @@ opendb_state();
 
 our ($whhost) = @ARGV;
 $whhost ||= 'host';
-our $ho= selecthost($r{$whhost});
+our $ho= selecthost($whhost);
 
 sub try_fetch_logs ($$) {
     my ($lho, $logfilepats) = @_;
