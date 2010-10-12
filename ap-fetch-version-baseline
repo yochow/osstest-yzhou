@@ -1,0 +1,19 @@
+#!/bin/bash
+set -e
+
+branch=$1
+
+: ${BASE_TREE_LINUX:=git://xenbits.xen.org/people/ianc/linux-2.6.git}
+: ${BASE_TAG_LINUX:=xen/next-2.6.32}
+: ${BASE_LOCALREV_LINUX:=daily-cron.$branch.baseline}
+
+case "$branch" in
+linux)
+	cd repos/xen
+	git fetch -f $BASE_TREE_LINUX $BASE_TAG_LINUX:$BASE_LOCALREV_LINUX
+	git-rev-parse $BASE_LOCALREV_LINUX
+	;;
+*)
+	exec ./ap-fetch-version-old "$@"
+	;;
+esac

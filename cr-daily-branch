@@ -11,7 +11,7 @@ fetch_version () {
 	if [ "x$1" = "x$branch" ]; then
 		./ap-fetch-version "$@"
 	else
-		./ap-fetch-version-old "$@"
+		./ap-fetch-version-baseline "$@"
 	fi
 }
 
