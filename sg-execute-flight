@@ -1,0 +1,120 @@
+#!/usr/bin/tclsh8.4
+# -*- Tcl -*- 
+# usage: ./execute-flight FLIGHT BLESSING
+
+source osstestlib.tcl
+
+readconfig
+
+proc check {} {
+    global flight jobinfo running
+
+    set nqueued [pg_execute dbh "
+        SELECT job FROM jobs j
+         WHERE j.flight = $flight
+           AND j.status = 'queued'
+         LIMIT 1
+    "]
+
+    set nrunning [llength running]
+    logputs "flight $flight nqueued=$nqueued nrunning=$nrunning"
+
+    if {!$nqueued && !$nrunning} {
+        logputs "flight $flight ending."
+        exit 0
+    }
+
+    pg_execute -array jobinfo dbh "
+        SELECT * FROM jobs j
+         WHERE j.flight = $flight
+           AND j.status = 'queued'
+           AND 0 = (SELECT count(*) FROM jobs d
+                     WHERE d.flight = $flight
+                       AND d.status = 'queued'
+                       AND d.job IN (SELECT val FROM runvars r
+                                     WHERE r.flight = $flight
+                                       AND r.job = j.job
+                                       AND r.name LIKE '%job'
+                                       AND r.val NOT LIKE '%.%')
+                   )
+         ORDER BY job
+    " maybe-spawn-job
+}
+
+proc break-job {job why} {
+    transaction {
+        pg_execute dbh "SELECT * FROM
+    db-update-1 {
+        
+        job-set-status $flight $job broken
+
+proc maybe-spawn-job {} {
+    global jobinfo running attempted
+    switch -glob $jobinfo(recipe) {
+        build* { set runner sg-run-builds }
+        test* { set runner sg-run-tests }
+        * { error "unknown runner for recipe $jobinfo(recipe)" }
+    }
+    logputs "flight $flight spawning $jobinfo(job) $jobinfo(recipe) $runner"
+
+    flush stdout
+    flush stderr
+    set pid [fork]
+    if {!$pid} {
+        execl ./$runner [list --jobs=$jobinfo(job)]
+        error "execl returned success ?!"
+    }
+    lappend running [list $pid $jobinfo(job)]
+    logputs "flight $flight spawned $jobinfo(job) $pid"
+}
+
+proc main_iteration {} {
+    global running nqueued flight jobinfo
+
+    check
+
+    if {![llength running]} {
+        error "nothing running, but queued not ready"
+    }
+    lassign [wait] gotpid how st
+
+    set ix 0
+    foreach entry $running {
+        lassign $entry pid job
+        if {$gotpid == $pid} break
+        incr ix
+    }
+    if {![info exists pid]} {
+        logputs "unexpected child $pid $how $st"
+        return
+    }
+    
+    logputs "flight $flight reaped $job $pid $how $st"
+    transaction {
+        set found [pg_execute dbh jobinfo "
+            SELECT * FROM jobs
+                    WHERE flight=$flight
+                      AND job=[pg_quote $job]
+        "]
+        if {!$found} { error "job not in database $flight $job" }
+        if {[string equal $jobinfo queued]} {
+            if {![string compare EXIT $how] && $st==0} {
+                error "job still queued $flight $job"
+            } else {
+                job-set-status $flight $job broken
+            }
+        }
+    }
+
+    lvarpop running $ix
+}
+
+proc main {} {
+    global running
+    set running {}
+    while 1 main_iteration
+}
+
+set-flight
+db-open
+main
