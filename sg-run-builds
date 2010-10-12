@@ -21,6 +21,7 @@ proc main {} {
 			AND   ( status = 'queued'
 			  OR	status = 'preparing'
 			  OR	status = 'retriable' )
+                        [specific-job-constraint]
 		ORDER BY job
     " perhaps-start-job
 

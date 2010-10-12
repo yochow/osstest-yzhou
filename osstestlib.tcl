@@ -90,6 +90,15 @@ proc prepare-job {job} {
     return 1
 }
 
+proc specific-job-constraint {args} {
+    foreach constraint $argv {
+        if {[regexp {^--jobs=([^,]+)$} $constraint dummy job]} {
+            return "AND job = [pg_quote $job]"
+        }
+    }
+    return ""
+}
+
 proc run-ts {args} {
     set reap [eval spawn-ts $args]
     if {![reap-ts $reap]} { error "test script failed" }
