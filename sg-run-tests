@@ -11,6 +11,7 @@ proc main {} {
 
     set-flight
     db-open
+    become-task
     
     set tests {}
     set anyfailed 0
