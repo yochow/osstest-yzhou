@@ -16,7 +16,7 @@ proc check {} {
          LIMIT 1
     "]
 
-    set nrunning [llength running]
+    set nrunning [llength $running]
     log "flight $flight nqueued=$nqueued nrunning=$nrunning"
 
     if {!$nqueued && !$nrunning} {
@@ -42,7 +42,13 @@ proc check {} {
 }
 
 proc maybe-spawn-job {} {
-    global jobinfo running attempted
+    global flight jobinfo running
+
+    foreach entry $running {
+        lassign $entry pid job
+        if {[string equal $job $jobinfo(job)]} return
+    }
+
     switch -glob $jobinfo(recipe) {
         build* { set runner sg-run-builds }
         test* { set runner sg-run-tests }
@@ -54,15 +60,15 @@ proc maybe-spawn-job {} {
     flush stderr
     set pid [fork]
     if {!$pid} {
-        execl ./$runner [list --jobs=$jobinfo(job)]
+        execl ./$runner [list $flight --jobs=$jobinfo(job)]
         error "execl returned success ?!"
     }
     lappend running [list $pid $jobinfo(job)]
-    log "flight $flight spawned $jobinfo(job) $pid"
+    log "flight $flight spawned  $jobinfo(job) \[$pid\]"
 }
 
 proc main_iteration {} {
-    global running nqueued flight jobinfo
+    global flight running nqueued jobinfo
 
     check
 
@@ -78,19 +84,19 @@ proc main_iteration {} {
         incr ix
     }
     if {![info exists pid]} {
-        log "unexpected child $pid $how $st"
+        log "unexpected child \[$pid\] $how $st"
         return
     }
     
-    log "flight $flight reaped $job $pid $how $st"
+    log "flight $flight reaped  $job \[$pid\] $how $st"
     transaction {
-        set found [pg_execute dbh jobinfo "
+        set found [pg_execute -array jobinfo dbh "
             SELECT * FROM jobs
                     WHERE flight=$flight
                       AND job=[pg_quote $job]
         "]
         if {!$found} { error "job not in database $flight $job" }
-        if {[string equal $jobinfo queued]} {
+        if {[string equal $jobinfo(status) queued]} {
             if {![string compare EXIT $how] && $st==0} {
                 error "job still queued $flight $job"
             } else {
