@@ -25,6 +25,12 @@ proc readconfig {} {
     close $ch
 }
 
+proc log {m} {
+    set now [clock seconds]
+    set timestamp [clock format $now -format {%Y-%m-%d %H:%M:%S Z} -gmt 1]
+    puts "$timestamp $m"
+}
+
 proc logputs {f m} {
     global argv
     set time [clock format [clock seconds] -gmt true \

@@ -89,12 +89,6 @@ proc newconn {chan addr port} {
     }
 }
 
-proc log {m} {
-    set now [clock seconds]
-    set timestamp [clock format $now -format {%Y-%m-%d %H:%M:%S Z} -gmt 1]
-    puts "$timestamp $m"
-}
-
 proc main-daemon {port setup} {
     global c
 
