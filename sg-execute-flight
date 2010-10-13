@@ -30,7 +30,10 @@ proc check {} {
            AND j.status = 'queued'
            AND 0 = (SELECT count(*) FROM jobs d
                      WHERE d.flight = $flight
-                       AND d.status = 'queued'
+                       AND ( d.status = 'queued'
+                          OR d.status = 'preparing'
+                          OR d.status = 'running'
+                          OR d.status = 'retriable' )
                        AND d.job IN (SELECT val FROM runvars r
                                      WHERE r.flight = $flight
                                        AND r.job = j.job
