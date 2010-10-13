@@ -16,22 +16,14 @@ our @hos;
 if (@ARGV and $ARGV[0] eq '--check') {
     $checkmode= 1;
     shift @ARGV;
-
     logm("checking builds are done...");
-    if (!@ARGV) {
-	foreach my $k (keys %r) {
-	    next unless $k =~ m/^(?:\w.*_)?host$/;
-	    push @ARGV, $k;
-	}
-    }
 } else {
     if (!@ARGV) {
 	push @ARGV, 'host';
     }
-}
-
-foreach my $k (@ARGV) {
-    push @hos, selecthost($k);
+    foreach my $k (@ARGV) {
+        push @hos, selecthost($k);
+    }
 }
 
 our $ho;
@@ -278,9 +270,7 @@ END
 }    
 
 if ($checkmode) {
-    foreach $ho (@hos) {
-	extract();
-    }
+    extract();
 } else {
     die if @hos > 1;
     $ho= $hos[0];
