@@ -323,18 +323,19 @@ END
     $r{$param}= get_runvar($param, "$flight.$job");
 }
 
-sub broken ($) {
-    my ($m) = @_;
+sub broken ($;$) {
+    my ($m, $newst) = @_;
     my $affected;
-    db_retry($flight, $dbh_tests,[qw(running)], sub {
-        $affected= $dbh_tests->do(<<END, {}, $flight, $job);
-            UPDATE jobs SET status='broken'
+    $newst= 'broken' unless defined $newst;
+    db_retry($flight,'running', $dbh_tests,[], sub {
+        $affected= $dbh_tests->do(<<END, {}, $newst, $flight, $job);
+            UPDATE jobs SET status=?
              WHERE flight=? AND job=?
                AND (status='queued' OR status='running')
 END
     });
-    die "BROKEN: $m; ". ($affected>0 ? "marked $flight.$job broken"
-                         : "($flight.$job not marked)");
+    die "BROKEN: $m; ". ($affected>0 ? "marked $flight.$job $newst"
+                         : "($flight.$job not marked $newst)");
 }
 
 sub get_runvar ($$) {
@@ -363,8 +364,6 @@ END
         $jrow or broken("job $oflight.$ojob not found (looking for $param)");
         my $jstatus= $jrow->{'status'};
         defined $jstatus or broken("job $oflight.$ojob no status?!");
-        $jstatus ne 'broken' or
-            broken("job $oflight.$ojob (for $param) broken");
         if ($jstatus eq 'pass') {
             # fine
         } elsif ($jstatus eq 'queued') {
@@ -379,7 +378,7 @@ END
                 die "job $oflight.$ojob (for $param) queued (we are $ourstatus)";
             }
         } else {
-            die "job $flight.$ojob (for $param): $jstatus";
+            broken("job $oflight.$ojob (for $param) broken", 'blocked');
         }
     }
 
