@@ -41,13 +41,6 @@ proc check {} {
     " maybe-spawn-job
 }
 
-proc break-job {job why} {
-    transaction {
-        pg_execute dbh "SELECT * FROM
-    db-update-1 {
-        
-        job-set-status $flight $job broken
-
 proc maybe-spawn-job {} {
     global jobinfo running attempted
     switch -glob $jobinfo(recipe) {
