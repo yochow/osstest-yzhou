@@ -90,7 +90,8 @@ proc prepare-job {job} {
     return 1
 }
 
-proc specific-job-constraint {args} {
+proc specific-job-constraint {} {
+    global argv
     foreach constraint $argv {
         if {[regexp {^--jobs=([^,]+)$} $constraint dummy job]} {
             return "AND job = [pg_quote $job]"
