@@ -7,11 +7,11 @@ source osstestlib.tcl
 readconfig
 
 proc main {} {
-    global flight jobinfo builds anyfailed
+    global flight jobinfo builds anyfailed argv
 
     set-flight
     db-open
-    become-task
+    become-task "$flight $argv"
     
     set tests {}
     set anyfailed 0
@@ -40,12 +40,12 @@ proc run-job {} {
     set ok 1
     setstatus running
 
+    set need_hosts [need-hosts/$jobinfo(recipe)]
+
                catching-otherwise blocked   check-not-blocked
     if {!$ok} return
 
-    set need_hosts [need-hosts/$jobinfo(recipe)]
-
-    run-ts      broken  =                 ts-hosts-allocate
+    eval run-ts broken  =                 ts-hosts-allocate + $need_hosts
     per-host-ts broken  host-install/@(*) ts-host-install-twice
     per-host-ts .       xen-install/@     ts-xen-install
     per-host-ts .       xen-boot/@        ts-host-reboot

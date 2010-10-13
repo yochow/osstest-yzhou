@@ -7,11 +7,11 @@ source osstestlib.tcl
 readconfig
 
 proc main {} {
-    global flight jobinfo builds anyfailed
+    global flight jobinfo builds anyfailed argv
 
     set-flight
     db-open
-    become-task
+    become-task "$flight $argv"
     
     set builds {}
 
@@ -46,7 +46,7 @@ proc prepare-host {} {
     global prepared jobinfo
     if {[info exists prepared]} return
 
-    run-ts broken = ts-hosts-allocate
+    run-ts broken = ts-hosts-allocate + host
     run-ts broken host-install(*) ts-host-install-twice
     run-ts . host-build-prep ts-xen-build-prep
 
