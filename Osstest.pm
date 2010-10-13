@@ -378,7 +378,7 @@ END
                 die "job $oflight.$ojob (for $param) queued (we are $ourstatus)";
             }
         } else {
-            broken("job $oflight.$ojob (for $param) broken", 'blocked');
+            broken("job $oflight.$ojob (for $param) $jstatus", 'blocked');
         }
     }
 
