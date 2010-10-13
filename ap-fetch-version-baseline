@@ -8,11 +8,11 @@ branch=$1
 : ${BASE_LOCALREV_LINUX:=daily-cron.$branch.baseline}
 
 case "$branch" in
-linux)
-	cd repos/xen
-	git fetch -f $BASE_TREE_LINUX $BASE_TAG_LINUX:$BASE_LOCALREV_LINUX
-	git-rev-parse $BASE_LOCALREV_LINUX
-	;;
+#linux)
+#	cd repos/xen
+#	git fetch -f $BASE_TREE_LINUX $BASE_TAG_LINUX:$BASE_LOCALREV_LINUX
+#	git-rev-parse $BASE_LOCALREV_LINUX
+#	;;
 *)
 	exec ./ap-fetch-version-old "$@"
 	;;
