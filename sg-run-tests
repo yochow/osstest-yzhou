@@ -44,6 +44,7 @@ proc run-job {} {
 
     set need_hosts [need-hosts/$jobinfo(recipe)]
 
+    run-ts      broken  =                 ts-hosts-allocate
     per-host-ts broken  host-install/@(*) ts-host-install-twice
     per-host-ts .       xen-install/@     ts-xen-install
     per-host-ts .       xen-boot/@        ts-host-reboot
