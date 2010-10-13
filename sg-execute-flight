@@ -17,10 +17,10 @@ proc check {} {
     "]
 
     set nrunning [llength running]
-    logputs "flight $flight nqueued=$nqueued nrunning=$nrunning"
+    log "flight $flight nqueued=$nqueued nrunning=$nrunning"
 
     if {!$nqueued && !$nrunning} {
-        logputs "flight $flight ending."
+        log "flight $flight ending."
         exit 0
     }
 
@@ -48,7 +48,7 @@ proc maybe-spawn-job {} {
         test* { set runner sg-run-tests }
         * { error "unknown runner for recipe $jobinfo(recipe)" }
     }
-    logputs "flight $flight spawning $jobinfo(job) $jobinfo(recipe) $runner"
+    log "flight $flight spawning $jobinfo(job) $jobinfo(recipe) $runner"
 
     flush stdout
     flush stderr
@@ -58,7 +58,7 @@ proc maybe-spawn-job {} {
         error "execl returned success ?!"
     }
     lappend running [list $pid $jobinfo(job)]
-    logputs "flight $flight spawned $jobinfo(job) $pid"
+    log "flight $flight spawned $jobinfo(job) $pid"
 }
 
 proc main_iteration {} {
@@ -78,11 +78,11 @@ proc main_iteration {} {
         incr ix
     }
     if {![info exists pid]} {
-        logputs "unexpected child $pid $how $st"
+        log "unexpected child $pid $how $st"
         return
     }
     
-    logputs "flight $flight reaped $job $pid $how $st"
+    log "flight $flight reaped $job $pid $how $st"
     transaction {
         set found [pg_execute dbh jobinfo "
             SELECT * FROM jobs
