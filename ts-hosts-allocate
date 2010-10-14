@@ -450,7 +450,6 @@ END
     my $finalok= 0;
     while (!$finalok) {
         alloc_resources(sub {
-@hids=() if -f 'break';
 
             logm("allocating hosts: ".join(' ', map { $_->{Ident} } @hids));
 
