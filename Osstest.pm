@@ -989,6 +989,7 @@ END
         }) {
             $retries++;
             die "trouble $@" if $retries > 60;
+            chomp $@;
             logm("queue-server trouble, sleeping ($@)");
             sleep 120;
             $ok= 0;
