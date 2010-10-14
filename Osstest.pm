@@ -21,7 +21,8 @@ BEGIN {
                       get_runvar get_runvar_maybe get_runvar_default
                       store_runvar get_stashed
                       unique_incrementing_runvar system_checked
-                      tcpconnect findtask alloc_resources
+                      tcpconnect findtask
+                      alloc_resources alloc_resources_rollback_begin_work
                       resource_check_allocated resource_shared_mark_ready
                       built_stash flight_otherjob
                       csreadconfig ts_get_host_guest
@@ -909,14 +910,25 @@ END
     return $taskid;
 }        
 
+our $alloc_resources_lock_tables= [qw(resources resource_sharing)];
+
+sub alloc_resources_rollback_begin_work () {
+    $dbh_tests->rollback();
+    db_begin_work($dbh_tests, $alloc_resources_lock_tables);
+}
+
 sub alloc_resources ($) {
     my ($resourcecall) = @_;
+    # $resourcecall should die (abort) or return
+    #            0  rollback, wait and try again
+    #            1  commit, completed ok
+    #            2  commit, wait and try again
     # $resourcecall should not look at tasks.live;
     # instead it should look for resources.owntaskid == the allocatable task
 
     my $qserv;
     my $retries=0;
-    my $ok;
+    my $ok=0;
 
     logm("allocating resources...");
 
@@ -928,7 +940,7 @@ sub alloc_resources ($) {
                 LIMIT 1
 END
 
-    while (!$ok) {
+    while ($ok==0 || $ok==2) {
         if (!eval {
             if (!defined $qserv) {
                 $qserv= tcpconnect($c{ControlDaemonHost}, $c{QueueDaemonPort});
@@ -944,7 +956,7 @@ END
             $_= <$qserv>;  defined && m/^\!OK think\s$/ or die "$_ ?";
 
             db_retry($flight,'running', $dbh_tests,
-		     [qw(resources resource_sharing)], sub {
+		     $alloc_resources_lock_tables, sub {
                 $pending_q->execute();
                 my $pending= $pending_q->fetchrow_hashref();
                 if ($pending) {
@@ -963,11 +975,11 @@ END
                 }
                 return db_retry_abort() unless $ok>0;
             });
-            if ($ok>0) {
+            if ($ok==1) {
                 print $qserv "thought-done\n" or die $!;
             } elsif ($ok<0) {
                 return 1;
-            } else {
+            } else { # 0 or 2
                 logm("resource allocation rolled back, deferring");
                 print $qserv "thought-wait\n" or die $!;
             }
@@ -982,7 +994,7 @@ END
             $ok= 0;
         }
     }
-    die unless $ok>0;
+    die unless $ok==1;
     logm("resources allocated.");
 }
 
