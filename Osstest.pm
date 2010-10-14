@@ -992,6 +992,7 @@ END
             chomp $@;
             logm("queue-server trouble, sleeping ($@)");
             sleep 120;
+            undef $qserv;
             $ok= 0;
         }
     }
