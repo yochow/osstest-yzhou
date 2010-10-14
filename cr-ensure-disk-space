@@ -73,10 +73,10 @@ for (;;) {
         $!=0; my $r= system @_; die "@_ $r $!" if $r;
     };
     $spawn->(qw(ssh -n), @sshopts, $pubhost,
-     "set -e; cd $pubdir; test -e $flight; printf remote...; rm -r $flight");
+     "set -e; cd $pubdir; test -e $flight; printf remote...; rm -rf $flight");
 
     printf "local..";
-    $spawn->(qw(rm -r), $flight);
+    $spawn->(qw(rm -rf), $flight);
 
     printf "done.\n";
     exit 0 if $dryrun;
