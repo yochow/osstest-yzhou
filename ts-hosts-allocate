@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 
-use strict qw(vars);
+use strict;
 use DBI;
 use Osstest;
 use Data::Dumper;
@@ -28,18 +28,25 @@ our @idents= @ARGV;
 our $taskid;
 our $fi;
 our %magictaskid;
+our %provisional;
+
+our $res1q= $dbh_tests->prepare(<<END);
+        SELECT *
+          FROM resources
+         WHERE restype=? AND resname=? AND shareix=?
+END
+
+our $claim_setres_q= $dbh_tests->prepare(<<END);
+        UPDATE resources
+           SET owntaskid = ?, subtask = ?
+         WHERE restype=? AND resname=? AND shareix=?
+END
 
 sub alloc_one_hid ($) {
     my ($hid) = @_;
     # return values:
     #    1: some host allocated OK
     #    0: no hosts available, must defer
-
-    my $host1q= $dbh_tests->prepare(<<END);
-        SELECT *
-          FROM resources
-         WHERE restype='host' AND resname=?
-END
 
     my $hostsq= $dbh_tests->prepare(<<END);
         SELECT *
@@ -85,12 +92,6 @@ END
 		    LIMIT 1
 END
 
-    my $claim_setres_q= $dbh_tests->prepare(<<END);
-        UPDATE resources
-           SET owntaskid = ?, subtask = ?
-         WHERE restype=? AND resname=? AND shareix=?
-END
-
     my $claim_share_reuse_q= $dbh_tests->prepare(<<END);
         UPDATE resource_sharing
            SET wear = wear + 1
@@ -128,11 +129,11 @@ END
     my $findhostsq;
 
     if (defined $use) {
-        print STDERR "HID $hid->{Ident} USE $use\n";
-        $host1q->execute($use);
-        $findhostsq= $host1q;
+        print DEBUG "HID $hid->{Ident} USE $use\n";
+        $res1q->execute('host',$use,0);
+        $findhostsq= $res1q;
     } else {
-        print STDERR "HID $hid->{Ident} INTENDED\n";
+        print DEBUG "HID $hid->{Ident} INTENDED\n";
         $hostsq->execute("blessed-$fi->{intended}");
         $findhostsq= $hostsq;
     }
@@ -160,10 +161,13 @@ END
         }
         $any++;
 
-        print DEBUG "$dbg GOOD\n";
+        my $provkey= "$candrow->{restype} $candrow->{resname} 0";
 
-        my $allocatable=
-            $candrow->{owntaskid} == $magictaskid{allocatable};
+        print DEBUG "$dbg GOOD $candrow->{owntaskid} $provkey\n";
+
+        my $allocatable= $candrow->{owntaskid} == $magictaskid{allocatable}
+            || ($candrow->{owntaskid} == $taskid &&
+                defined $provisional{$provkey});
 
         print DEBUG "$dbg ALLOC PLAIN $allocatable\n";
 
@@ -307,7 +311,9 @@ END
     my $allocd= $claim_setres_q->execute
         ($taskid, "$flight.$job $hid->{Ident}", @reskey);
     die unless $allocd;
-            
+
+    $candrow->{ResKey}= \@reskey;
+    $hid->{AllocInfo}= $candrow;
     $hid->{Allocated}= $candrow->{Host};
     return 1;
 }
@@ -320,12 +326,65 @@ sub setup () {
          WHERE flight = ?
 END
 
-    foreach my $rk (qw(allocatable shared preparing)) {
+    foreach my $rk (qw(allocatable shared preparing idle)) {
         $magictaskid{$rk}= $dbh_tests->selectrow_array(<<END, {}, $rk);
             SELECT taskid FROM tasks
              WHERE type='magic' AND refkey=?
 END
     }
+}
+
+sub more_provisionals {
+    our (@hids) = @_;
+    my $any_more_provisional= 0;
+    foreach my $hid (@hids) {
+        print DEBUG "HARRMFH HID $hid->{Ident}\n";
+        my $candrow= $hid->{AllocInfo};
+        next unless $candrow;
+        print DEBUG "HARRMFH HID $hid->{Ident} CAND $candrow->{resname}\n";
+        next if $hid->{Shared};
+        print DEBUG "HARRMFH HID $hid->{Ident} NO-SHARE\n";
+        my (@reskey)= ($candrow->{restype},
+                       $candrow->{resname},
+                       $candrow->{shareix});
+        print DEBUG "HARRMFH HID $hid->{Ident} @reskey\n";
+
+        alloc_resources_rollback_begin_work()
+            unless $any_more_provisional;
+        $any_more_provisional= 1;
+
+        $res1q->execute(@reskey);
+        my $was= $res1q->fetchrow_hashref();
+        print DEBUG "HARRMFH HID $hid->{Ident} WAS $was->{owntaskid}\n";
+
+        next unless $was->{owntaskid} == $magictaskid{allocatable};
+        
+        $claim_setres_q->execute($taskid, "$flight.$job (prov.)", @reskey);
+        $provisional{"@reskey"}= 1;
+
+        logm("provisionally allocated: $hid->{Ident} @reskey");
+    }
+    print DEBUG "HARRMFH'd.\n";
+    return $any_more_provisional;
+}
+
+sub free_provisionals {
+    our (@hids) = @_;
+    foreach my $hid (@hids) {
+        my $provkey= "@{ $hid->{AllocInfo}{ResKey} }";
+        print DEBUG "PROV CLEANING $provkey\n";
+        delete $provisional{$provkey};
+    }
+    foreach my $provkey (sort keys %provisional) {
+        my (@reskey) = split / /, $provkey;
+        logm("cancelling provisional allocation: @reskey");
+        $res1q->execute(@reskey);
+        my $was= $res1q->fetchrow_hashref();
+        print DEBUG "PROV CLEANING @reskey WAS $was->{owntaskid}\n";
+        die "@reskey $was->{owntaskid}" unless $was->{owntaskid} == $taskid;
+        $claim_setres_q->execute($magictaskid{idle}, "", @reskey);
+    }
+    print DEBUG "PROV CLEANED.\n";
 }
 
 sub alloc_hosts () {
@@ -388,21 +447,35 @@ END
     }
     @hids= sort { $b->{Priority} cmp $a->{Priority} } @hids;
 
-    alloc_resources(sub {
-        logm("allocating hosts: ".join(' ', map { $_->{Ident} } @hids));
+    my $finalok= 0;
+    while (!$finalok) {
+        alloc_resources(sub {
+@hids=() if -f 'break';
 
-        foreach my $hid (@hids) { delete $hid->{Allocated}; }
+            logm("allocating hosts: ".join(' ', map { $_->{Ident} } @hids));
 
-        my $ok= 1;
-        foreach my $hid (@hids) {
-            $ok &&= alloc_one_hid($hid);
-        }
-        return 0 unless $ok;
+            foreach my $hid (@hids) {
+                delete $hid->{AllocInfo};
+                delete $hid->{Allocated};
+            }
 
-        print DEBUG "YES YES YES\n";
+            my $allok= 1;
+            foreach my $hid (@hids) {
+                $allok &&=
+                    alloc_one_hid($hid);
+            }
 
-        return 1; # yay
-    });
+            if ($allok) {
+                print DEBUG "YES YES YES\n";
+                free_provisionals(@hids);
+                $finalok= 1;
+                return 1;
+            }
+
+            print DEBUG "HARRMFH\n";
+            return more_provisionals(@hids) ? 2 : 0;
+        });
+    }
 
     foreach my $hid (@hids) {
         my $hn= $hid->{Allocated};;
