@@ -13,6 +13,8 @@ check_stop () {
 
 check_stop ''
 
+umask 002
+
 select_branch () {
 	case "$branch" in
 	xen*)	tree=xen;	xenbranch=$branch ;;
