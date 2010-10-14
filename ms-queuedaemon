@@ -93,6 +93,13 @@ proc runneeded-perhaps-start {} {
                                WHERE type='magic' AND refkey='allocatable')
          WHERE NOT (SELECT live FROM tasks WHERE taskid=owntaskid)
         }]
+    }
+    log "runneeded-perhaps-start allocable+=$nrows"
+
+    if {!($nrows || $needed>=2)} return
+
+    transaction {
+        lock-tables tasks
         set cleaned [pg_execute dbh {
             DELETE FROM tasks
              WHERE type='ownd'
@@ -104,10 +111,8 @@ proc runneeded-perhaps-start {} {
                      LIMIT 1)
         }]
     }
-    log "runneeded-perhaps-start allocable+=$nrows cleaned=$cleaned"
-
-    if {!($nrows || $needed>=2)} return
-
+    log "runneeded-perhaps-start starting cleaned=$cleaned"
+    
     queuerun-start
 }
 
