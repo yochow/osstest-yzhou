@@ -27,7 +27,8 @@ BEGIN {
                       csreadconfig ts_get_host_guest
                       readconfig opendb_state selecthost get_hostflags
                       need_runvars
-                      get_filecontents ensuredir postfork db_retry
+                      get_filecontents ensuredir postfork
+                      db_retry db_begin_work
                       poll_loop logm link_file_contents create_webfile
                       power_state power_cycle
                       setup_pxeboot setup_pxeboot_local
@@ -200,6 +201,15 @@ our $db_retry_stop;
 sub db_retry_abort () { $db_retry_stop= 'abort'; undef; }
 sub db_retry_retry () { $db_retry_stop= 'retry'; undef; }
 
+sub db_begin_work ($;$) {
+    my ($dbh,$tables) = @_;
+    $dbh->begin_work();
+    $dbh->do('SET TRANSACTION ISOLATION LEVEL SERIALIZABLE');
+    foreach my $tab (@$tables) {
+        $dbh->do("LOCK TABLE $tab IN ACCESS EXCLUSIVE MODE");
+    }
+}
+
 sub db_retry ($$$;$$) {
     # $code should return whatever it likes, and that will
     #     be returned by db_retry
@@ -210,11 +220,7 @@ sub db_retry ($$$;$$) {
     my $r;
     local $db_retry_stop;
     for (;;) {
-        $dbh->begin_work();
-        $dbh->do('SET TRANSACTION ISOLATION LEVEL SERIALIZABLE');
-        foreach my $tab (@$tables) {
-            $dbh->do("LOCK TABLE $tab IN ACCESS EXCLUSIVE MODE");
-        }
+        db_begin_work($dbh, $tables);
         if (defined $fl) {
             die unless $dbh eq $dbh_tests;
             dbfl_check($fl,$flok);
