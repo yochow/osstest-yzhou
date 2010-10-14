@@ -118,7 +118,7 @@ proc spawn-ts {iffail testid ts args} {
     pg_execute dbh BEGIN
     pg_execute dbh "SET TRANSACTION ISOLATION LEVEL SERIALIZABLE"
     if {[catch {
-        pg_execute dbh "LOCK TABLE steps IN ACCESS EXCLUSIVE MODE"
+        lock-tables steps
 	pg_execute -array stepinfo dbh "
             SELECT max(stepno) AS maxstep FROM steps
                 WHERE flight=$flight AND job='$jobinfo(job)'

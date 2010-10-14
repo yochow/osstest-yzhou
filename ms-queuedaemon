@@ -86,11 +86,7 @@ proc runneeded-perhaps-start {} {
     if {![llength $queue]} return
 
     transaction {
-	foreach tab {resources} {
-	    pg_execute dbh "
-		LOCK TABLE $tab IN ACCESS EXCLUSIVE MODE
-            "
-	}
+	lock-tables {resources tasks}
         set nrows [pg_execute dbh {
             UPDATE resources
                SET owntaskid= (SELECT taskid FROM tasks
