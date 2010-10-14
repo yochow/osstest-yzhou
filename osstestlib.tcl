@@ -95,6 +95,14 @@ proc run-ts {args} {
     if {![reap-ts $reap]} { error "test script failed" }
 }
 
+proc lock-tables {tables} {
+    foreach tab $tables {
+        pg_execute dbh "
+		LOCK TABLE $tab IN ACCESS EXCLUSIVE MODE
+        "
+    }
+}
+
 proc spawn-ts {iffail testid ts args} {
     global flight c jobinfo reap_details env
 
