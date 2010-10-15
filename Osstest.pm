@@ -930,7 +930,7 @@ sub alloc_resources ($) {
     my $retries=0;
     my $ok=0;
 
-    logm("allocating resources...");
+    logm("resource allocation: starting...");
 
     my $pending_q= $dbh_tests->prepare(<<END);
         SELECT * FROM resources
@@ -951,7 +951,7 @@ END
                 $_= <$qserv>;  defined && m/^OK wait\s/ or die "$_ ?";
             }
 
-            logm("resource allocation, awaiting our slot...");
+            logm("resource allocation: awaiting our slot...");
 
             $_= <$qserv>;  defined && m/^\!OK think\s$/ or die "$_ ?";
 
@@ -980,7 +980,8 @@ END
             } elsif ($ok<0) {
                 return 1;
             } else { # 0 or 2
-                logm("resource allocation rolled back, deferring");
+                logm("resource allocation: rolled back") if $ok==0;
+                logm("resource allocation: deferring");
                 print $qserv "thought-wait\n" or die $!;
             }
             $_= <$qserv>;  defined && m/^OK thought\s$/ or die "$_ ?";
@@ -990,14 +991,14 @@ END
             $retries++;
             die "trouble $@" if $retries > 60;
             chomp $@;
-            logm("queue-server trouble, sleeping ($@)");
+            logm("resource allocation: queue-server trouble, sleeping ($@)");
             sleep 120;
             undef $qserv;
             $ok= 0;
         }
     }
     die unless $ok==1;
-    logm("resources allocated.");
+    logm("resource allocation: successful.");
 }
 
 sub resource_check_allocated ($$) {
