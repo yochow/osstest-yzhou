@@ -256,7 +256,34 @@ proc cmd/wait {chan desc} {
     runneeded-ensure-will 2
 }
 
+proc cmd/prod {chan desc} {
+    puts-chan $chan "OK prod"
+    runneeded-ensure-will 2
+}
+
+proc bgerror {emsg} {
+    global errorInfo errorCode
+    puts stderr "****ERROR***\n$errorCode\n$emsg\n==========\n$errorInfo\n"
+    exit 1
+}
+
+proc await-endings-notified {} {
+    global owndchan
+    while {[gets $owndchan l] > 0} {
+        puts-chan-desc $owndchan "<< $l"
+        if {![regexp {^!OK await-endings notify} $l]} {
+            error "unexpected $l ?"
+        }
+        if {[eof $owndchan]} {
+            error "$owndchan eof"
+        }
+        runneeded-ensure-will 2
+    }
+}
+
 main-daemon $c(QueueDaemonPort) {
+    global owndchan chandesc
+    
     db-open
     
     set queue {}
@@ -264,4 +291,15 @@ main-daemon $c(QueueDaemonPort) {
     log-state main-daemon
     # 1: run queue only if new resources available
     # 2: definitely run queue
+
+    set owndchan [socket $c(ControlDaemonHost) $c(OwnerDaemonPort)]
+    fconfigure $owndchan -buffering line -translation lf
+    set chandesc($owndchan) ownd
+    
+    must-gets-chan $owndchan {^OK ms-ownerdaemon}
+    puts-chan $owndchan await-endings
+    must-gets-chan $owndchan {^OK await-endings}
+
+    fconfigure $owndchan -blocking false
+    fileevent $owndchan readable await-endings-notified
 }
