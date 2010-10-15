@@ -71,6 +71,12 @@ proc puts-chan-desc {chan m} {
     log "$desc $m"
 }
 
+proc must-gets-chan {chan re} {
+    if {[gets $chan l] <= 0} { error "NOT $chan $re ?" }
+    puts-chan-desc $chan "<< $l"
+    if {![regexp $re $l]} { error "NOT $chan $re $l ?" }
+}
+
 proc puts-chan {chan m} {
     upvar \#0 chandesc($chan) desc
     puts-chan-desc $chan ">> $m"
@@ -83,7 +89,7 @@ proc newconn {chan addr port} {
     for-chan $chan {
         puts "$desc connected $chan"
         fcntl $chan KEEPALIVE 1
-        fconfigure $chan -blocking false -buffering line
+        fconfigure $chan -blocking false -buffering line -translation lf
         fileevent $chan readable [list chan-read $chan]
         puts-chan $chan [banner $chan]
     }
