@@ -42,6 +42,11 @@ our $claim_setres_q= $dbh_tests->prepare(<<END);
          WHERE restype=? AND resname=? AND shareix=?
 END
 
+sub show_reskey {
+    my (@reskey) = @_;
+    return $reskey[2] eq '0' ? "@reskey[0..1]" : "@reskey";
+}
+
 sub alloc_one_hid ($) {
     my ($hid) = @_;
     # return values:
@@ -124,7 +129,7 @@ END
              VALUES (?,       ?,       ?,       ?,         ''     )
 END
 
-    my $use= $r{$hid};
+    my $use= $r{$hid->{Ident}};
     my $shr= $hid->{Shared};
     my $findhostsq;
 
@@ -133,14 +138,14 @@ END
         $res1q->execute('host',$use,0);
         $findhostsq= $res1q;
     } else {
-        print DEBUG "HID $hid->{Ident} INTENDED\n";
+        print DEBUG "HID $hid->{Ident} INTENDED $fi->{intended}\n";
         $hostsq->execute("blessed-$fi->{intended}");
         $findhostsq= $hostsq;
     }
     my @candidates;
     my $any=0;
 
-    while (my $candrow= $hostsq->fetchrow_hashref()) {
+    while (my $candrow= $findhostsq->fetchrow_hashref()) {
         $candrow->{Warnings}= [ ];
         $candrow->{Host}= $candrow->{resname};
 
@@ -157,7 +162,7 @@ END
         if (@nogood) {
             next unless defined $use;
             push @{ $candrow->{Warnings} },
-            "specified host lacks flags @nogood";
+                "specified host lacks flags @nogood";
         }
         $any++;
 
@@ -302,9 +307,9 @@ END
         }
     }
     
-    logm("allocating for $hid->{Ident} (from $any): @reskey");
+    logm("allocating for $hid->{Ident} (from $any): ".show_reskey(@reskey));
     foreach my $warn (@{ $candrow->{Warnings} }) {
-        logm("warning about $reskey[1]: $warn");
+        logm("warning about ".show_reskey(@reskey).": $warn");
     }
 
     print DEBUG "HID $hid->{Ident} GO @reskey ALLOCATE\n";
@@ -334,50 +339,66 @@ END
     }
 }
 
-sub more_provisionals {
+sub new_provisionals {
     our (@hids) = @_;
-    my $any_more_provisional= 0;
+    my @provs;
+    
     foreach my $hid (@hids) {
-        print DEBUG "HARRMFH HID $hid->{Ident}\n";
+        print DEBUG "PROV-NEW HID $hid->{Ident}\n";
+
         my $candrow= $hid->{AllocInfo};
         next unless $candrow;
-        print DEBUG "HARRMFH HID $hid->{Ident} CAND $candrow->{resname}\n";
+        print DEBUG "PROV-NEW HID $hid->{Ident} CAND $candrow->{resname}\n";
+
         next if $hid->{Shared};
-        print DEBUG "HARRMFH HID $hid->{Ident} NO-SHARE\n";
+
         my (@reskey)= ($candrow->{restype},
                        $candrow->{resname},
                        $candrow->{shareix});
-        print DEBUG "HARRMFH HID $hid->{Ident} @reskey\n";
+        $hid->{ProvResKey}= \@reskey;
+        print DEBUG "PROV-NEW HID $hid->{Ident} NO-SHARE @reskey\n";
 
-        alloc_resources_rollback_begin_work()
-            unless $any_more_provisional;
-        $any_more_provisional= 1;
+        next if defined $provisional{"@reskey"};
+        print DEBUG "PROV-NEW HID $hid->{Ident} NEW-PROV\n";
 
-        $res1q->execute(@reskey);
-        my $was= $res1q->fetchrow_hashref();
-        print DEBUG "HARRMFH HID $hid->{Ident} WAS $was->{owntaskid}\n";
-
-        next unless $was->{owntaskid} == $magictaskid{allocatable};
-        
-        $claim_setres_q->execute($taskid, "$flight.$job (prov.)", @reskey);
-        $provisional{"@reskey"}= 1;
-
-        logm("provisionally allocated: $hid->{Ident} @reskey");
+        push @provs, $hid;
     }
-    print DEBUG "HARRMFH'd.\n";
-    return $any_more_provisional;
+    return @provs;
 }
 
-sub free_provisionals {
+sub grab_more_provisionals {
     our (@hids) = @_;
+
     foreach my $hid (@hids) {
+        my $reskey= $hid->{ProvResKey};
+        print DEBUG "PROV-MORE HID $hid->{Ident} @$reskey\n";
+
+        $res1q->execute(@$reskey);
+        my $was= $res1q->fetchrow_hashref();
+        print DEBUG "PROV-MORE HID $hid->{Ident} WAS $was->{owntaskid}\n";
+
+        next unless $was->{owntaskid} == $magictaskid{allocatable};
+        print DEBUG "PROV-MORE HID $hid->{Ident} WAS ALLOCATABLE\n";
+        
+        $claim_setres_q->execute($taskid, "$flight.$job (prov.)", @$reskey);
+        $provisional{"@$reskey"}= 1;
+
+        logm("provisionally allocated: $hid->{Ident} ".show_reskey(@$reskey));
+    }
+    print DEBUG "PROV-MORE DONE\n";
+}
+
+sub free_provisionals_all_except {
+    our (@keephids) = @_;
+    foreach my $hid (@keephids) {
+        next unless $hid->{AllocInfo};
         my $provkey= "@{ $hid->{AllocInfo}{ResKey} }";
         print DEBUG "PROV CLEANING $provkey\n";
         delete $provisional{$provkey};
     }
     foreach my $provkey (sort keys %provisional) {
         my (@reskey) = split / /, $provkey;
-        logm("cancelling provisional allocation: @reskey");
+        logm("cancelling provisional allocation ".show_reskey(@reskey));
         $res1q->execute(@reskey);
         my $was= $res1q->fetchrow_hashref();
         print DEBUG "PROV CLEANING @reskey WAS $was->{owntaskid}\n";
@@ -456,23 +477,42 @@ END
             foreach my $hid (@hids) {
                 delete $hid->{AllocInfo};
                 delete $hid->{Allocated};
+                delete $hid->{ProvResKey};
             }
 
             my $allok= 1;
             foreach my $hid (@hids) {
-                $allok &&=
+                $allok= 0 unless
                     alloc_one_hid($hid);
             }
 
+            # Now @hids contains a proposed, perhaps partial, allocation
+
             if ($allok) {
                 print DEBUG "YES YES YES\n";
-                free_provisionals(@hids);
+                free_provisionals_all_except(@hids);
                 $finalok= 1;
                 return 1;
             }
 
             print DEBUG "HARRMFH\n";
-            return more_provisionals(@hids) ? 2 : 0;
+
+            # Does this proposed allocation contain any hosts which we
+            # don't have already provisionally allocated, and which
+            # we would like to provisionally allocate ?
+            my @newprovs= new_provisionals(@hids);
+
+            print DEBUG "HARRMFH ".scalar(@newprovs)."\n";
+
+            return 0 unless @newprovs; # keep what we have, and wait
+
+            logm("host allocation: need to wait, rolling back");
+
+            alloc_resources_rollback_begin_work();
+            free_provisionals_all_except(@hids);
+            grab_more_provisionals(@newprovs);
+
+            return 2;
         });
     }
 
