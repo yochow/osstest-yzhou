@@ -7,8 +7,12 @@ source daemonlib.tcl
 readconfig
 
 proc chan-destroy-stuff {chan} {
+    upvar #0 chanawait($chan) await
+    catch { unset await }
+
     upvar #0 chantasks($chan) tasks
     if {![info exists tasks]} return
+
     transaction {
         puts-chan-desc $chan "-- $tasks"
         foreach task $tasks {
@@ -21,6 +25,17 @@ proc chan-destroy-stuff {chan} {
     }
     puts-chan-desc $chan "== $tasks"
     unset tasks
+
+    after idle await-endings-notify
+}
+
+proc await-endings-notify {} {
+    global chanawait
+    foreach chan [array names chanawait] {
+        for-chan $chan {
+            puts-chan $chan "!OK await-endings notify"
+        }
+    }
 }
 
 proc cmd/create-task {chan desc} {
@@ -46,6 +61,12 @@ proc cmd/create-task {chan desc} {
     }
     lappend tasks $task
     puts-chan $chan "OK created-task $task ownd $taskdesc"
+}
+
+proc cmd/await-endings {chan desc} {
+    upvar #0 chanawait($chan) await
+    set await 1
+    puts-chan $chan "OK await-endings"
 }
 
 proc banner {chan} {
