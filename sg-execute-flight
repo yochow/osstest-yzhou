@@ -1,6 +1,6 @@
 #!/usr/bin/tclsh8.4
 # -*- Tcl -*- 
-# usage: ./execute-flight FLIGHT BLESSING
+# usage: ./sg-execute-flight FLIGHT BLESSING
 
 source osstestlib.tcl
 
