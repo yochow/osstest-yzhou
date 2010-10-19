@@ -96,7 +96,14 @@ proc newconn {chan addr port} {
 }
 
 proc main-daemon {port setup} {
-    global c
+    global c argv
+
+    foreach arg $argv {
+        switch -glob -- $arg {
+            --commandloop { commandloop -async }
+            * { error "unknown arg $arg" }
+        }
+    }
 
     fconfigure stdout -buffering line
     fconfigure stderr -buffering none
@@ -105,5 +112,6 @@ proc main-daemon {port setup} {
 
     socket -server newconn -myaddr $c(ControlDaemonHost) $port
     log "listening $c(ControlDaemonHost):$port"
+
     vwait forever
 }
