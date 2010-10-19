@@ -79,6 +79,8 @@ execute_flight () {
         rm -f abort
         if test -f stop; then return; fi
 
+        ./cr-ensure-disk-space
+
         ./sg-execute-flight $1 $2 >tmp/$1.transcript 2>&1
         cat tmp/$1.transcript
 }
