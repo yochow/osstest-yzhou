@@ -75,6 +75,7 @@ proc must-gets-chan {chan re} {
     if {[gets $chan l] <= 0} { error "NOT $chan $re ?" }
     puts-chan-desc $chan "<< $l"
     if {![regexp $re $l]} { error "NOT $chan $re $l ?" }
+    return $l
 }
 
 proc puts-chan {chan m} {
