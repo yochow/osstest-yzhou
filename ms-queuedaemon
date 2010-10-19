@@ -241,19 +241,33 @@ proc banner {chan} {
 
 proc cmd/set-info {chan desc var val} {
     upvar #0 chan-info/$chan info
-    set info($var) val
+    set info($var) $val
+    puts-chan $chan "OK set-info"
 }
 proc cmd/unset-info {chan desc var} {
     upvar #0 chan-info/$chan info
     catch { unset info($var) }
+    puts-chan $chan "OK unset-info"
 }
 
 proc cmd/wait {chan desc} {
     global queue need_queue_run
     lappend queue $chan
+    set queue [lsort -command chans-compare-priorities $queue]
     puts-chan $chan "OK wait"
     runneeded-ensure-polling
     runneeded-ensure-will 2
+}
+
+proc chans-compare-priorities {ca cb} {
+    return [expr {[chan-priority $cb] - [chan-priority $ca]}]
+}
+proc chan-priority {chan} {
+    upvar #0 chan-info/$chan info
+    set priority 0
+    catch { set priority [expr {int($info(priority))}] } emsg
+    #puts stderr "priority $chan $priority $emsg"
+    return $priority
 }
 
 proc cmd/prod {chan desc} {
