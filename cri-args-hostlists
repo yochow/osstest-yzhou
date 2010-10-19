@@ -79,8 +79,7 @@ execute_flight () {
         rm -f abort
         if test -f stop; then return; fi
 
-        ./execute-flight $1 $2 "$hostlists1" "$hostlists2" \
-                >tmp/$1.transcript 2>&1
+        ./sg-execute-flight $1 $2 >tmp/$1.transcript 2>&1
         cat tmp/$1.transcript
 }
 
