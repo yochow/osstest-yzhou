@@ -275,6 +275,37 @@ proc cmd/prod {chan desc} {
     runneeded-ensure-will 2
 }
 
+proc cmd/uptime {chan desc seconds} {
+    set before [expr {[clock seconds] - $seconds}]
+    set descpat "[regsub {\:\d+$} $desc {:%}]"
+    transaction {
+        set keys {}
+        pg_execute -array task dbh "
+            SELECT * FROM tasks
+                    WHERE type = 'ownd'
+                      AND ( refkey LIKE [pg_quote $descpat]
+                         OR refkey LIKE ('previous ' || [pg_quote $descpat]) )
+                      AND live
+                      AND refinfo IS NOT NULL
+        " {
+            set id "$task(taskid) $task(type) $task(refkey) $task(refinfo)"
+            if {[catch { set refinfo [expr {int($task(refinfo))}] } emsg]} {
+                puts-chan $chan "!WARNING uptime bad-refinfo $id"
+                continue
+            }
+            if {$refinfo > $before} continue
+            pg_execute dbh "
+                UPDATE tasks
+                   SET live = false,
+                       refinfo = refinfo || ' stale'
+                 WHERE taskid = $task(taskid)
+            "
+            puts-chan $chan "!OK uptime killed $id"
+        }
+    }
+    puts-chan $chan "OK uptime"
+}
+
 proc bgerror {emsg} {
     global errorInfo errorCode
     puts stderr "****ERROR***\n$errorCode\n$emsg\n==========\n$errorInfo\n"

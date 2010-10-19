@@ -1,0 +1,29 @@
+#!/usr/bin/tclsh8.4
+# -*- Tcl -*- 
+# usage: ./ms-reportuptime
+
+source daemonlib.tcl
+
+readconfig
+
+set s [socket $c(ControlDaemonHost) $c(QueueDaemonPort)]
+fconfigure $s -buffering line
+set chandesc($s) qd
+
+must-gets-chan $s {^OK ms-queuedaemon}
+
+set u [open /proc/uptime]
+set l [gets $u]
+close $u
+if {![regexp {^([1-9]\d*)(?:\.\d*)?\s} $l dummy uptime]} { error "$l ?" }
+
+puts-chan $s "uptime $uptime"
+
+while 1 {
+    set l [must-gets-chan $s {^!?(OK|WARNING)}]
+    switch -glob $l {
+        "OK uptime" { break }
+        "!OK uptime killed *" { }
+        * { logputs stderr "unexpected: $l" }
+    }
+}

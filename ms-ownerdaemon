@@ -48,8 +48,8 @@ proc cmd/create-task {chan desc} {
     transaction {
         pg_execute dbh "
             INSERT INTO tasks
-                        ( type,  refkey,           live)
-                 VALUES ('ownd', [pg_quote $taskdesc], 't')
+                        ( type,  refkey,               refinfo,         live)
+                 VALUES ('ownd', [pg_quote $taskdesc], [clock seconds], 't')
         "
         set nrows [pg_execute -array av dbh "
             SELECT taskid
