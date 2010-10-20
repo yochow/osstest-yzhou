@@ -75,8 +75,9 @@ proc runneeded-ensure-will {need} {
 
 proc runneeded-perhaps-start {} {
     log-event runneeded-perhaps-start
-    global queue queue_running thinking need_queue_run
+    global queue queue_running thinking need_queue_run startdelay
 
+    if {[info exists startdelay]} return
     if {[info exists queue_running]} return
     if {!$need_queue_run} return
 
@@ -352,13 +353,21 @@ proc await-endings-notified {} {
     }
 }
 
+proc startdelay-over {} {
+    global startdelay
+    unset startdelay
+    log "startdelay over"
+    runneeded-ensure-will 2
+}
+
 main-daemon $c(QueueDaemonPort) {
-    global owndchan chandesc
+    global owndchan chandesc startdelay
     
     db-open
     
     set queue {}
     set need_queue_run 0
+    set startdelay 1
     log-state main-daemon
     # 1: run queue only if new resources available
     # 2: definitely run queue
@@ -373,4 +382,6 @@ main-daemon $c(QueueDaemonPort) {
 
     fconfigure $owndchan -blocking false
     fileevent $owndchan readable await-endings-notified
+
+    after [expr {$c(QueueDaemonRetry) * 2000}] startdelay-over
 }
