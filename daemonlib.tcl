@@ -101,9 +101,13 @@ proc newconn {chan addr port} {
 proc main-daemon {port setup} {
     global c argv
 
+    set host $c(ControlDaemonHost)
+
     foreach arg $argv {
         switch -glob -- $arg {
             --commandloop { commandloop -async }
+            --host=* { regsub {^.*=} $arg {} host }
+            --port=* { regsub {^.*=} $arg {} port }
             * { error "unknown arg $arg" }
         }
     }
@@ -113,8 +117,8 @@ proc main-daemon {port setup} {
 
     uplevel 1 $setup
 
-    socket -server newconn -myaddr $c(ControlDaemonHost) $port
-    log "listening $c(ControlDaemonHost):$port"
+    socket -server newconn -myaddr $host $port
+    log "listening $host:$port"
 
     vwait forever
 }
