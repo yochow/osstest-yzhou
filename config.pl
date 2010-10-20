@@ -31,6 +31,7 @@ END
 $c{ControlDaemonHost}= 'woking.cam.xci-test.com';
 $c{OwnerDaemonPort}= 4031;
 $c{QueueDaemonPort}= 4032;
+$c{QueueDaemonRetry}= 120; # seconds
 $c{QueueThoughtsTimeout}= 30; # seconds
 $c{QueueResourcePollInterval}= 60; # seconds
 

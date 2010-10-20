@@ -992,7 +992,7 @@ END
             die "trouble $@" if $retries > 60;
             chomp $@;
             logm("resource allocation: queue-server trouble, sleeping ($@)");
-            sleep 120;
+            sleep $c{QueueDaemonRetry};
             undef $qserv;
             $ok= 0;
         }
