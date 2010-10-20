@@ -1466,26 +1466,40 @@ sub power_cycle ($) {
     power_state($ho, 1);
 }
 
-sub power_state ($$) {
-    my ($ho, $on) = @_;
-    my $want= (qw(s6 s1))[!!$on];
-    my $asset= $ho->{Asset};
-    logm("power: setting $want for $ho->{Name} $asset");
-    my $rows= $dbh_state->do
-        ('UPDATE control SET desired_power=? WHERE asset=?',
-         undef, $want, $asset);
-    die "$rows updating desired_power for $asset in statedb::control\n"
-        unless $rows==1;
-    my $sth= $dbh_state->prepare
-        ('SELECT current_power FROM control WHERE asset = ?');
-    $sth->bind_param(1, $asset);
-    
-    poll_loop(30,1, "power: checking $want", sub {
+sub power_state_await ($$$) {
+    my ($sth, $want, $msg) = @_;
+    poll_loop(30,1, "power: $msg $want", sub {
         $sth->execute();
         my ($got) = $sth->fetchrow_array();
         return undef if $got eq $want;
         return "state=\"$got\"";
     });
+}
+
+sub power_state ($$) {
+    my ($ho, $on) = @_;
+    my $want= (qw(s6 s1))[!!$on];
+    my $asset= $ho->{Asset};
+    logm("power: setting $want for $ho->{Name} $asset");
+
+    my $sth= $dbh_state->prepare
+        ('SELECT current_power FROM control WHERE asset = ?');
+    $sth->bind_param(1, $asset);
+
+    my $current= $dbh_state->selectrow_array
+        ('SELECT desired_power FROM control WHERE asset = ?',
+         undef, $asset);
+    die "not found $asset" unless defined $current;
+
+    power_state_await($sth, $current, 'checking');
+
+    my $rows= $dbh_state->do
+        ('UPDATE control SET desired_power=? WHERE asset=?',
+         undef, $want, $asset);
+    die "$rows updating desired_power for $asset in statedb::control\n"
+        unless $rows==1;
+    
+    power_state_await($sth, $want, 'awaiting');
 }
 
 sub file_link_contents ($$) {
