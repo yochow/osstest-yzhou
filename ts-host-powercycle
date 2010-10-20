@@ -7,8 +7,18 @@ use Osstest;
 readconfig();
 opendb_state();
 
+my $only;
+if (@ARGV && $ARGV[0] =~ m/^--power=([01])$/) {
+    $only= $1;
+    shift @ARGV;
+}
+
 our ($whhost) = @ARGV;
 $whhost ||= 'host';
 our $ho= selecthost($whhost);
 
-power_cycle($ho);
+if (defined $only) {
+    power_state($ho, $only);
+} else {
+    power_cycle($ho);
+}
