@@ -12,8 +12,10 @@ proc for-chan {chan script} {
     if {[catch {
         uplevel 1 $script
     } emsg]} {
+        global errorInfo
         catch { chan-error $chan $emsg }
         log "error: $desc: $emsg"
+        foreach l [split $errorInfo "\n"] { log "EI $l" }
         chan-destroy-stuff $chan
         catch { close $chan }
     }
