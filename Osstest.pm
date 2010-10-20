@@ -917,6 +917,8 @@ sub alloc_resources_rollback_begin_work () {
     db_begin_work($dbh_tests, $alloc_resources_lock_tables);
 }
 
+our $alloc_resources_waitstart;
+
 sub alloc_resources ($) {
     my ($resourcecall) = @_;
     # $resourcecall should die (abort) or return
@@ -946,7 +948,23 @@ END
                 $qserv= tcpconnect($c{ControlDaemonHost}, $c{QueueDaemonPort});
                 $qserv->autoflush(1);
 
-                $_= <$qserv>;  defined && m/^OK ms-queuedaemon\s/ or die "$_ ?";
+                $_= <$qserv>;  defined && m/^OK ms-queuedaemon\s/ or die "$_?";
+
+                if (!defined $alloc_resources_waitstart) {
+                    print $qserv "time\n" or die $!;
+                    $_= <$qserv>;
+                    defined or die $!;
+                    if (m/^OK time (\d+)$/) {
+                        $alloc_resources_waitstart= $1;
+                    }
+                }
+
+                if (defined $alloc_resources_waitstart) {
+                    print $qserv "set-info wait-start".
+                        " $alloc_resources_waitstart\n";
+                    $_= <$qserv>;  defined && m/^OK/ or die "$_ ?";
+                }
+
                 print $qserv "wait\n" or die $!;
                 $_= <$qserv>;  defined && m/^OK wait\s/ or die "$_ ?";
             }
