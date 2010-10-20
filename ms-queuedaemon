@@ -250,24 +250,50 @@ proc cmd/unset-info {chan desc var} {
     puts-chan $chan "OK unset-info"
 }
 
+proc cmd/time {chan desc} {
+    puts-chan $chan "OK time [clock seconds]"
+}
+
+proc chan-get-info {chan expr default} {
+    upvar #0 chan-info/$chan info
+    set val $default
+    catch { set val [expr $expr] }
+    return $val
+}
+
 proc cmd/wait {chan desc} {
     global queue need_queue_run
     lappend queue $chan
-    set queue [lsort -command chans-compare-priorities $queue]
+
+    upvar #0 chan-info/$chan info
+    set "info(wait-start use)" [chan-get-info $chan {int($info(wait-start))} \
+                                    [clock seconds]]
+
+    set sortq {}
+    foreach chan $queue { lappend sortq [list [chan-order-key $chan] $chan] }
+    set sortq [lsort $sortq]
+    set queue {}
+    foreach item $sortq { log "QI $item"; lappend queue [lindex $item 1] }
+
     puts-chan $chan "OK wait"
     runneeded-ensure-polling
     runneeded-ensure-will 2
 }
 
-proc chans-compare-priorities {ca cb} {
-    return [expr {[chan-priority $cb] - [chan-priority $ca]}]
+proc chans-compare-ordering {ca cb} {
+    return [string compare [chan-ordering-key $cb] - [chan-ordering-key $ca]]
 }
-proc chan-priority {chan} {
+proc chan-order-key {chan} {
     upvar #0 chan-info/$chan info
-    set priority 0
-    catch { set priority [expr {int($info(priority))}] } emsg
+
+    set priority [chan-get-info $chan {int($info(priority))} 0]
+    set subpriority [chan-get-info $chan {int($info(sub-priority))} 0]
+
+    set waitstart "$info(wait-start use)"
+    incr waitstart [chan-get-info $chan {int($info(wait-start-adjust))} 0]
+
     #puts stderr "priority $chan $priority $emsg"
-    return $priority
+    return [format "%+010d.%+010d.%+010d" $priority $subpriority $waitstart]
 }
 
 proc cmd/prod {chan desc} {
