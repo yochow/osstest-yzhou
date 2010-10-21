@@ -1126,9 +1126,9 @@ END
 #---------- hosts and guests ----------
 
 sub get_hostflags ($) {
-    my ($name) = @_;
+    my ($ident) = @_;
     my $flags= get_runvar_default('all_hostflags',     $job, '').
-               get_runvar_default("${name}_hostflags", $job, '');
+               get_runvar_default("${ident}_hostflags", $job, '');
     return grep /./, split /\,/, $flags;
 }
 
