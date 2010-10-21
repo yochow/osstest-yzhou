@@ -41,7 +41,7 @@ BEGIN {
 		      target_putfilecontents_root_stash
                       target_editfile_root target_file_exists
                       target_install_packages target_install_packages_norec
-                      host_reboot target_reboot target_reboot_hard
+                      host_reboot host_pxedir target_reboot target_reboot_hard
                       target_choose_vg target_umount_lv target_await_down
                       target_ping_check_down target_ping_check_up
                       target_kernkind_check target_kernkind_console_inittab
@@ -1552,14 +1552,20 @@ sub file_link_contents ($$) {
     logm("wrote $fn");
 }
 
-sub setup_pxeboot ($$) {
-    my ($ho, $bootfile) = @_;
+sub host_pxedir ($) {
+    my ($ho) = @_;
     my $dir= $ho->{Ether};
     $dir =~ y/A-Z/a-z/;
     $dir =~ y/0-9a-f//cd;
     length($dir)==12 or die "$dir";
     $dir =~ s/../$&-/g;
     $dir =~ s/\-$//;
+    return $dir;
+}
+
+sub setup_pxeboot ($$) {
+    my ($ho, $bootfile) = @_;
+    my $dir= host_pxedir($ho);
     file_link_contents($c{Tftp}."/$dir/pxelinux.cfg", $bootfile);
 }
 
