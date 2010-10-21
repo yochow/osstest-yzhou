@@ -39,6 +39,15 @@ sub install () {
         target_cmd_root($ho, "lvremove -f $1");
     }
 
+    my $partitions= target_cmd_output_root($ho, 'cat /proc/partitions');
+    foreach my $l (split /\n/, $partitions) {
+        logm("| $l");
+        next unless m/^\s*\d+\s+\d+\s+\d+((?:sd|hd)[b-z])\s*$/;
+        my $dev= "/dev/$1";
+        target_cmd_root($ho, "pvcreate $dev");
+        target_cmd_root($ho, "vgextend $ho->{Name}.$c{TestHostDomain} $dev");
+    }
+
     my $kpath= $c{TestHostKeypairPath};
     my $kleaf= $kpath;
     $kleaf =~ s,.*/,,;
