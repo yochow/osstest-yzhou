@@ -1,0 +1,125 @@
+#!/usr/bin/perl -w
+
+use strict qw(vars refs);
+use DBI;
+use Osstest;
+
+csreadconfig();
+
+sub l ($) { return split /,/, $_[0]; }
+
+sub cmd_copy () {
+    die unless @ARGV==2;
+    my ($src,$dsts) = @ARGV;
+
+    my $resource_add= $dbh_tests->prepare(<<END);
+        INSERT INTO resources
+        SELECT restype,
+               ? AS resname,
+               0 AS shareix,
+               (SELECT taskid FROM tasks WHERE type='magic' AND refkey='idle')
+                 AS owntaskid
+          FROM resources
+         WHERE restype='host' AND resname=?
+END
+
+    my $hostflags_add= $dbh_tests->prepare(<<END);
+        INSERT INTO hostflags
+        SELECT ? AS hostname,
+               hostflag
+          FROM hostflags
+         WHERE hostname=?
+END
+
+    db_retry($dbh_tests, [qw(resources hostflags)], sub {
+        foreach my $dst (l($dsts)) {
+            $resource_add->execute($dst, $src);
+            $hostflags_add->execute($dst, $src);
+        }
+    });
+}
+
+sub cmd_setflags () {
+    die unless @ARGV==2;
+    my ($flags,$dsts) = @ARGV; # each flag may start with - to remove
+    my $deleteq= $dbh_tests->prepare(<<END);
+        DELETE FROM hostflags
+              WHERE hostname=? AND hostflag=?
+END
+    my $addq= $dbh_tests->prepare(<<END);
+        INSERT INTO hostflags
+                    (hostname, hostflag)
+             VALUES (?,        ?       )
+END
+    db_retry($dbh_tests, [qw(hostflags)], sub {
+        foreach my $flag (l($flags)) {
+            my $remove= $flag =~ s/^\-//;
+            foreach my $dst (l($dsts)) {
+                $deleteq->execute($dst, $flag);
+                $addq->execute($dst, $flag) unless $remove;
+            }
+        }
+    });
+}
+
+sub cmd_showflags () {
+    die if @ARGV;
+    my $findq= $dbh_tests->prepare(<<END);
+        SELECT * FROM hostflags ORDER BY
+            split_part(hostname, '-', 2),
+            hostname, hostflag
+END
+    $findq->execute();
+    my (@cols, @rows, %cols, %rows, @grid);
+    my $maxflag= 1;
+    my $find= sub {
+        my ($ary,$hash,$key)=@_;
+        my $val= $hash->{$key};  return $val if defined $val;
+        push @$ary, $key;
+        return $hash->{$key}= $val= $#$ary;
+    };
+    while (my $hf= $findq->fetchrow_hashref()) {
+        my $row= $find->(\@rows, \%rows, $hf->{hostflag});
+        my $col= $find->(\@cols, \%cols, $hf->{hostname});
+        my $flaglen= length $hf->{hostflag};
+        $maxflag= $flaglen if $flaglen > $maxflag;
+        $grid[$row][$col]= 1;
+    }
+    my @headlines;
+    my $cw= 3;
+    foreach my $col (0..$#cols) {
+        my $wantx= $col*$cw;
+        my $row;
+        for ($row=0;
+             defined($headlines[$row]) &&
+             length($headlines[$row]) >= $wantx;
+             $row++) { }
+print STDERR "CW $col $wantx $row $cols[$col]\n";
+        $headlines[$row]='' if !defined $headlines[$row];
+        $headlines[$row].=
+            ' 'x($wantx - length $headlines[$row]).
+            $cols[$col];
+    }
+    my $maxwidth= 0;
+    foreach my $l (@headlines) {
+        printf "%*s | %s\n", $maxflag,'', $l;
+        $maxwidth= length($l) if length($l) > $maxwidth;
+    }
+    print '-'x($maxflag), '-+-', '-'x($maxwidth), "\n";
+    foreach my $row (0..$#rows) {
+        printf "%-*s | ", $maxflag,$rows[$row];
+        foreach my $col (0..$#cols) {
+            my $ge= $grid[$row][$col];
+            printf "%-*s", $cw, $ge ? 'x' : ' ';
+        }
+        print "\n";
+    }
+}    
+
+die unless @ARGV;
+my $subcmd= shift @ARGV;
+my $subcmdproc;
+{
+    $subcmdproc= \&{ "cmd_$subcmd" };
+}
+$subcmdproc->();
