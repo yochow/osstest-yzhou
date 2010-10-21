@@ -1,0 +1,5 @@
+select * from resource_sharing s full outer join resources r on r.restype = 'share-' || s.restype and r.resname = s.resname full outer join tasks t on r.owntaskid=t.taskid order by live, r.resname, shareix, r.restype, taskid;
+
+
+select * from jobs full outer join steps using (job, flight) where flight=2364 order by job, stepno;
+
