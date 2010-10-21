@@ -1157,6 +1157,12 @@ sub selecthost ($) {
     $ho->{Asset}= $get->('asset');
     $dbh->disconnect();
 
+    my $realflagsq= $dbh_tests->prepare(<<END);
+        SELECT hostflag FROM hostflags WHERE hostname=?
+END
+    $realflagsq->execute($ho->{Name});
+    $ho->{Flags}= $realflagsq->fetchall_hashref('hostflag');
+
     $ho->{Shared}= resource_check_allocated('host', $name);
     $ho->{SharedReady}=
         $ho->{Shared} &&
