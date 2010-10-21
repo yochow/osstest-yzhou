@@ -67,6 +67,8 @@ sub cmd_showflags () {
     my $findq= $dbh_tests->prepare(<<END);
         SELECT * FROM hostflags ORDER BY
             split_part(hostname, '-', 2),
+            length(substr( translate(hostflag,
+               'abcdefghijklmnopqrstuvwxyz0123456789',''), 1,2 )),
             hostname, hostflag
 END
     $findq->execute();
