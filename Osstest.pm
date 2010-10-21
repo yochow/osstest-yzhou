@@ -919,8 +919,9 @@ sub alloc_resources_rollback_begin_work () {
 
 our $alloc_resources_waitstart;
 
-sub alloc_resources ($) {
-    my ($resourcecall) = @_;
+sub alloc_resources {
+    my ($resourcecall) = pop @_;
+    my (%xparams) = @_;
     # $resourcecall should die (abort) or return
     #            0  rollback, wait and try again
     #            1  commit, completed ok
