@@ -98,7 +98,7 @@ for xenarch in i386 amd64; do
 
       if [ x$kern = x-xcpkern -a $dom0arch != i386 ]; then continue; fi
 
-      most_hostflags="arch-$dom0arch,arch-$xenarch"
+      most_hostflags="arch-$dom0arch,arch-$xenarch,test"
 
       most_runvars="
 		arch=$dom0arch			        	\
