@@ -470,7 +470,8 @@ END
 
     my $finalok= 0;
     while (!$finalok) {
-        alloc_resources(sub {
+        alloc_resources(WaitStartAdjust => (@idents * -10),
+                        sub {
 
             logm("allocating hosts: ".join(' ', map { $_->{Ident} } @hids));
 
