@@ -58,7 +58,7 @@ $c{Tftp}= '/tftpboot/pxe';
 
 #$c{Baud}= 38400;
 $c{Baud}= 115200;
-$c{PxeDiBase}= 'debian-installer';
+$c{PxeDiBase}= 'osstest/debian-installer';
 
 $c{Suite}= 'lenny';
 $c{GuestSuite}= 'lenny';

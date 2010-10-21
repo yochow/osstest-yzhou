@@ -3,6 +3,7 @@
 use strict qw(vars);
 use DBI;
 use Osstest;
+use POSIX;
 
 readconfig();
 opendb_state();
@@ -58,12 +59,32 @@ sub install () {
 sub setup_pxeboot_firstboot($) {
     my ($ps_url) = @_;
     
-    my $d_i= $c{PxeDiBase}.'/'.$r{arch};
+    my $d_i= $c{PxeDiBase}.'/'.$r{arch}.'/current';
     $ps_url =~ s,^http://,,;
     
     my @installcmdline= qw(vga=normal auto=true preseed);
+
+    my $initrd= "$d_i/initrd.gz";
+    my @firmwares= grep { m/^need-firmware-deb-/ } keys %{ $ho->{Flags} };
+    if (@firmwares) {
+        s/^need-firmware-deb-// foreach @firmwares;
+        my @cmd= (qw(cat --), "$c{Tftp}/$initrd");
+        foreach my $fp (@firmwares) {
+            my $cpio= "$c{Tftp}/$d_i/$fp.cpio.gz";
+            if (stat $cpio) {
+                push @cmd, $cpio;
+            } elsif ($! == &ENOENT) {
+                logm("warning: no firmware cpio found for $fp at $cpio");
+            } else {
+                die "$fp $cpio $!";
+            }
+        }
+        $initrd= host_pxedir($ho)."/initrd.gz";
+        system_checked("@cmd >$c{Tftp}/$initrd");
+        logm("using firmware from: @firmwares");
+    }
     
-    push @installcmdline, ("initrd=$d_i/initrd.gz",
+    push @installcmdline, ("initrd=$initrd",
                            "hostname=$ho->{Name}",
                            "url=$ps_url",
                            "domain=$c{TestHostDomain}",

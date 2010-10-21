@@ -1,0 +1,61 @@
+#!/bin/bash
+# usage
+#   ./mg-debian-installer-update lenny i386 'firmware-bnx2 firmware-spong'
+set -e
+
+suite=$1
+arch=$2
+packages="$3"
+
+fail () { echo >&2 "$0: $1"; exit 1; }
+
+site=http://ftp.debian.org/
+sbase=http://ftp.debian.org/dists/$suite
+
+src=$sbase/main/installer-$arch/current/images/netboot/debian-installer/$arch
+pfile=$sbase/non-free/binary-$arch/Packages.bz2
+files='initrd.gz linux'
+
+dstroot=/tftpboot/pxe/osstest/debian-installer/
+date=`date +%Y-%m-%d`
+dst=$arch/$date
+
+cd $dstroot
+mkdir -p $dst
+cd $dst
+
+for f in $files; do
+        echo "fetching $f"
+        curl -s $src/$f >$f.new
+done
+
+curl -s $pfile >Packages.bz2
+
+for p in $packages; do
+        set +e
+        echo "collecting $p"
+        pkgfile=`bzcat Packages.bz2 | grep-dctrl -PX $p -nsFilename`
+        rc=$?
+        set -e
+        if [ $rc != 0 ]; then fail "package $p not found"; fi
+        curl -s "$site/$pkgfile" >$p.deb
+        rm -rf x
+        dpkg-deb -x $p.deb x
+        cd x; pax -x sv4cpio -s '%lib%/lib%' -w lib >../cpio; cd ..
+        gzip -9f cpio
+        mv cpio.gz $p.cpio.gz
+        rm -rf x
+done
+
+for f in $files; do
+        mv -f $f.new $f
+done
+
+rm Packages.bz2
+
+cd $dstroot/$arch
+rm -rf current.new
+ln -s $date current.new
+mv -Tf current.new current
+
+echo "installed $dstroot/$arch/$date"
