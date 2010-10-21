@@ -66,16 +66,21 @@ proc log-state {m} {
 #   need_queue_run   0: not needed; 1: needed if more resources; 2: force
 
 proc runneeded-ensure-will {need} {
-    log-event "runneeded-ensure-will $need"
+    global runneeded_holdoff_after c need_queue_run
+    log-event "runneeded-ensure-will $need (was $need_queue_run)"
 
-    global need_queue_run
     if {$need > $need_queue_run} { set need_queue_run $need }
-    after idle runneeded-perhaps-start
+    catch { after cancel $runneeded_holdoff_after }
+    set runneeded_holdoff_after \
+        [after [expr {$c(QueueDaemonHoldoff) * 1000}] \
+             runneeded-perhaps-start]
 }
 
 proc runneeded-perhaps-start {} {
     log-event runneeded-perhaps-start
     global queue queue_running thinking need_queue_run startdelay
+    global runneeded_holdoff_after
+    unset runneeded_holdoff_after
 
     if {[info exists startdelay]} return
     if {[info exists queue_running]} return
@@ -160,7 +165,7 @@ proc queuerun-perhaps-step {} {
 
     if {![llength $queue_running]} {
         unset queue_running
-        runneeded-perhaps-start
+        runneeded-ensure-will 0
         return
     }
 
