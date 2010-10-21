@@ -966,6 +966,12 @@ END
                     $_= <$qserv>;  defined && m/^OK/ or die "$_ ?";
                 }
 
+                my $adjust= $xparams{WaitStartAdjust};
+                if (defined $adjust) {
+                    print $qserv "set-info wait-start-adjust $adjust\n";
+                    $_= <$qserv>;  defined && m/^OK|ERROR/ or die "$_ ?";
+                }
+
                 print $qserv "wait\n" or die $!;
                 $_= <$qserv>;  defined && m/^OK wait\s/ or die "$_ ?";
             }
