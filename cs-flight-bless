@@ -18,4 +18,5 @@ my $q= $dbh_tests->
 db_retry($dbh_tests,[qw(flights)], sub {
     dbfl_check($flight, [@oldblessings]);
     $q->execute($blessing, $flight);
+    $q->finish();
 });

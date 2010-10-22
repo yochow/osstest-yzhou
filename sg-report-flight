@@ -693,6 +693,7 @@ END
     rename "$htmlout.new", $htmlout or die $!;
 }
 
+db_begin_work($dbh_tests, [qw(flights)]);
 findspecflight();
 my $fi= examineflight($specflight);
 justifyfailures($fi);

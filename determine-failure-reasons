@@ -62,6 +62,7 @@ while (my $step= $stepsq->fetchrow_hashref) {
         push @histeps, $step;
     }
 }
+$stepsq->finish();
 
 printf "\r%75s\rsorting\r", '';
 

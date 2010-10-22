@@ -64,7 +64,7 @@ $c{PxeDiBase}= 'osstest/debian-installer';
 $c{Suite}= 'lenny';
 $c{GuestSuite}= 'lenny';
 $c{HostDiskBoot}=   '300'; #Mby
-$c{HostDiskRoot}= '30000'; #Mby
+$c{HostDiskRoot}= '10000'; #Mby
 $c{HostDiskSwap}=  '2000'; #Mby
 
 $c{BisectionRevisonGraphSize}= '600x300';

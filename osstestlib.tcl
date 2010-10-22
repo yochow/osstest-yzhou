@@ -43,6 +43,7 @@ proc db-open {} {
 }
 
 proc db-update-1 {stmt} {
+    # must be in transaction
     set nrows [pg_execute dbh $stmt]
     if {$nrows != 1} { error "$nrows != 1 in < $stmt >" }
 }
@@ -56,6 +57,7 @@ proc set-flight {} {
 }
 
 proc prepare-job {job} {
+    # must be outside any transaction, or with flights locked
     global flight argv c
     set desc "$flight.$job"
 
@@ -114,6 +116,7 @@ proc lock-tables {tables} {
 }
 
 proc spawn-ts {iffail testid ts args} {
+    # must be outside any transaction
     global flight c jobinfo reap_details env
 
     if {[file exists abort]} {
@@ -128,7 +131,7 @@ proc spawn-ts {iffail testid ts args} {
     pg_execute dbh BEGIN
     pg_execute dbh "SET TRANSACTION ISOLATION LEVEL SERIALIZABLE"
     if {[catch {
-        lock-tables steps
+        lock-tables flights
 	pg_execute -array stepinfo dbh "
             SELECT max(stepno) AS maxstep FROM steps
                 WHERE flight=$flight AND job='$jobinfo(job)'
@@ -181,14 +184,16 @@ proc spawn-ts {iffail testid ts args} {
     set details [list $flight $jobinfo(job) $stepno $detstr $iffail]
     logputs stdout "starting $detstr $testid"
     
-    db-update-1 "
-        UPDATE steps
-              SET testid=[pg_quote $testid],
-                  started=[clock seconds]
-            WHERE flight=$flight
-              AND job=[pg_quote $jobinfo(job)]
-              AND stepno=$stepno
-    "
+    transaction flights {
+        db-update-1 "
+            UPDATE steps
+                  SET testid=[pg_quote $testid],
+                      started=[clock seconds]
+                WHERE flight=$flight
+                  AND job=[pg_quote $jobinfo(job)]
+                  AND stepno=$stepno
+        "
+    }
 
     set logdir $c(Logs)/$flight/$jobinfo(job)
     file mkdir $c(Logs)/$flight
@@ -222,35 +227,39 @@ proc setstatus {st} {
 }
 
 proc job-set-status {flight job st} {
-    db-update-1 "
-        UPDATE jobs SET status='$st'
-            WHERE flight=$flight AND job='$job'
-              AND status<>'aborted' AND status<>'broken'
-    "
+    transaction flights {
+        db-update-1 "
+            UPDATE jobs SET status='$st'
+                WHERE flight=$flight AND job='$job'
+                  AND status<>'aborted' AND status<>'broken'
+        "
+    }
 }
 
 proc step-set-status {flight job stepno st} {
-    db-update-1 "
-        UPDATE steps
-           SET status='$st',
-               finished=[clock seconds]
-         WHERE flight=$flight AND job='$job' AND stepno=$stepno
-    "
-    set pause 0
-    pg_execute -array stopinfo dbh "
-        SELECT val FROM runvars
-         WHERE flight=$flight AND job='$job'
-           AND name='pause_on_$st'
-    " {
-        pg_execute -array stepinfo dbh "
-            SELECT * FROM steps
+    transaction flights {
+        db-update-1 "
+            UPDATE steps
+               SET status='$st',
+                   finished=[clock seconds]
              WHERE flight=$flight AND job='$job' AND stepno=$stepno
+        "
+        set pause 0
+        pg_execute -array stopinfo dbh "
+            SELECT val FROM runvars
+             WHERE flight=$flight AND job='$job'
+               AND name='pause_on_$st'
         " {
-            foreach col {step testid} {
-                if {![info exists stepinfo($col)]} continue
-                foreach pat [split $stopinfo(val) ,] {
-                    if {[string match $pat $stepinfo($col)]} {
-                        set pause 1
+            pg_execute -array stepinfo dbh "
+                SELECT * FROM steps
+                 WHERE flight=$flight AND job='$job' AND stepno=$stepno
+            " {
+                foreach col {step testid} {
+                    if {![info exists stepinfo($col)]} continue
+                    foreach pat [split $stopinfo(val) ,] {
+                        if {[string match $pat $stepinfo($col)]} {
+                            set pause 1
+                        }
                     }
                 }
             }
@@ -280,11 +289,12 @@ proc reap-ts {reap} {
     return [expr {![string compare $result pass]}]
 }
 
-proc transaction {script} {
+proc transaction {tables script} {
     while 1 {
         set ol {}
         pg_execute dbh BEGIN
         pg_execute dbh "SET TRANSACTION ISOLATION LEVEL SERIALIZABLE"
+        lock-tables $tables
         uplevel 1 $script
         if {[catch {
             pg_execute dbh COMMIT
@@ -314,7 +324,7 @@ proc become-task {comment} {
     regsub {\..*} $hostname {} hostname
     set username "[id user]@$hostname"
 
-    transaction {
+    transaction resources {
         set nrows [pg_execute dbh "
             UPDATE tasks
                SET username = [pg_quote $username],

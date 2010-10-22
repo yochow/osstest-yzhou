@@ -91,8 +91,7 @@ proc runneeded-perhaps-start {} {
 
     if {![llength $queue]} return
 
-    transaction {
-	lock-tables {resources tasks}
+    transaction resources {
         set nrows [pg_execute dbh {
             UPDATE resources
                SET owntaskid= (SELECT taskid FROM tasks
@@ -104,8 +103,7 @@ proc runneeded-perhaps-start {} {
 
     if {!($nrows || $needed>=2)} return
 
-    transaction {
-        lock-tables tasks
+    transaction resources {
         set cleaned [pg_execute dbh {
             DELETE FROM tasks
              WHERE type='ownd'
@@ -310,7 +308,7 @@ proc cmd/prod {chan desc} {
 proc cmd/uptime {chan desc seconds} {
     set before [expr {[clock seconds] - $seconds}]
     set descpat "[regsub {\:\d+$} $desc {:%}]"
-    transaction {
+    transaction resources {
         set keys {}
         pg_execute -array task dbh "
             SELECT * FROM tasks

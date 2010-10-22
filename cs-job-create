@@ -18,7 +18,7 @@ $dbh_tests->
     selectrow_arrayref("SELECT * FROM flights where flight= $flight")
     or die "$flight ?";
 
-db_retry($flight,'constructing', $dbh_tests,[], sub {
+db_retry($flight,'constructing', $dbh_tests,[qw(flights)], sub {
     $dbh_tests->do(<<END);
         INSERT INTO jobs VALUES ($flight,'$job','$recipe','queued')
 END
@@ -36,5 +36,6 @@ END
         my ($name,$val) = ($1,$2);
         next if $suppress{$name};
         $q->execute($1,$2);
+        $q->finish();
     }
 });

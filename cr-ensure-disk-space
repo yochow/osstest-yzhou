@@ -57,6 +57,7 @@ for (;;) {
 
     $chkq->execute($flight);
     my $row= $chkq->fetchrow_hashref();
+    $chkq->finish();
     die $flight unless defined $row;
     my $age= time - $row->{started};
 

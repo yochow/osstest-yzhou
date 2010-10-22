@@ -108,6 +108,7 @@ END
         }
         last unless $anydone;
     };
+    $started->finish();
 }
 
 sub open_unique_stashfile ($) {
@@ -206,6 +207,7 @@ END
         $gn =~ s/_domname$//;
         fetch_logs_guest($gn);
     }
+    $sth->finish();
 }
 
 sub fetch_logs_guest ($) {

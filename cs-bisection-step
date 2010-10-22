@@ -105,14 +105,13 @@ sub summary_report ($$$) {
 
 sub relevant_hosts ($) {
     my ($flight) = @_;
-    my $sth= $dbh_tests->prepare(<<END);
-        SELECT name,val FROM runvars
-	   WHERE job = ?
-	     AND flight = ?
-	     AND name LIKE '%host'
+    return join ',', map { join '=', @$_ } @{
+        $dbh_tests->selectall_arrayref(<<END,{}, $job,$latest_flight) }
+            SELECT name,val FROM runvars
+               WHERE job = ?
+                 AND flight = ?
+                 AND name LIKE '%host'
 END
-    $sth->execute($job,$latest_flight);
-    return join ',', map { join '=', @$_ } @{ $sth->fetchall_arrayref() }
 }
 
 sub flight_has_relevant_hosts ($) {
@@ -194,6 +193,8 @@ END
 	    push @trevisions, $rev;
 	}
     }
+    $sth->finish();
+
     $dbh_tests->do(<<END);
         DROP TABLE tmp_build_info
 END
@@ -244,23 +245,25 @@ sub findbasics () {
         $flight_cond{$fp}= defined $specflights{$fp}
             ? "flight = $specflights{$fp}" : "TRUE";
     }
-    my $sth= $dbh_tests->prepare(<<END);
-	SELECT * FROM flights JOIN steps USING (flight)
-	   WHERE job = ?
-	     AND testid = ?
-	     AND blessing = ?
-	     AND (status = 'fail' OR status = 'pass')
-             AND branch = ?
-             AND $flight_cond{fail}
-             AND $flight_is_not_broken
-	   ORDER BY flights.started DESC
-	   LIMIT 1
+
+    my $row= $dbh_tests->selectrow_hashref
+        (<<END,{}, $job,$testid,$blessings[0],$branch);
+            SELECT * FROM flights JOIN steps USING (flight)
+               WHERE job = ?
+                 AND testid = ?
+                 AND blessing = ?
+                 AND (status = 'fail' OR status = 'pass')
+                 AND branch = ?
+                 AND $flight_cond{fail}
+                 AND $flight_is_not_broken
+               ORDER BY flights.started DESC
+               LIMIT 1
 END
-    $sth->execute($job,$testid,$blessings[0],$branch);
-    my $row= $sth->fetchrow_hashref();
+
     die "no failure found" unless $row;
     die "supposed failure flight not a failure $row->{flight} $row->{status}"
         unless $row->{'status'} eq 'fail';
+
     $latest_flight= $row->{flight};
     print STDERR "Found failure, as expected, in flight $latest_flight\n";
 
@@ -268,7 +271,8 @@ END
     print STDERR "Host specification list: $hosts\n";
 
     print STDERR "Searching for basis pass:";
-    $sth= $dbh_tests->prepare(<<END);
+
+    my $sth= $dbh_tests->prepare(<<END);
         SELECT * FROM flights JOIN steps USING (flight)
 	   WHERE job = ?
 	     AND testid = ?
@@ -286,6 +290,8 @@ END
 	$basispass_flight= $row->{flight};
 	last;
     }
+    $sth->finish();
+
     if (!$basispass_flight) {
 	die "\nNo applicable basis pass, sorry!\n";
     }
@@ -401,15 +407,20 @@ sub scantests () {
     if (!defined $basispass_date) {
         die unless $broken;
         die unless defined $basispass_flight;
-        my $dateq= $dbh_tests->prepare("
+        my $daterow= $dbh_tests->selectrow_hashref(<<END);
             SELECT * FROM flights WHERE flight = $basispass_flight
-        ");
-        $dateq->execute();
-        my $daterow= $dateq->fetchrow_hashref();
+END
         $basispass_date= $daterow->{started};
     }
 
     print STDERR "Searching for test results:\n";
+
+    my $stepq= $dbh_tests->prepare("
+       SELECT * FROM steps
+          WHERE flight = ?
+            AND job = ?
+            AND testid = ?
+    ");
 
     my $jobq= $dbh_tests->prepare("
        SELECT * FROM flights JOIN jobs USING (flight)
@@ -419,13 +430,6 @@ sub scantests () {
             AND branch = ?
             AND $flight_is_not_broken
     ");
-    my $stepq= $dbh_tests->prepare("
-       SELECT * FROM steps
-          WHERE flight = ?
-            AND job = ?
-            AND testid = ?
-    ");
-
     $jobq->execute($job,$branch);
     while (my $jobrow= $jobq->fetchrow_hashref()) {
         my @rtuple= flight_rtuple($jobrow->{flight});
@@ -433,6 +437,7 @@ sub scantests () {
 
         $stepq->execute($jobrow->{flight},$job,$testid);
         my $steprow= $stepq->fetchrow_hashref();
+        $stepq->finish();
         my $st= $steprow ? $steprow->{status} : 'blocked';
         print STDERR " $jobrow->{flight} $st ";
         my $n= $nodes{"@rtuple"};
@@ -457,6 +462,7 @@ sub scantests () {
             });
         }
     }
+    $jobq->finish();
 }
 
 our @conflicted;
@@ -830,6 +836,7 @@ our %jobs_created;
 sub preparejob ($$$);
 sub preparejob ($$$) {
     my ($popjob, $copyflight, $cacheok) = @_;
+    # runs in db_retry qw(flights)
 
     if (exists $jobs_created{$popjob}) {
 	print STDERR "Already created $jobs_created{$popjob}\n";
@@ -858,6 +865,7 @@ END
     foreach (my $i=0; $i<@trees; $i++) {
         $treeq->execute($copyflight, $popjob, $trees[$i]);
         my ($treevar) = $treeq->fetchrow_array();
+        $treeq->finish();
         next unless defined $treevar;
         $treevar =~ m/^tree_/ or
             die "$copyflight $popjob $trees[$i] $treevar ";
@@ -879,19 +887,18 @@ END
 END
     $jobq->execute($copyflight, $popjob);
     my $subjobs= $jobq->fetchall_arrayref( {} );
+    $jobq->finish();
 
     # See if there's a build we can reuse
 
-    my $recipeq= $dbh_tests->prepare(<<END);
+    my ($recipe) = $dbh_tests->selectrow_array(<<END,{}, $copyflight,$popjob);
         SELECT recipe FROM jobs WHERE flight=? AND job=?
 END
-    $recipeq->execute($copyflight,$popjob);
-    my ($recipe) = $recipeq->fetchrow_array();
 
     my $usejob;
 
     if ($cacheok and $recipe =~ m/^build/ and !@$subjobs) {
-        my $reuseq= $dbh_tests->prepare(<<END);
+        my $reusejob= $dbh_tests->selectrow_hashref(<<END,{}, $popjob,$popjob);
             SELECT  *
             FROM    flights f JOIN jobs j USING (flight)
             WHERE   j.job=?
@@ -911,8 +918,7 @@ END
             ORDER BY f.started desc
             LIMIT 1
 END
-        $reuseq->execute($popjob,$popjob);
-        my $reusejob= $reuseq->fetchrow_hashref();
+
         if ($reusejob) {
             $usejob= "$reusejob->{flight}.$reusejob->{job}";
             print STDERR "Can reuse $recipe $usejob.\n";
@@ -953,19 +959,21 @@ END
         }
         $jobsetq->execute($target, $popflight, $popjob, $subjob->{name});
     }
+    $jobsetq->finish();
 
     return $usejob;
 }
 
 sub populateflight () {
     return unless $popflight;
+    # runs outside a transaction
 
     if (!defined $choose) {
         print STDERR "No revision to test.\n";
         return;
     }
 
-    db_retry($popflight,'constructing', $dbh_tests,[], sub {
+    db_retry($popflight,'constructing', $dbh_tests,[qw(flights)], sub {
         print STDERR "Populating $popflight...\n";
         preparejob($job, $latest_flight, 0);
     });

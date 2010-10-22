@@ -30,17 +30,7 @@ our $fi;
 our %magictaskid;
 our %provisional;
 
-our $res1q= $dbh_tests->prepare(<<END);
-        SELECT *
-          FROM resources
-         WHERE restype=? AND resname=? AND shareix=?
-END
-
-our $claim_setres_q= $dbh_tests->prepare(<<END);
-        UPDATE resources
-           SET owntaskid = ?, subtask = ?
-         WHERE restype=? AND resname=? AND shareix=?
-END
+our ($res1q, $claim_setres_q);
 
 sub show_reskey {
     my (@reskey) = @_;
@@ -133,6 +123,18 @@ END
     my $shr= $hid->{Shared};
     my $findhostsq;
 
+    $res1q= $dbh_tests->prepare(<<END);
+        SELECT *
+          FROM resources
+         WHERE restype=? AND resname=? AND shareix=?
+END
+
+    $claim_setres_q= $dbh_tests->prepare(<<END);
+        UPDATE resources
+           SET owntaskid = ?, subtask = ?
+         WHERE restype=? AND resname=? AND shareix=?
+END
+
     if (defined $use) {
         print DEBUG "HID $hid->{Ident} USE $use\n";
         $res1q->execute('host',$use,0);
@@ -144,6 +146,11 @@ END
     }
     my @candidates;
     my $any=0;
+
+    my $cleanup= sub {
+        $res1q->finish();
+        $hostsq->finish();
+    };
 
     while (my $candrow= $findhostsq->fetchrow_hashref()) {
         $candrow->{Warnings}= [ ];
@@ -157,6 +164,7 @@ END
             $flagscheckq->execute($candrow->{resname}, $flag);
             next if $flagscheckq->fetchrow_arrayref();
             push @nogood, $flag;
+            $flagscheckq->finish();
         }
         print DEBUG "$dbg NOGOOD @nogood\n";
         if (@nogood) {
@@ -185,8 +193,11 @@ END
                  $candrow->{restype}, $candrow->{resname});
 
             $shared= $shared_q->fetchrow_hashref();
+            $shared_q->finish();
+
             die "$candrow->{resname} ?" unless $shared;
             $candrow->{Shared}= $shared;
+
 
             print DEBUG "$dbg ALLOC ISSHARED".
                 " $shared->{sharetype} $shared->{state}".
@@ -210,6 +221,7 @@ END
                                          $shared->{resname},
                                          $magictaskid{allocatable});
                 my $slot= $sharing_slot_q->fetchrow_hashref();
+                $sharing_slot_q->finish();
                 if (!$slot) {
                     # this is no use then
                     print DEBUG "$dbg ALLOC SHARED AVAIL BUSY\n";
@@ -232,6 +244,7 @@ END
                     logm("host $candrow->{resname} shareable $shr".
                          " for $hid->{Ident} is being prepared".
                          " ($shared->{state}, $shared->{ntasks})");
+                    $cleanup->();
                     return 0;
                 }
                 # someone was preparing it but they aren't any more
@@ -246,6 +259,7 @@ END
                                       $fi->{branch},
                                       $candrow->{hostname});
             my $recent= $recentflights_q->fetchrow_hashref();
+            $recentflights_q->finish();
             $candrow->{Cost}=
                 defined($recent) ? $recent->{started} : 1;
             print DEBUG "$dbg ALLOC PLAIN OK $candrow->{Cost}\n";
@@ -261,6 +275,7 @@ END
     if (!@candidates) {
         logm("none of $any hosts for $hid->{Ident} available");
         die "no possible hosts" unless $any;
+        $cleanup->();
         return 0;
     }
 
@@ -274,6 +289,7 @@ END
         print DEBUG "HID $hid->{Ident} GO @reskey SHARING REUSE\n";
         $claim_share_reuse_q->execute($candrow->{BaseRow}{restype},
                                       $candrow->{resname});
+        $claim_share_reuse_q->finish();
     } else {
         if ($candrow->{Shared}) {
             print DEBUG "HID $hid->{Ident} GO @reskey UNSHARE\n";
@@ -281,26 +297,32 @@ END
                                        $candrow->{Shared}{resname},
                                        $magictaskid{allocatable},
                                        $magictaskid{preparing});
+            $claim_rmshares_q->finish();
             $claim_noshares_q->execute($candrow->{SharedResType},
                                        $candrow->{Shared}{resname});
             my $bad= $claim_noshares_q->fetchrow_hashref();
+            $claim_noshares_q->finish();
             die Dumper($bad).'?' if $bad;
             
             $claim_rmshare_q->execute($candrow->{restype},
                                       $candrow->{resname});
+            $claim_rmshare_q->finish();
         }
         if ($shr) {
             print DEBUG "HID $hid->{Ident} GO @reskey SHARE\n";
             $claim_setres_q->execute($magictaskid{shared},"", @reskey);
+            $claim_setres_q->finish();
             $claim_share_new_q->execute($candrow->{restype},
                                         $candrow->{resname},
                                         $shr);
+            $claim_share_new_q->finish();
             my $shrestype= 'share-'.$candrow->{restype};
             for (my $ix=1; $ix<=$hid->{SharedMaxTasks}; $ix++) {
                 $claim_share_newresource_q->execute
                     ($shrestype, $candrow->{resname}, $ix,
                      ($ix==1 ? $magictaskid{allocatable}
                       : $magictaskid{preparing}));
+                $claim_share_newresource_q->finish();
             }
             $reskey[0]= $shrestype;
             $reskey[2]= 1;
@@ -316,10 +338,12 @@ END
     my $allocd= $claim_setres_q->execute
         ($taskid, "$flight.$job $hid->{Ident}", @reskey);
     die unless $allocd;
+    $claim_setres_q->finish();
 
     $candrow->{ResKey}= \@reskey;
     $hid->{AllocInfo}= $candrow;
     $hid->{Allocated}= $candrow->{Host};
+    $cleanup->();
     return 1;
 }
 
@@ -375,12 +399,14 @@ sub grab_more_provisionals {
 
         $res1q->execute(@$reskey);
         my $was= $res1q->fetchrow_hashref();
+        $res1q->finish();
         print DEBUG "PROV-MORE HID $hid->{Ident} WAS $was->{owntaskid}\n";
 
         next unless $was->{owntaskid} == $magictaskid{allocatable};
         print DEBUG "PROV-MORE HID $hid->{Ident} WAS ALLOCATABLE\n";
         
         $claim_setres_q->execute($taskid, "$flight.$job (prov.)", @$reskey);
+        $claim_setres_q->finish();
         $provisional{"@$reskey"}= 1;
 
         logm("provisionally allocated: $hid->{Ident} ".show_reskey(@$reskey));
@@ -401,9 +427,11 @@ sub free_provisionals_all_except {
         logm("cancelling provisional allocation ".show_reskey(@reskey));
         $res1q->execute(@reskey);
         my $was= $res1q->fetchrow_hashref();
+        $res1q->finish();
         print DEBUG "PROV CLEANING @reskey WAS $was->{owntaskid}\n";
         die "@reskey $was->{owntaskid}" unless $was->{owntaskid} == $taskid;
         $claim_setres_q->execute($magictaskid{idle}, "", @reskey);
+        $claim_setres_q->finish();
     }
     print DEBUG "PROV CLEANED.\n";
 }
@@ -452,6 +480,7 @@ END
     foreach my $f (keys %allflags) {
         $flagscountq->execute($f);
         my $row= $flagscountq->fetchrow_arrayref();
+        $flagscountq->finish();
         die unless defined $row;
         print DEBUG "FLAG $f $row->[0]\n";
         $allflags{$f}= $row->[0];

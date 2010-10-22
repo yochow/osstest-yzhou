@@ -259,4 +259,5 @@ sub processjob ($) {
     processjobbranch($j,$_) foreach @branches;
 }
 
+db_begin_work($dbh_tests, [qw(flights)]);
 foreach my $j (@jobs) { processjob($j); }

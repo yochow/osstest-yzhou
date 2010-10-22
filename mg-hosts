@@ -12,29 +12,26 @@ sub cmd_copy () {
     die unless @ARGV==2;
     my ($src,$dsts) = @ARGV;
 
-    my $resource_add= $dbh_tests->prepare(<<END);
-        INSERT INTO resources
-        SELECT restype,
-               ? AS resname,
-               0 AS shareix,
-               (SELECT taskid FROM tasks WHERE type='magic' AND refkey='idle')
-                 AS owntaskid
-          FROM resources
-         WHERE restype='host' AND resname=?
-END
-
-    my $hostflags_add= $dbh_tests->prepare(<<END);
-        INSERT INTO hostflags
-        SELECT ? AS hostname,
-               hostflag
-          FROM hostflags
-         WHERE hostname=?
-END
-
-    db_retry($dbh_tests, [qw(resources hostflags)], sub {
+    db_retry($dbh_tests, [qw(resources)], sub {
         foreach my $dst (l($dsts)) {
-            $resource_add->execute($dst, $src);
-            $hostflags_add->execute($dst, $src);
+            $dbh_tests->do(<<END,{}, $dst,$src);
+                INSERT INTO resources
+                SELECT restype,
+                       ? AS resname,
+                       0 AS shareix,
+                       (SELECT taskid FROM tasks
+                         WHERE type='magic' AND refkey='idle')
+                         AS owntaskid
+                  FROM resources
+                 WHERE restype='host' AND resname=?
+END
+            $dbh_tests->do(<<END,{}, $dst,$src);
+                INSERT INTO hostflags
+                SELECT ? AS hostname,
+                       hostflag
+                  FROM hostflags
+                 WHERE hostname=?
+END
         }
     });
 }
@@ -42,21 +39,19 @@ END
 sub cmd_setflags () {
     die unless @ARGV==2;
     my ($flags,$dsts) = @ARGV; # each flag may start with - to remove
-    my $deleteq= $dbh_tests->prepare(<<END);
-        DELETE FROM hostflags
-              WHERE hostname=? AND hostflag=?
-END
-    my $addq= $dbh_tests->prepare(<<END);
-        INSERT INTO hostflags
-                    (hostname, hostflag)
-             VALUES (?,        ?       )
-END
-    db_retry($dbh_tests, [qw(hostflags)], sub {
+    db_retry($dbh_tests, [qw(resources)], sub {
         foreach my $flag (l($flags)) {
             my $remove= $flag =~ s/^\-//;
             foreach my $dst (l($dsts)) {
-                $deleteq->execute($dst, $flag);
-                $addq->execute($dst, $flag) unless $remove;
+                $dbh_tests->do(<<END,{}, $dst,$flag);
+                    DELETE FROM hostflags
+                          WHERE hostname=? AND hostflag=?
+END
+                $dbh_tests->do(<<END,{}, $dst,$flag) unless $remove;
+                    INSERT INTO hostflags
+                                (hostname, hostflag)
+                         VALUES (?,        ?       )
+END
             }
         }
     });
@@ -87,6 +82,7 @@ END
         $maxflag= $flaglen if $flaglen > $maxflag;
         $grid[$row][$col]= 1;
     }
+    $findq->finish();
     my @headlines;
     my $cw= 3;
     foreach my $col (0..$#cols) {

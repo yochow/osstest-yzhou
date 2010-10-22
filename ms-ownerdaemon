@@ -13,7 +13,7 @@ proc chan-destroy-stuff {chan} {
     upvar #0 chantasks($chan) tasks
     if {![info exists tasks]} return
 
-    transaction {
+    transaction resources {
         puts-chan-desc $chan "-- $tasks"
         foreach task $tasks {
             pg_execute dbh "
@@ -45,7 +45,7 @@ proc cmd/create-task {chan desc} {
     } else {
         set taskdesc $desc
     }
-    transaction {
+    transaction resources {
         pg_execute dbh "
             INSERT INTO tasks
                         ( type,  refkey,               refinfo,         live)
@@ -76,7 +76,7 @@ proc banner {chan} {
 main-daemon $c(OwnerDaemonPort) {
     db-open
     
-    transaction {
+    transaction resources {
         set nrows [pg_execute dbh "
             UPDATE tasks
                SET refkey = 'previous ' || refkey

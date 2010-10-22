@@ -9,6 +9,37 @@ use IO::File;
 use DBI;
 use Socket;
 
+# DATABASE TABLE LOCK HIERARCHY
+#
+#  Lock first
+#
+#   flights
+#            must be locked for any query modifying
+#                   flights_flight_seq
+#                   flights_harness_touched
+#                   jobs
+#                   steps
+#                   runvars
+#
+#   resources
+#            must be locked for any query modifying
+#                   tasks
+#                   tasks_taskid_seq
+#                   resource_sharing 
+#                   hostflags
+#
+#   any other tables or databases
+#
+our (@all_lock_tables) = qw(flights resources);
+#
+#  Lock last
+#
+# READS:
+#
+#  Nontransactional reads are also permitted
+#  Transactional reads must take out locks as if they were modifying
+
+
 BEGIN {
     use Exporter ();
     our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
@@ -16,8 +47,8 @@ BEGIN {
     @ISA         = qw(Exporter);
     @EXPORT      = qw(
                       $tftptail
-                      %c %r $dbh_state $dbh_tests $flight $job $stash
-                      dbfl_do dbfl_check dbfl_exec
+                      %c %r $dbh_tests $flight $job $stash
+                      dbfl_check
                       get_runvar get_runvar_maybe get_runvar_default
                       store_runvar get_stashed
                       unique_incrementing_runvar system_checked
@@ -65,11 +96,7 @@ BEGIN {
 our $tftptail= '/spider/pxelinux.cfg';
 
 our (%c,%r,$flight,$job,$stash);
-our $dbh_state;
 our $dbh_tests;
-our $dbfl_check;
-our $dbfl_harness_read;
-our $dbfl_harness_add;
 
 our %timeout= qw(RebootDown   100
                  RebootUp     400
@@ -77,35 +104,28 @@ our %timeout= qw(RebootDown   100
 
 #---------- configuration reader etc. ----------
 
-sub csreadconfig () {
-    require 'config.pl';
-    $dbh_tests= opendb('osstestdb');
-    $dbfl_check= $dbh_tests->prepare(<<END);
-        SELECT blessing FROM flights WHERE flight=?
-END
-    $dbfl_harness_read= $dbh_tests->prepare(<<END);
-        SELECT * FROM flights_harness_touched WHERE flight=? AND harness=?
-END
-    $dbfl_harness_add= $dbh_tests->prepare(<<END);
-        INSERT INTO flights_harness_touched VALUES (?,?)
-END
+sub opendb_tests () {
+    $dbh_tests ||= opendb('osstestdb');
 }
 
-sub dbfl_do ($$$) {
-    my ($fl,$flok, $stmt) = @_;
-    my $sh= $dbh_tests->prepare($stmt);
-    return dbfl_exec($fl,$flok, $sh);
+sub csreadconfig () {
+    require 'config.pl';
+    opendb_tests();
 }
 
 sub dbfl_check ($$) {
     my ($fl,$flok) = @_;
+    # must be inside db_retry qw(flights)
 
     if (!ref $flok) {
         $flok= [ split /,/, $flok ];
     }
     die unless ref($flok) eq 'ARRAY';
-    $dbfl_check->execute($fl);
-    my ($bless) = $dbfl_check->fetchrow_array();
+
+    my ($bless) = $dbh_tests->selectrow_array(<<END, {}, $fl);
+        SELECT blessing FROM flights WHERE flight=?
+END
+
     die "modifying flight $fl but flight not found\n"
         unless defined $bless;
     return if $bless =~ m/\bplay\b/;
@@ -120,41 +140,38 @@ sub dbfl_check ($$) {
         die "$diffr $! ?" if $diffr != 256;
         $rev .= '+';
     }
-    $dbfl_harness_read->execute($fl,$rev);
-    my $already= $dbfl_harness_read->fetchrow_hashref();
-    if (!$already) {
-        $dbfl_harness_add->execute($fl,$rev);
-    }
-}
 
-sub dbfl_exec {
-    my ($fl,$flok, $sh,@rest) = @_;
-    db_retry($fl,$flok, $dbh_tests,[], sub {
-        $sh->execute(@rest);
-    });
+    my $already= $dbh_tests->selectrow_hashref(<<END, {}, $fl,$rev);
+        SELECT * FROM flights_harness_touched WHERE flight=? AND harness=?
+END
+
+    if (!$already) {
+        $dbh_tests->do(<<END, {}, $fl,$rev);
+            INSERT INTO flights_harness_touched VALUES (?,?)
+END
+    }
 }
 
 #---------- test script startup ----------
 
 sub readconfig () {
+    # must be run outside transaction
     csreadconfig();
 
     $flight= $ENV{'OSSTEST_FLIGHT'};
     $job=    $ENV{'OSSTEST_JOB'};
     die unless defined $flight and defined $job;
-    my $q= $dbh_tests->prepare(<<END);
-        SELECT count(*) FROM jobs WHERE flight=? AND job=?
-END
-    $q->execute($flight, $job);
-    my ($count) = $q->fetchrow_array();
-    die "$flight.$job $count" unless $count==1;
-    $q->finish;
 
     my $now= time;  defined $now or die $!;
 
     db_retry($flight,[qw(running constructing)],
              $dbh_tests,[qw(flights)], sub {
-        my $count= $dbh_tests->do(<<END);
+        my ($count) = $dbh_tests->selectrow_array(<<END,{}, $flight, $job);
+            SELECT count(*) FROM jobs WHERE flight=? AND job=?
+END
+        die "$flight.$job $count" unless $count==1;
+
+        $count= $dbh_tests->do(<<END);
            UPDATE flights SET blessing='running'
                WHERE flight=$flight AND blessing='constructing'
 END
@@ -165,20 +182,22 @@ END
                WHERE flight=$flight AND started=0
 END
         logm("starting $flight started=$now") if $count>0;
-    });
 
-    logm("starting $flight.$job");
+        undef %r;
 
-    $q= $dbh_tests->prepare(<<END);
-        SELECT name, val FROM runvars WHERE flight=? AND job=?
+        logm("starting $flight.$job");
+
+        my $q= $dbh_tests->prepare(<<END);
+            SELECT name, val FROM runvars WHERE flight=? AND job=?
 END
-    $q->execute($flight, $job);
-    my $row;
-    while ($row= $q->fetchrow_hashref()) {
-        $r{ $row->{name} }= $row->{val};
-        logm("setting $row->{name}=$row->{val}");
-    }
-    $q->finish();
+        $q->execute($flight, $job);
+        my $row;
+        while ($row= $q->fetchrow_hashref()) {
+            $r{ $row->{name} }= $row->{val};
+            logm("setting $row->{name}=$row->{val}");
+        }
+        $q->finish();
+    });
 
     $stash= "$c{Stash}/$flight/$job";
     ensuredir("$c{Stash}/$flight");
@@ -205,7 +224,6 @@ sub db_retry_retry () { $db_retry_stop= 'retry'; undef; }
 sub db_begin_work ($;$) {
     my ($dbh,$tables) = @_;
     $dbh->begin_work();
-    $dbh->do('SET TRANSACTION ISOLATION LEVEL SERIALIZABLE');
     foreach my $tab (@$tables) {
         $dbh->do("LOCK TABLE $tab IN ACCESS EXCLUSIVE MODE");
     }
@@ -241,7 +259,7 @@ sub db_retry ($$$;$$) {
 }
 
 sub opendb_state () {
-    $dbh_state= opendb('statedb');
+    return opendb('statedb');
 }
 
 sub opendb ($) {
@@ -286,6 +304,7 @@ sub otherflightjob ($) {
 
 sub get_stashed ($$) {
     my ($param, $otherflightjob) = @_; 
+    # may be run outside transaction, or with flights locked
     my ($oflight, $ojob) = otherflightjob($otherflightjob);
     my $path= get_runvar($param, $otherflightjob);
     die "$path $& " if
@@ -296,13 +315,12 @@ sub get_stashed ($$) {
 
 sub unique_incrementing_runvar ($$) {
     my ($param,$start) = @_;
+    # must be run outside transaction
     my $value;
-    db_retry($flight,'running', $dbh_tests,[qw(runvars)], sub {
-	my $q= $dbh_tests->prepare(<<END);
+    db_retry($flight,'running', $dbh_tests,[qw(flights)], sub {
+	my $row= $dbh_tests->selectrow_arrayref(<<END, $flight, $job, $param);
             SELECT val FROM runvars WHERE flight=? AND job=? AND name=?
 END
-        $q->execute($flight, $job, $param);
-	my $row= $q->fetchrow_arrayref();
 	$value= $row ? $row->[0] : $start;
 	$dbh_tests->do(<<END, undef, $flight, $job, $param);
             DELETE FROM runvars WHERE flight=? AND job=? AND name=? AND synth
@@ -317,24 +335,25 @@ END
 
 sub store_runvar ($$) {
     my ($param,$value) = @_;
+    # must be run outside transaction
     logm("runvar store: $param=$value");
-    my $q= $dbh_tests->prepare(<<END);
-        INSERT INTO runvars VALUES (?,?,?,?,'t')
-END
-    db_retry($flight,'running', $dbh_tests,[qw(runvars)], sub {
+    db_retry($flight,'running', $dbh_tests,[qw(flights)], sub {
         $dbh_tests->do(<<END, undef, $flight, $job, $param);
 	    DELETE FROM runvars WHERE flight=? AND job=? AND name=? AND synth
 END
-        $q->execute($flight,$job, $param,$value);
+        $dbh_tests->do(<<END,{}, $flight,$job, $param,$value);
+            INSERT INTO runvars VALUES (?,?,?,?,'t')
+END
     });
     $r{$param}= get_runvar($param, "$flight.$job");
 }
 
 sub broken ($;$) {
     my ($m, $newst) = @_;
+    # must be run outside transaction
     my $affected;
     $newst= 'broken' unless defined $newst;
-    db_retry($flight,'running', $dbh_tests,[], sub {
+    db_retry($flight,'running', $dbh_tests,[qw(flights)], sub {
         $affected= $dbh_tests->do(<<END, {}, $newst, $flight, $job);
             UPDATE jobs SET status=?
              WHERE flight=? AND job=?
@@ -347,6 +366,7 @@ END
 
 sub get_runvar ($$) {
     my ($param, $otherflightjob) = @_;
+    # may be run outside transaction, or with flights locked
     my $r= get_runvar_maybe($param,$otherflightjob);
     die "need $param in $otherflightjob" unless defined $r;
     return $r;
@@ -354,28 +374,28 @@ sub get_runvar ($$) {
 
 sub get_runvar_default ($$$) {
     my ($param, $otherflightjob, $default) = @_;
+    # may be run outside transaction, or with flights locked
     my $r= get_runvar_maybe($param,$otherflightjob);
     return defined($r) ? $r : $default;
 }
 
 sub get_runvar_maybe ($$) {
     my ($param, $otherflightjob) = @_;
+    # may be run outside transaction, or with flights locked
     my ($oflight, $ojob) = otherflightjob($otherflightjob);
 
     if ("$oflight.$ojob" ne "$flight.$job") {
-        my $jq= $dbh_tests->prepare(<<END);
+        my $jstmt= <<END;
             SELECT * FROM jobs WHERE flight=? AND job=?
 END
-        $jq->execute($oflight,$ojob);
-        my $jrow= $jq->fetchrow_hashref();
+        my $jrow= $dbh_tests->selectrow_hashref($jstmt,{}, $oflight,$ojob);
         $jrow or broken("job $oflight.$ojob not found (looking for $param)");
         my $jstatus= $jrow->{'status'};
         defined $jstatus or broken("job $oflight.$ojob no status?!");
         if ($jstatus eq 'pass') {
             # fine
         } elsif ($jstatus eq 'queued') {
-            $jq->execute($flight,$job);
-            $jrow= $jq->fetchrow_hashref();
+            $jrow= $dbh_tests->selectrow_hashref($jstmt,{}, $flight,$job);
             $jrow or broken("our job $flight.$job not found!");
             my $ourstatus= $jrow->{'status'};
             if ($ourstatus eq 'queued') {
@@ -389,16 +409,11 @@ END
         }
     }
 
-    my $q= $dbh_tests->prepare(<<END);
+    my $row= $dbh_tests->selectrow_arrayref(<<END,{}, $oflight,$ojob,$param);
         SELECT val FROM runvars WHERE flight=? AND job=? AND name=?
 END
-    $q->execute($oflight,$ojob,$param);
-    my $row= $q->fetchrow_arrayref();
-    if (!$row) { $q->finish(); return undef; }
-    my ($val)= @$row;
-    die "$oflight.$ojob $param" if $q->fetchrow_arrayref();
-    $q->finish();
-    return $val;
+    if (!$row) { return undef; }
+    return $row->[0];
 }
 
 sub need_runvars {
@@ -695,7 +710,7 @@ sub ensuredir ($) {
 }
 
 sub postfork () {
-    $dbh_state->{InactiveDestroy}= 1;
+    $dbh_tests->{InactiveDestroy}= 1;  undef $dbh_tests;
 }
 
 sub host_reboot ($) {
@@ -895,6 +910,7 @@ END
     my $row= $q->fetchrow_hashref();
     die "no task $what ?" unless defined $row;
     die "task $what dead" unless $row->{live};
+    $q->finish();
 
     foreach my $k (qw(username comment)) {
         next if defined $row->{$k};
@@ -910,11 +926,9 @@ END
     return $taskid;
 }        
 
-our $alloc_resources_lock_tables= [qw(resources resource_sharing)];
-
 sub alloc_resources_rollback_begin_work () {
     $dbh_tests->rollback();
-    db_begin_work($dbh_tests, $alloc_resources_lock_tables);
+    db_begin_work($dbh_tests, \@all_lock_tables);
 }
 
 our $alloc_resources_waitstart;
@@ -926,22 +940,15 @@ sub alloc_resources {
     #            0  rollback, wait and try again
     #            1  commit, completed ok
     #            2  commit, wait and try again
-    # $resourcecall should not look at tasks.live;
-    # instead it should look for resources.owntaskid == the allocatable task
+    # $resourcecall should not look at tasks.live
+    #  instead it should look for resources.owntaskid == the allocatable task
+    # $resourcecall runs with all tables locked (see above)
 
     my $qserv;
     my $retries=0;
     my $ok=0;
 
     logm("resource allocation: starting...");
-
-    my $pending_q= $dbh_tests->prepare(<<END);
-        SELECT * FROM resources
-                WHERE owntaskid !=
-     (SELECT taskid FROM tasks WHERE type='magic' AND refkey='allocatable')
-                  AND NOT (SELECT live FROM tasks WHERE taskid=owntaskid)
-                LIMIT 1
-END
 
     while ($ok==0 || $ok==2) {
         if (!eval {
@@ -976,14 +983,23 @@ END
                 $_= <$qserv>;  defined && m/^OK wait\s/ or die "$_ ?";
             }
 
+            $dbh_tests->disconnect();
             logm("resource allocation: awaiting our slot...");
 
             $_= <$qserv>;  defined && m/^\!OK think\s$/ or die "$_ ?";
 
-            db_retry($flight,'running', $dbh_tests,
-		     $alloc_resources_lock_tables, sub {
-                $pending_q->execute();
-                my $pending= $pending_q->fetchrow_hashref();
+            opendb_tests();
+
+            db_retry($flight,'running', $dbh_tests, \@all_lock_tables, sub {
+                my $pending= $dbh_tests->selectrow_hashref(<<END);
+                        SELECT * FROM resources
+                                WHERE owntaskid !=
+                     (SELECT taskid FROM tasks
+                                   WHERE type='magic' AND refkey='allocatable')
+                                 AND NOT (SELECT live FROM tasks
+                                                     WHERE taskid=owntaskid)
+                                LIMIT 1
+END
                 if ($pending) {
                     logm("resource(s) nearly free".
                          " ($pending->{restype} $pending->{resname}".
@@ -1028,59 +1044,53 @@ END
 
 sub resource_check_allocated ($$) {
     my ($restype,$resname) = @_;
-    return db_retry($dbh_tests, [qw(resources resource_sharing)], sub {
+    return db_retry($dbh_tests, [qw(resources)], sub {
         return resource_check_allocated_core($restype,$resname);
     });
 }
 
 sub resource_check_allocated_core ($$) {
+    # must run in db_retry with resources locked
     my ($restype,$resname) = @_;
     my $tid= findtask();
     my $shared;
-    my $resources_q= $dbh_tests->prepare(<<END);
+
+    my $res= $dbh_tests->selectrow_hashref(<<END,{}, $restype, $resname);
         SELECT * FROM resources LEFT JOIN tasks
                    ON taskid=owntaskid
                 WHERE restype=? AND resname=?
 END
-    my $sharing_q= $dbh_tests->prepare(<<END);
-        SELECT * FROM resource_sharing
-                WHERE restype=? AND resname=?
-END
-    my $shared_resource_q= $dbh_tests->prepare(<<END);
-        SELECT * FROM resources LEFT JOIN tasks ON taskid=owntaskid
-                WHERE restype=? AND resname=? AND owntaskid=?
-END
-    my $shared_others_q= $dbh_tests->prepare(<<END);
-        SELECT count(*) AS ntasks
-                 FROM resources LEFT JOIN tasks ON taskid=owntaskid
-                WHERE restype=? AND resname=? AND shareix!=?
-                  AND live
-                  AND owntaskid != (SELECT taskid FROM tasks
-                                     WHERE type='magic'
-                                       AND refkey='preparing')
-END
-
-    $resources_q->execute($restype, $resname);
-    my $res= $resources_q->fetchrow_hashref();
     die "resource $restype $resname not found" unless $res;
     die "resource $restype $resname no task" unless defined $res->{taskid};
 
     if ($res->{type} eq 'magic' && $res->{refkey} eq 'shared') {
-        $sharing_q->execute($restype, $resname);
-        my $shr= $sharing_q->fetchrow_hashref();
+        my $shr= $dbh_tests->selectrow_hashref(<<END,{}, $restype,$resname);
+                SELECT * FROM resource_sharing
+                        WHERE restype=? AND resname=?
+END
         die "host $resname shared but no share?" unless $shr;
 
         my $shrestype= 'share-'.$restype;
-        $shared_resource_q->execute($shrestype, $resname, $tid);
-        my $shrt= $shared_resource_q->fetchrow_hashref();
+        my $shrt= $dbh_tests->fetchrow_hashref
+            (<<END,{}, $shrestype,$resname,$tid);
+                SELECT * FROM resources LEFT JOIN tasks ON taskid=owntaskid
+                        WHERE restype=? AND resname=? AND owntaskid=?
+END
 
         die "resource $restype $resname not shared by $tid" unless $shrt;
         die "resource $resname $resname share $shrt->{shareix} task $tid dead"
             unless $shrt->{live};
 
-        $shared_others_q->execute($shrt->{restype}, $shrt->{resname},
-                                  $shrt->{shareix});
-        my $others= $shared_others_q->fetchrow_hashref();
+        my $others= $dbh_tests->selectrow_hashref
+            (<<END,{}, $shrt->{restype}, $shrt->{resname}, $shrt->{shareix});
+                SELECT count(*) AS ntasks
+                         FROM resources LEFT JOIN tasks ON taskid=owntaskid
+                        WHERE restype=? AND resname=? AND shareix!=?
+                          AND live
+                          AND owntaskid != (SELECT taskid FROM tasks
+                                             WHERE type='magic'
+                                               AND refkey='preparing')
+END
 
         $shared= { Type => $shr->{sharetype},
                    State => $shr->{state},
@@ -1098,34 +1108,33 @@ END
 
 sub resource_shared_mark_ready ($$$) {
     my ($restype, $resname, $sharetype) = @_;
-    my $mark_q= $dbh_tests->prepare(<<END);
-        UPDATE resource_sharing
-           SET state='ready'
-         WHERE restype=? AND resname=? AND sharetype=?
-END
-    my $setres_q= $dbh_tests->prepare(<<END);
-        UPDATE resources
-           SET owntaskid=(SELECT taskid FROM tasks
-                           WHERE type='magic' AND refkey='idle')
-         WHERE owntaskid=(SELECT taskid FROM tasks
-                           WHERE type='magic' AND refkey='preparing')
-           AND restype=? AND resname=?
-END
+    # must run outside transaction
 
     my $what= "resource $restype $resname";
 
-    db_retry($dbh_tests, [qw(resources resource_sharing)], sub {
+    db_retry($dbh_tests, [qw(resources)], sub {
         my $oldshr= resource_check_allocated_core($restype, $resname);
         if (defined $oldshr) {
             die "$what shared $oldshr->{Type} not $sharetype"
                 unless $oldshr->{Type} eq $sharetype;
             die "$what shared state $oldshr->{State} not prep"
                 unless $oldshr->{State} eq 'prep';
-            my $nrows= $mark_q->execute($restype, $resname, $sharetype);
+            my $nrows= $dbh_tests->do(<<END,{}, $restype,$resname,$sharetype);
+                UPDATE resource_sharing
+                   SET state='ready'
+                 WHERE restype=? AND resname=? AND sharetype=?
+END
             die "unexpected not updated state $what $sharetype $nrows"
                 unless $nrows==1;
 
-            $setres_q->execute($oldshr->{ResType}, $resname);
+            $dbh_tests->do(<<END,{}, $oldshr->{ResType}, $resname);
+                UPDATE resources
+                   SET owntaskid=(SELECT taskid FROM tasks
+                                   WHERE type='magic' AND refkey='idle')
+                 WHERE owntaskid=(SELECT taskid FROM tasks
+                                   WHERE type='magic' AND refkey='preparing')
+                   AND restype=? AND resname=?
+END
         }
     });
 }
@@ -1134,6 +1143,7 @@ END
 
 sub get_hostflags ($) {
     my ($ident) = @_;
+    # may be run outside transaction, or with flights locked
     my $flags= get_runvar_default('all_hostflags',     $job, '').
                get_runvar_default("${ident}_hostflags", $job, '');
     return grep /./, split /\,/, $flags;
@@ -1141,18 +1151,21 @@ sub get_hostflags ($) {
 
 sub selecthost ($) {
     my ($ident) = @_;
+    # must be run outside transaction
     my ($name) = $r{$ident};
     my $ho= {
         Name => $name,
         TcpCheckPort => 22,
+        Fqdn => "$name.$c{TestHostDomain}"
     };
     my $dbh= opendb('configdb');
-    my $selname= "$name.$c{TestHostDomain}";
+    my $selname= $ho->{Fqdn};
     my $sth= $dbh->prepare('SELECT * FROM ips WHERE reverse_dns = ?');
     $sth->execute($selname);
     my $row= $sth->fetchrow_hashref();
     die "$ident $name $selname ?" unless $row;
     die if $sth->fetchrow_hashref();
+    $sth->finish();
     my $get= sub {
 	my ($k) = @_;
 	my $v= $row->{$k};
@@ -1164,11 +1177,9 @@ sub selecthost ($) {
     $ho->{Asset}= $get->('asset');
     $dbh->disconnect();
 
-    my $realflagsq= $dbh_tests->prepare(<<END);
+    $ho->{Flags}= $dbh_tests->selectall_hashref(<<END,{}, 'hostflag');
         SELECT hostflag FROM hostflags WHERE hostname=?
 END
-    $realflagsq->execute($ho->{Name});
-    $ho->{Flags}= $realflagsq->fetchall_hashref('hostflag');
 
     $ho->{Shared}= resource_check_allocated('host', $name);
     $ho->{SharedReady}=
@@ -1230,7 +1241,8 @@ sub guest_check_ip ($) {
     my ($gho) = @_;
 
     guest_find_ether($gho);
-    
+
+    my $dbh_state= opendb_state();
     my $q= $dbh_state->prepare('select * from ips where mac=?');
     $q->execute($gho->{Ether});
     my $row;
@@ -1243,6 +1255,9 @@ sub guest_check_ip ($) {
         }
         push @ips, $row->{ip};
     }
+    $q->finish();
+    $dbh_state->disconnect();
+
     if (!@ips) {
         return $worst;
     }
@@ -1285,10 +1300,12 @@ sub target_choose_vg ($$) {
 
 sub select_ether ($) {
     my ($vn) = @_;
+    # must be run outside transaction
     my $ether= $r{$vn};
     return $ether if defined $ether;
     my $prefix= sprintf "%s:%02x", $c{GenEtherPrefix}, $flight & 0xff;
-    db_retry($flight,'running', $dbh_tests,[qw(runvars)], sub {
+
+    db_retry($flight,'running', $dbh_tests,[qw(flights)], sub {
         my $previous= $dbh_tests->selectrow_array(<<END, {}, $flight);
             SELECT max(val) FROM runvars WHERE flight=?
                 AND name LIKE E'%\\_ether'
@@ -1308,7 +1325,7 @@ END
         $dbh_tests->do(<<END, {}, $flight,$job,$vn,$ether);
             INSERT INTO runvars VALUES (?,?,?,?,'t')
 END
-        my $chk= $dbh_tests->prepare(<<END);
+        my $chkrow= $dbh_tests->selectrow_hashref(<<END,{}, $flight);
 	    SELECT val, count(*) FROM runvars WHERE flight=?
                 AND name LIKE E'%\\_ether'
                 AND val LIKE '$prefix:%'
@@ -1316,8 +1333,6 @@ END
 		HAVING count(*) <> 1
 		LIMIT 1
 END
-        $chk->execute($flight);
-        my $chkrow= $chk->fetchrow_hashref();
 	die "$chkrow->{val} $chkrow->{count}" if $chkrow;
     });
     $r{$vn}= $ether;
@@ -1326,6 +1341,7 @@ END
 
 sub prepareguest ($$$$$) {
     my ($ho, $gn, $hostname, $tcpcheckport, $mb) = @_;
+    # must be run outside transaction
 
     select_ether("${gn}_ether");
     store_runvar("${gn}_hostname", $hostname);
@@ -1492,9 +1508,10 @@ sub guest_check_remus_ok {
 
 sub power_cycle ($) {
     my ($ho) = @_;
-    power_state($ho, 0);
+    my $dbh_state= opendb_state();
+    power_state($ho, 0, $dbh_state);
     sleep(1);
-    power_state($ho, 1);
+    power_state($ho, 1, $dbh_state);
 }
 
 sub power_state_await ($$$) {
@@ -1502,26 +1519,29 @@ sub power_state_await ($$$) {
     poll_loop(30,1, "power: $msg $want", sub {
         $sth->execute();
         my ($got) = $sth->fetchrow_array();
+        $sth->finish();
         return undef if $got eq $want;
         return "state=\"$got\"";
     });
 }
 
-sub power_state ($$) {
-    my ($ho, $on) = @_;
+sub power_state ($$;$) {
+    my ($ho, $on, $dbh_state) = @_;
     my $want= (qw(s6 s1))[!!$on];
     my $asset= $ho->{Asset};
     logm("power: setting $want for $ho->{Name} $asset");
 
+    $dbh_state ||= opendb_state();
+
     my $sth= $dbh_state->prepare
         ('SELECT current_power FROM control WHERE asset = ?');
-    $sth->bind_param(1, $asset);
 
     my $current= $dbh_state->selectrow_array
         ('SELECT desired_power FROM control WHERE asset = ?',
          undef, $asset);
     die "not found $asset" unless defined $current;
 
+    $sth->bind_param(1, $asset);
     power_state_await($sth, $current, 'checking');
 
     my $rows= $dbh_state->do
@@ -1530,7 +1550,9 @@ sub power_state ($$) {
     die "$rows updating desired_power for $asset in statedb::control\n"
         unless $rows==1;
     
+    $sth->bind_param(1, $asset);
     power_state_await($sth, $want, 'awaiting');
+    $sth->finish();
 }
 
 sub file_link_contents ($$) {

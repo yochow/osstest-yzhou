@@ -132,6 +132,7 @@ END
         $mismatches++;
     }
     die "version mismatches ($mismatches)" if $mismatches;
+    $chk->finish();
 }
 
 our @probs;

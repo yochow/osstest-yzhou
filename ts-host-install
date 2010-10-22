@@ -143,6 +143,7 @@ sub create_preseed ($) {
     my $hostkey= get_filecontents($hostkeyfile);
     chomp($hostkey); $hostkey.="\n";
     my $knownhosts= '';
+
     my $hostsq= $dbh_tests->prepare(<<END);
         SELECT val FROM runvars
          WHERE flight=? AND name LIKE '%host'
@@ -162,6 +163,8 @@ END
         logm("adding host key for $specs");
         $knownhosts.= "$specs ".$hostkey;
     }
+    $hostsq->finish();
+
     $knownhosts.= "localhost,127.0.0.1 ".$hostkey;
     my $knownhosts_url= create_webfile($ho, 'known_hosts', $knownhosts);
 
