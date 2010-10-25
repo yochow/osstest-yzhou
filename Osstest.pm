@@ -1079,7 +1079,7 @@ END
         die "host $resname shared but no share?" unless $shr;
 
         my $shrestype= 'share-'.$restype;
-        my $shrt= $dbh_tests->fetchrow_hashref
+        my $shrt= $dbh_tests->selectrow_hashref
             (<<END,{}, $shrestype,$resname,$tid);
                 SELECT * FROM resources LEFT JOIN tasks ON taskid=owntaskid
                         WHERE restype=? AND resname=? AND owntaskid=?
