@@ -963,18 +963,20 @@ sub alloc_resources {
 
                 $_= <$qserv>;  defined && m/^OK ms-queuedaemon\s/ or die "$_?";
 
-                if (!defined $alloc_resources_waitstart) {
-                    print $qserv "time\n" or die $!;
-                    $_= <$qserv>;
-                    defined or die $!;
-                    if (m/^OK time (\d+)$/) {
-                        $alloc_resources_waitstart= $1;
+                my $waitstart= $xparams{WaitStart};
+                if (!$waitstart) {
+                    if (!defined $alloc_resources_waitstart) {
+                        print $qserv "time\n" or die $!;
+                        $_= <$qserv>;
+                        defined or die $!;
+                        if (m/^OK time (\d+)$/) {
+                            $waitstart= $alloc_resources_waitstart= $1;
+                        }
                     }
                 }
 
-                if (defined $alloc_resources_waitstart) {
-                    print $qserv "set-info wait-start".
-                        " $alloc_resources_waitstart\n";
+                if (defined $waitstart) {
+                    print $qserv "set-info wait-start $waitstart\n";
                     $_= <$qserv>;  defined && m/^OK/ or die "$_ ?";
                 }
 
