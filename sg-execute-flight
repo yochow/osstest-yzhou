@@ -92,7 +92,7 @@ proc main_iteration {} {
     }
     
     log "flight $flight reaped  $job \[$pid\] $how $st"
-    transaction {
+    transaction flights {
         set found [pg_execute -array jobinfo dbh "
             SELECT * FROM jobs
                     WHERE flight=$flight

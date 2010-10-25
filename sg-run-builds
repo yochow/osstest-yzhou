@@ -15,6 +15,7 @@ proc main {} {
     
     set builds {}
 
+    set to_run {}
     pg_execute -array jobinfo dbh "
         SELECT job, recipe FROM jobs
 			WHERE	flight=$flight
@@ -24,7 +25,14 @@ proc main {} {
 			  OR	status = 'retriable' )
                         [specific-job-constraint]
 		ORDER BY job
-    " perhaps-start-job
+    " {
+        lappend to_run [list $jobinfo(job) $jobinfo(recipe)]
+    }
+
+    foreach jobitem $to_run {
+        lassign $jobitem jobinfo(job) jobinfo(recipe)
+        perhaps-start-job
+    }
 
     set anyfailed 0
     foreach reap $builds {

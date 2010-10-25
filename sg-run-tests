@@ -16,6 +16,7 @@ proc main {} {
     set tests {}
     set anyfailed 0
 
+    set to_run {}
     pg_execute -array jobinfo dbh "
         SELECT job, recipe FROM jobs
 			WHERE	flight=$flight
@@ -25,7 +26,14 @@ proc main {} {
 			  OR	status = 'retriable' )
                         [specific-job-constraint]
 		ORDER BY job
-    " run-job
+    " {
+        lappend to_run [list $jobinfo(job) $jobinfo(recipe)]
+    }
+
+    foreach jobitem $to_run {
+        lassign $jobitem jobinfo(job) jobinfo(recipe)
+        run-job
+    }
 
     if {$anyfailed} {
         logputs stdout "at least one test failed"

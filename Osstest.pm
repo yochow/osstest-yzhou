@@ -950,6 +950,11 @@ sub alloc_resources {
 
     logm("resource allocation: starting...");
 
+    my $set_info= sub {
+        print $qserv "set-info @_\n";
+        $_= <$qserv>;  defined && m/^OK/ or die "$_ ?";
+    };
+
     while ($ok==0 || $ok==2) {
         if (!eval {
             if (!defined $qserv) {
@@ -975,15 +980,18 @@ sub alloc_resources {
 
                 my $adjust= $xparams{WaitStartAdjust};
                 if (defined $adjust) {
-                    print $qserv "set-info wait-start-adjust $adjust\n";
-                    $_= <$qserv>;  defined && m/^OK|ERROR/ or die "$_ ?";
+                    $set_info->('wait-start-adjust',$adjust);
                 }
+
+                $set_info->('job', "$flight.$job");
 
                 print $qserv "wait\n" or die $!;
                 $_= <$qserv>;  defined && m/^OK wait\s/ or die "$_ ?";
             }
 
             $dbh_tests->disconnect();
+            undef $dbh_tests;
+
             logm("resource allocation: awaiting our slot...");
 
             $_= <$qserv>;  defined && m/^\!OK think\s$/ or die "$_ ?";
@@ -1177,9 +1185,15 @@ sub selecthost ($) {
     $ho->{Asset}= $get->('asset');
     $dbh->disconnect();
 
-    $ho->{Flags}= $dbh_tests->selectall_hashref(<<END,{}, 'hostflag');
+    $ho->{Flags}= { };
+    my $flagsq= $dbh_tests->prepare(<<END);
         SELECT hostflag FROM hostflags WHERE hostname=?
 END
+    $flagsq->execute($name);
+    while (my ($flag) = $flagsq->fetchrow_array()) {
+        $ho->{Flags}{$flag}= 1;
+    }
+    $flagsq->finish();
 
     $ho->{Shared}= resource_check_allocated('host', $name);
     $ho->{SharedReady}=
