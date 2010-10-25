@@ -125,7 +125,7 @@ for xenarch in i386 amd64; do
       ./cs-job-create $flight test-$xenarch$kern-$dom0arch-win test-win	\
 		$RUNVARS $TEST_RUNVARS $most_runvars			\
 		win_image=winxpsp2.iso   				\
-		all_hostflags=$most_hostflags
+		all_hostflags=$most_hostflags,hvm
 
       ./cs-job-create $flight test-$xenarch$kern-$dom0arch-pair test-pair \
                 !host $PAIR_RUNVARS $RUNVARS $TEST_RUNVARS $most_runvars  \

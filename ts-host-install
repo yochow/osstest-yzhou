@@ -124,6 +124,14 @@ default overwrite
 END
 }
 
+sub preseed_hook_command ($$$) {
+    my ($ho, $di_key, $text) = @_;
+    my $url= create_webfile($ho, $di_key, $text);
+    my $file= "/tmp/$di_key";
+    my $cmd_cmd= "wget -O $file '$url' && chmod +x $file && $file";
+    return "d-i preseed/$di_key string $cmd_cmd\n";
+}
+
 sub create_preseed ($) {
 
     my $authkeys= '';
@@ -201,7 +209,34 @@ END
     $create_overlay->('overlay',        'overlay.tar');
     $create_overlay->($c{OverlayLocal}, 'overlay-local.tar');
 
-    my $latecmd_url= create_webfile($ho, 'latecmd', <<END);
+    my $hook_commands='';
+
+    $hook_commands.= preseed_hook_command($ho, 'early_command', <<'END');
+#!/bin/sh
+set -ex
+dir=/lib/partman/init.d
+script=$dir/25erase-other-disks
+mkdir -p $dir
+cat <<'END2' >$script
+#!/bin/sh
+set -ex
+for sd in sd hd; do
+    for b in b c d e f; do
+        dev=${sd}${b}
+        if test -b $dev; then
+            dd if=/dev/zero of=$dev count=64
+        fi
+    done
+done
+echo ===
+set +e
+ls -l /dev/sd*
+true
+END2
+chmod +x $script
+END
+
+    $hook_commands.= preseed_hook_command($ho, 'late_command', <<END);
 #!/bin/sh
 set -ex
 
@@ -223,9 +258,6 @@ $overlays
 
 echo latecmd done.
 END
-
-    my $latecmdcmd=
-"wget -O /tmp/latecmd '$latecmd_url' && chmod +x /tmp/latecmd && /tmp/latecmd";
 
     return create_webfile($ho, 'preseed', <<END);
 d-i mirror/suite string $c{Suite}
@@ -314,7 +346,7 @@ d-i finish-install/keep-consoles boolean true
 d-i finish-install/reboot_in_progress note
 d-i cdrom-detect/eject boolean false
 
-d-i preseed/late_command string $latecmdcmd
+$hook_commands
 
 d-i mirror/http/hostname string $c{DebianMirrorHost}
 d-i mirror/http/directory string /$c{DebianMirrorSubpath}
