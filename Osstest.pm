@@ -54,7 +54,7 @@ BEGIN {
                       get_runvar get_runvar_maybe get_runvar_default
                       store_runvar get_stashed
                       unique_incrementing_runvar system_checked
-                      tcpconnect findtask
+                      tcpconnect findtask @all_lock_tables
                       alloc_resources alloc_resources_rollback_begin_work
                       resource_check_allocated resource_shared_mark_ready
                       built_stash flight_otherjob
