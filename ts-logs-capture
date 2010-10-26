@@ -65,10 +65,10 @@ sub fetch_logs_serial () {
         SELECT started FROM flights WHERE flight=$flight
 END
     $logpat =~ s/\%(\w*)\%/
-        !length $1 ? ''
-        : ( ($vn= $1 eq 'host' ? $whhost : $1),
-            (!defined $r{$vn} ? die "$c{SerialLogPattern} $1 ?" : $r{$vn})
-            )
+        !length $1 ? '' :
+        ($vn=$1) eq 'host' ? $ho->{Name} :
+        !defined $r{$vn} ? die "$c{SerialLogPattern} $1 ?" :
+        $r{$vn}
     /ge;
 
     my $targhost= $ho->{Name} =~ m/mite$/ ? 'xcser1' : 'woking';
