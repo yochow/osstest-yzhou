@@ -8,6 +8,8 @@ use POSIX;
 use IO::File;
 use DBI;
 use Socket;
+use IPC::Open2;
+use IO::Handle;
 
 # DATABASE TABLE LOCK HIERARCHY
 #
@@ -65,6 +67,7 @@ BEGIN {
                       power_state power_cycle
                       setup_pxeboot setup_pxeboot_local
                       await_webspace_fetch_byleaf await_tcp
+                      remote_perl_script_open remote_perl_script_done
                       target_cmd_root target_cmd target_cmd_build
                       target_cmd_output_root target_cmd_output
                       target_getfile target_getfile_root
@@ -458,6 +461,29 @@ sub cmd {
     die "$r $child $!" unless $r == $child;
     logm("command nonzero waitstatus $?: @cmd") if $?;
     return $?;
+}
+
+sub remote_perl_script_open ($$$) {
+    my ($userhost, $what, $script) = @_;
+    my ($readh,$writeh);
+    my ($sshopts) = sshopts();
+    my $pid= open2($readh,$writeh, "ssh @$sshopts $userhost perl");
+    print $writeh $script."\n__DATA__\n" or die "$what $!";
+    my $thing= {
+        Read => $readh,
+        Write => $writeh,
+        Pid => $pid,
+        Wait => $what,
+        };
+    return $thing;
+}
+sub remote_perl_script_done ($) {
+    my ($thing) = @_;
+    $thing->{Write}->close() or die "$thing->{What} $!";
+    $thing->{Read}->close() or die "$thing->{What} $!";
+    $!=0; my $got= waitpid $thing->{Pid}, 0;
+    $got==$thing->{Pid} or die "$thing->{What} $!";
+    !$? or die "$thing->{What} $?";
 }
 
 sub sshuho ($$) { my ($user,$ho)= @_; return "$user\@$ho->{Ip}"; }
