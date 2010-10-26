@@ -1,0 +1,110 @@
+#!/usr/bin/perl -w
+#
+# resource syntax:
+#   [!][<type>/]<name>[/<share>]      type defaults to 'host'
+#                                     type=='S' means 'shared-host'
+#                                     share defaults to *
+#                                     - means deallocate
+
+use strict qw(vars refs);
+use DBI;
+use Osstest;
+
+csreadconfig();
+
+sub execute () {
+    my $tid= findtask();
+    
+    db_retry($dbh_tests, \@all_lock_tables, sub {
+
+        my $idletask= $dbh_tests->selectrow_hashref(<<END);
+            SELECT * FROM tasks WHERE type='magic' AND refkey='idle'
+END
+
+        my $allok=1;
+        foreach my $res (@ARGV) {
+            $res =~ m,^(\!?) (?: ([^/]+)/ )? ([^/]+) (?: /(\d+|\*) )?$,x
+                or die "bad resource $res ?";
+            my $allocate= !$1;
+            my $restype= defined($2) ? $2 : 'host';
+            $restype= 'shared-host' if $restype eq 'S';
+            my $resname= $3;
+            my $shareix= defined($4) ? $4+0 : '*';
+            my $shareixcond = $shareix eq '*' ? '' : "AND shareix = $shareix";
+
+            my $resq= $dbh_tests->prepare(<<END);
+                SELECT * FROM resources r
+                         JOIN tasks t
+                           ON r.owntaskid=t.taskid
+                        WHERE r.restype=? AND r.resname=? $shareixcond
+                     ORDER BY (t.type='magic') DESC,
+                              t.live ASC
+END
+            $resq->execute($restype, $resname);
+
+            my $ok= 0;
+            while (my $candrow= $resq->fetchrow_hashref()) {
+                my $desc= "$candrow->{restype}/$candrow->{resname}".
+                    "/$candrow->{shareix}";
+                my $owner= "$candrow->{owntaskid} $candrow->{type}".
+                    " $candrow->{refkey}";
+                my $setres= sub {
+                    my ($newtid) = @_;
+                    my $ndone= $dbh_tests->do(<<END,{},
+                        UPDATE resources
+                           SET owntaskid=?, subtask=?
+                         WHERE restype=? AND resname=? AND shareix=?
+END
+                           $newtid, "manual ".$res,
+                           $restype,$resname,$candrow->{shareix});
+                    $ndone==1 or die "$restype $resname $newtid $desc";
+                };
+
+                if ($allocate) {
+                    if ($candrow->{owntaskid} == $tid) {
+                        logm("$desc: already allocated to $tid");
+                        $ok=1; last;
+                    }
+                    foreach my $k (qw(username comment refinfo)) {
+                        my $v= $candrow->{$k};
+                        next unless defined $v;
+                        ($v =~ s/[\"\\]/\\$&/g, $v="\"$v\"")
+                            if $v =~ m/[^-+\@_.,0-9a-z]/;
+                        $owner.= " $k=$v";
+                    }
+                    if ($candrow->{type} eq 'magic' &&
+                        ($candrow->{refkey} eq 'allocatable' ||
+                         $candrow->{refkey} eq 'idle')) {
+                        logm("$desc: available ($candrow->{refkey})");
+                    } elsif (!$candrow->{live}) {
+                        logm("$desc: dead task $owner");
+                    } else {
+                        logm("$desc: locked by $owner");
+                        next;
+                    }
+                    $setres->($tid);
+                    $ok=1; last;
+                } else {
+                    if ($candrow->{owntaskid} != $tid) {
+                        logm("$desc: locked by $owner");
+                        next;
+                    }
+                    logm("$desc: freeing...");
+                    $setres->($idletask->{taskid});
+                    $ok=1; last;
+                }
+            }
+            if (!$ok) {
+               logm("nothing available for $res, sorry");
+               $allok=0;
+           }
+        }
+
+        if (!$allok) {
+            die "allocation/deallocation unsuccessful\n";
+        }
+    });
+    logm("done.");
+}
+
+execute();
