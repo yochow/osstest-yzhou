@@ -1188,8 +1188,16 @@ sub get_hostflags ($) {
 sub selecthost ($) {
     my ($ident) = @_;
     # must be run outside transaction
-    my ($name) = $r{$ident};
+    my $name;
+    if ($ident =~ m/=/) {
+        $ident= $`;
+        $name= $';
+    } else {
+        $name= $r{$ident};
+        die "no specified $ident" unless defined $name;
+    }
     my $ho= {
+        Ident => $ident,
         Name => $name,
         TcpCheckPort => 22,
         Fqdn => "$name.$c{TestHostDomain}"
