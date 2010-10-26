@@ -60,54 +60,100 @@ END
 sub fetch_logs_serial () {
     my $logpat= $c{SerialLogPattern};
     my $vn;
+
+    my $started= $dbh_tests->selectrow_array(<<END);
+        SELECT started FROM flights WHERE flight=$flight
+END
     $logpat =~ s/\%(\w*)\%/
         !length $1 ? ''
         : ( ($vn= $1 eq 'host' ? $whhost : $1),
             (!defined $r{$vn} ? die "$c{SerialLogPattern} $1 ?" : $r{$vn})
             )
     /ge;
-    my $started= $dbh_tests->selectrow_array(<<END);
-        SELECT started FROM flights WHERE flight=$flight
-END
-    logm("collecting serial logs since $started");
-    my %done;
-    for (;;) {
-        my $anydone= 0;
-        foreach my $logfile (glob $logpat) {
-            my $lh= new IO::File $logfile, 'r';
-            if (!defined $lh) {
-                $!==&ENOENT or warn "$logfile $!";
-                next;
+
+    my $targhost= $ho->{Name} =~ m/mite$/ ? 'xcser1' : 'woking';
+
+    logm("collecting serial logs since $started from $targhost");
+
+    my $remote= remote_perl_script_open
+        ($targhost, "serial $targhost $ho->{Name}", <<'END');
+
+        use warnings;
+        use strict qw(refs vars);
+        use IO::File;
+        $|=1;
+        my $started= <DATA>;  defined $started or die $!;
+        my $logpat= <DATA>;   defined $logpat or die $!;
+
+        my %done;
+        for (;;) {
+            my $anydone= 0;
+            foreach my $logfile (glob $logpat) {
+                my $lh= new IO::File $logfile, 'r';
+                if (!defined $lh) {
+                    $!==&ENOENT or warn "$logfile $!";
+                    next;
+                }
+                stat $lh or die "$logfile $!";
+                my $inum= (stat _)[1];
+                my $lfage= (stat _)[9];
+                if ($lfage < $started) {
+                    next if $done{$inum};
+                    print "M $logfile modified $lfage, skipping\n" or die $!
+                        unless $done{$inum};
+                    $done{$inum}= 1;
+                    next;
+                }
+                next if defined $done{$inum} and $done{$inum} >= 2;
+                $done{$inum}= 2;
+                print "F $logfile\n" or die $!;
+                for (;;) {
+                    my $data;
+                    my $r= read $lh, $data, 65536;
+                    die "$logfile $!" unless defined $r;
+                    print "D ".(length $data)."\n" or die $!;
+                    print $data or die $!;
+                    last unless $r;
+                }
+                print "E\n" or die $!;
+                $anydone= 1;
             }
-            stat $lh or die "$logfile $!";
-            my $inum= (stat _)[1];
-            my $lfage= (stat _)[9];
-            if ($lfage < $started) {
-                next if $done{$inum};
-                logm("$logfile modified $lfage, skipping")
-                    unless $done{$inum};
-                $done{$inum}= 1;
-                next;
-            }
-            next if defined $done{$inum} and $done{$inum} >= 2;
-            $done{$inum}= 2;
-            my $df= $logfile;
-            $df =~ s,.*/,,;
-            $df = "serial-$df";
-            my $dh= open_unique_stashfile(\$df);
-            logm("stashing $logfile as $df");
-            for (;;) {
-                my $data;
-                my $r= read $lh, $data, 65536;
-                die "$logfile $!" unless defined $r;
-                last unless $r;
-                print $dh $data or die "$df $!";
-            }
-            close $dh or die "$df $!";
-            $anydone= 1;
+            last unless $anydone;
         }
-        last unless $anydone;
-    };
+        print "X\n" or die $!;
+END
+
+    my $w= $remote->{Write};
+    print( $w "$started\n$logpat\n" ) or die $!;
+
+    for (;;) {
+        $_= $remote->{Read}->getline();
+        chomp or die $!;
+        last if m/^X$/;
+        if (s/^M //) { logm($_); next; }
+        m/^F (\S+)$/ or die "$_ $!";
+        my $logfile= $1;
+        my $df= $logfile;
+        $df =~ s,.*/,,;
+        $df = "serial-$df";
+        logm("stashing $logfile as $df");
+
+        my $dh= open_unique_stashfile(\$df);
+        for (;;) {
+            $_= $remote->{Read}->getline();
+            chomp or die $!;
+            last if m/^E$/;
+            m/^D (\d+)$/ or die "$_ $!";
+            my $len= $1;
+            my $data;
+            my $r= read $remote->{Read}, $data, $len;
+            die $! unless $r==$len;
+            print $dh $data or die "$df $!";
+        }
+        close $dh or die "$df $!";
+    }
+
+    remote_perl_script_done($remote);
 }
 
 sub open_unique_stashfile ($) {
