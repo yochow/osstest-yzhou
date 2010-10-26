@@ -318,7 +318,7 @@ sub unique_incrementing_runvar ($$) {
     # must be run outside transaction
     my $value;
     db_retry($flight,'running', $dbh_tests,[qw(flights)], sub {
-	my $row= $dbh_tests->selectrow_arrayref(<<END, $flight, $job, $param);
+	my $row= $dbh_tests->selectrow_arrayref(<<END,{}, $flight,$job,$param);
             SELECT val FROM runvars WHERE flight=? AND job=? AND name=?
 END
 	$value= $row ? $row->[0] : $start;
