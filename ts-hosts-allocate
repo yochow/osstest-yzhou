@@ -167,7 +167,7 @@ END
             push @nogood, $flag;
             $flagscheckq->finish();
         }
-        print DEBUG "$dbg NOGOOD @nogood\n";
+        print DEBUG "$dbg FLAGS NOGOOD: @nogood.\n";
         if (@nogood) {
             next unless defined $use;
             push @{ $candrow->{Warnings} },
