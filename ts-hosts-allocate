@@ -174,13 +174,13 @@ END
         }
         $any++;
 
-        my $provkey= "$candrow->{restype} $candrow->{resname} 0";
+        my $reskey= "$candrow->{restype} $candrow->{resname} 0";
 
-        print DEBUG "$dbg GOOD $candrow->{owntaskid} $provkey\n";
+        print DEBUG "$dbg GOOD $candrow->{owntaskid} $reskey\n";
 
         my $allocatable= $candrow->{owntaskid} == $magictaskid{allocatable}
             || ($candrow->{owntaskid} == $taskid &&
-                defined $provisional{$provkey});
+                defined $provisional{$reskey});
 
         print DEBUG "$dbg ALLOC PLAIN $allocatable\n";
 
@@ -418,12 +418,12 @@ sub free_provisionals_all_except {
     our (@keephids) = @_;
     foreach my $hid (@keephids) {
         next unless $hid->{AllocInfo};
-        my $provkey= "@{ $hid->{AllocInfo}{ResKey} }";
-        print DEBUG "PROV CLEANING $provkey\n";
-        delete $provisional{$provkey};
+        my $reskey= "@{ $hid->{AllocInfo}{ResKey} }";
+        print DEBUG "PROV CLEANING $reskey\n";
+        delete $provisional{$reskey};
     }
-    foreach my $provkey (sort keys %provisional) {
-        my (@reskey) = split / /, $provkey;
+    foreach my $reskey (sort keys %provisional) {
+        my (@reskey) = split / /, $reskey;
         logm("cancelling provisional allocation ".show_reskey(@reskey));
         $res1q->execute(@reskey);
         my $was= $res1q->fetchrow_hashref();
