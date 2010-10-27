@@ -31,6 +31,9 @@ END
                (length($r{revision_qemu}) ? <<END : '').
 	echo >>.config QEMU_TAG='$r{revision_qemu}'
 END
+               (length($r{tree_linux}) ? <<END : '').
+	echo >>.config export XEN_LINUX_GIT_URL='$r{tree_linux}'
+END
                (length($r{revision_linux}) ? <<END : '').
 	echo >>.config export XEN_LINUX_GITREV='$r{revision_linux}'
 END

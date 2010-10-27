@@ -46,7 +46,7 @@ proc run-job {} {
     if {![prepare-job $jobinfo(job)]} return
 
     set ok 1
-    setstatus running
+    setstatus preparing
 
     set need_hosts [need-hosts/$jobinfo(recipe)]
 
@@ -54,6 +54,9 @@ proc run-job {} {
     if {!$ok} return
 
     eval run-ts broken  =                 ts-hosts-allocate + $need_hosts
+
+    setstatus running
+
     per-host-ts broken  host-install/@(*) ts-host-install-twice
     per-host-ts .       xen-install/@     ts-xen-install
     per-host-ts .       xen-boot/@        ts-host-reboot
