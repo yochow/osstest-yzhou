@@ -75,8 +75,9 @@ END
 		    my $owner= "$joinedrow->{owntaskid} $joinedrow->{type}".
 			" $joinedrow->{refkey}";
 		    foreach my $k (qw(username comment refinfo)) {
-                        my $v= $candrow->{$k};
+                        my $v= $joinedrow->{$k};
                         next unless defined $v;
+			next unless length $v;
                         ($v =~ s/[\"\\]/\\$&/g, $v="\"$v\"")
                             if $v =~ m/[^-+\@_.,0-9a-z]/;
                         $owner.= " $k=$v";
