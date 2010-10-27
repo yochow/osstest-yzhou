@@ -176,6 +176,7 @@ END
         $any++;
 
         my $reskey= "$candrow->{restype} $candrow->{resname} 0";
+        $candrow->{BaseResKey}= $reskey;
 
         print DEBUG "$dbg GOOD $candrow->{owntaskid} $reskey\n";
 
@@ -236,6 +237,7 @@ END
                     $slot->{Warnings}= $candrow->{Warnings};
                     $slot->{SharingReuse}= 1;
                     $slot->{Cost}= 0;
+                    $slot->{BaseResKey}= $candrow->{BaseResKey};
                     $candrow= $slot;
                 }
             } else {
@@ -345,15 +347,10 @@ END
     $hid->{AllocInfo}= $candrow;
     $hid->{Allocated}= $candrow->{Host};
 
-    $allocating{"@reskey"}= 1;
-    print DEBUG "HID ALLOCATING BASE @reskey\n";
-    my $sharebase= $hid->{BaseRow};
-    if ($sharebase) {
-        my $sharekey= join ' ', map { $sharebase->{$_} }
-                        qw(restype resname resix);
-        print DEBUG "HID ALLOCATING SHARE $sharekey\n";
-        $allocating{$sharekey}= 1;
-    }
+    print DEBUG "HID ALLOCATING BASE $candrow->{BaseResKey}\n";
+
+    $allocating{ $candrow->{BaseResKey} }= 1;
+    #
     # This is actually purely to stop us using provisionally-allocated
     # resources more than once: normally, resources which are
     # allocated to us already aren't considered available to us unless
@@ -361,11 +358,9 @@ END
     # allocate them "from ourself".  But that means we could allocate
     # the same resource for two different purposes, so this catches
     # that corner case.
-
-    if (!$candrow->{Shared}) {
-        # 
-        # this stops us reusing
-    }
+    #
+    # Provisional allocations are always of bases, not shares, and that's
+    # what the candidate searcher loop looks up in %allocating.
 
     $cleanup->();
     return 1;
