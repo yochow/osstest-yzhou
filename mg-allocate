@@ -17,9 +17,13 @@ sub execute () {
     
     db_retry($dbh_tests, \@all_lock_tables, sub {
 
-        my $idletask= $dbh_tests->selectrow_hashref(<<END);
-            SELECT * FROM tasks WHERE type='magic' AND refkey='idle'
+	my %magictask;
+	foreach my $rk (qw(idle shared preparing allocatable)) {
+	    my $row= $dbh_tests->selectrow_hashref(<<END,{}, $rk);
+                SELECT * FROM tasks WHERE type='magic' AND refkey=?
 END
+            $magictask{$rk}= $row->{taskid};
+        }
 
         my $allok=1;
         foreach my $res (@ARGV) {
@@ -46,8 +50,6 @@ END
             while (my $candrow= $resq->fetchrow_hashref()) {
                 my $desc= "$candrow->{restype}/$candrow->{resname}".
                     "/$candrow->{shareix}";
-                my $owner= "$candrow->{owntaskid} $candrow->{type}".
-                    " $candrow->{refkey}";
                 my $setres= sub {
                     my ($newtid) = @_;
                     my $ndone= $dbh_tests->do(<<END,{},
@@ -60,39 +62,91 @@ END
                     $ndone==1 or die "$restype $resname $newtid $desc";
                 };
 
-                if ($allocate) {
-                    if ($candrow->{owntaskid} == $tid) {
-                        logm("$desc: already allocated to $tid");
-                        $ok=1; last;
-                    }
-                    foreach my $k (qw(username comment refinfo)) {
+		my $isallocatable= sub {
+		    my ($joinedrow) = @_;
+		    return
+			!$joinedrow->{live} ||
+			$joinedrow->{owntaskid}==$magictask{allocatable} ||
+			$joinedrow->{owntaskid}==$magictask{idle};
+		};
+		my $findowner= sub {
+		    my ($joinedrow) = @_;
+		    my $owner= "$joinedrow->{owntaskid} $joinedrow->{type}".
+			" $joinedrow->{refkey}";
+		    foreach my $k (qw(username comment refinfo)) {
                         my $v= $candrow->{$k};
                         next unless defined $v;
                         ($v =~ s/[\"\\]/\\$&/g, $v="\"$v\"")
                             if $v =~ m/[^-+\@_.,0-9a-z]/;
                         $owner.= " $k=$v";
                     }
-                    if ($candrow->{type} eq 'magic' &&
-                        ($candrow->{refkey} eq 'allocatable' ||
-                         $candrow->{refkey} eq 'idle')) {
+		    return $owner;
+		};
+
+		my $isshared=
+		    $candrow->{owntaskid} == $magictask{shared};
+
+		if ($isshared) {
+		    my $shresq= $dbh_tests->prepare(<<END);
+			SELECT * FROM resources r
+				 JOIN tasks t
+				   ON r.owntaskid=t.taskid
+				WHERE r.restype=? AND r.resname=?
+			     ORDER BY (t.type='magic') DESC,
+				      t.live ASC
+END
+                    $shresq->execute("share-$restype", $resname);
+		    my $allshareok= 1;
+		    foreach (my $sharerow= $shresq->fetchrow_hashref()) {
+			next if $isallocatable->($sharerow);
+			next if $sharerow->{sharerow} == $tid;
+			next if $sharerow->{sharerow} == $magictask{preparing};
+			logm("$desc: shared, $sharerow->{shareix} locked by ".
+			     $findowner->($sharerow));
+			$allshareok= 0;
+		    }
+		    $shresq->finish();
+		    next unless $allshareok;
+		}
+
+                if ($allocate) {
+                    if ($candrow->{owntaskid} == $tid) {
+                        logm("$desc: already allocated to $tid");
+                        $ok=1; last;
+                    }
+		    if ($isshared) {
+			logm("$desc: available, unsharing");
+		    } elsif ($isallocatable->($candrow)) {
                         logm("$desc: available ($candrow->{refkey})");
-                    } elsif (!$candrow->{live}) {
-                        logm("$desc: dead task $owner");
                     } else {
-                        logm("$desc: locked by $owner");
+                        logm("$desc: locked by ".$findowner->($candrow));
                         next;
                     }
                     $setres->($tid);
-                    $ok=1; last;
                 } else {
-                    if ($candrow->{owntaskid} != $tid) {
-                        logm("$desc: locked by $owner");
+		    if ($isshared) {
+			logm("$desc: unsharing, freeing");
+		    } elsif ($candrow->{owntaskid} != $tid) {
+                        logm("$desc: locked by ".$findowner->($candrow));
                         next;
-                    }
-                    logm("$desc: freeing...");
-                    $setres->($idletask->{taskid});
-                    $ok=1; last;
+                    } else {
+			logm("$desc: freeing");
+		    }
+                    $setres->($magictask{idle});
                 }
+
+		if ($isshared) {
+		    $dbh_tests->do(<<END, {}, $restype,$resname);
+		        DELETE FROM resource_sharing
+			      WHERE restype = ? AND resname = ?
+END
+                    $dbh_tests->do(<<END, {}, "share-$restype",$resname);
+		        DELETE FROM resources
+			      WHERE restype = ? AND resname = ?
+END
+		}
+		
+		$ok=1; last;
             }
             if (!$ok) {
                logm("nothing available for $res, sorry");
