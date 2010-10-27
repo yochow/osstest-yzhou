@@ -50,6 +50,7 @@ END
             while (my $candrow= $resq->fetchrow_hashref()) {
                 my $desc= "$candrow->{restype}/$candrow->{resname}".
                     "/$candrow->{shareix}";
+
                 my $setres= sub {
                     my ($newtid) = @_;
                     my $ndone= $dbh_tests->do(<<END,{},
@@ -66,8 +67,8 @@ END
 		    my ($joinedrow) = @_;
 		    return
 			!$joinedrow->{live} ||
-			$joinedrow->{owntaskid}==$magictask{allocatable} ||
-			$joinedrow->{owntaskid}==$magictask{idle};
+			$joinedrow->{taskid}==$magictask{allocatable} ||
+			$joinedrow->{taskid}==$magictask{idle};
 		};
 		my $findowner= sub {
 		    my ($joinedrow) = @_;
@@ -97,7 +98,7 @@ END
 END
                     $shresq->execute("share-$restype", $resname);
 		    my $allshareok= 1;
-		    foreach (my $sharerow= $shresq->fetchrow_hashref()) {
+		    while (my $sharerow= $shresq->fetchrow_hashref()) {
 			next if $isallocatable->($sharerow);
 			next if $sharerow->{taskid} == $tid;
 			next if $sharerow->{taskid} == $magictask{preparing};

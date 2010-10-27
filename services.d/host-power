@@ -1,5 +1,5 @@
 ignore-fd 0
-execute bash -ec '
-    cd for-userv-testing.git
-    ./ts-host-powercycle --power="$1" host="$2"
-'
+execute bash -ec "                                              \n\
+    cd for-userv-testing.git                                    \n\
+    ./ts-host-powercycle --power=\"$2\" host=\"$1\"             \n\
+"
