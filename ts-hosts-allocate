@@ -29,6 +29,7 @@ our $taskid;
 our $fi;
 our %magictaskid;
 our %provisional;
+our %allocating;
 
 our ($res1q, $claim_setres_q);
 
@@ -180,7 +181,8 @@ END
 
         my $allocatable= $candrow->{owntaskid} == $magictaskid{allocatable}
             || ($candrow->{owntaskid} == $taskid &&
-                defined $provisional{$reskey});
+                defined $provisional{$reskey} &&
+                !defined $allocating{$reskey});
 
         print DEBUG "$dbg ALLOC PLAIN $allocatable\n";
 
@@ -197,7 +199,6 @@ END
 
             die "$candrow->{resname} ?" unless $shared;
             $candrow->{Shared}= $shared;
-
 
             print DEBUG "$dbg ALLOC ISSHARED".
                 " $shared->{sharetype} $shared->{state}".
@@ -343,6 +344,29 @@ END
     $candrow->{ResKey}= \@reskey;
     $hid->{AllocInfo}= $candrow;
     $hid->{Allocated}= $candrow->{Host};
+
+    $allocating{"@reskey"}= 1;
+    print DEBUG "HID ALLOCATING BASE @reskey\n";
+    my $sharebase= $hid->{BaseRow};
+    if ($sharebase) {
+        my $sharekey= join ' ', map { $sharebase->{$_} }
+                        qw(restype resname resix);
+        print DEBUG "HID ALLOCATING SHARE $sharekey\n";
+        $allocating{$sharekey}= 1;
+    }
+    # This is actually purely to stop us using provisionally-allocated
+    # resources more than once: normally, resources which are
+    # allocated to us already aren't considered available to us unless
+    # they are in %provisionals.  If they are in there then we may
+    # allocate them "from ourself".  But that means we could allocate
+    # the same resource for two different purposes, so this catches
+    # that corner case.
+
+    if (!$candrow->{Shared}) {
+        # 
+        # this stops us reusing
+    }
+
     $cleanup->();
     return 1;
 }
@@ -505,6 +529,7 @@ END
 
             logm("allocating hosts: ".join(' ', map { $_->{Ident} } @hids));
 
+            undef %allocating;
             foreach my $hid (@hids) {
                 delete $hid->{AllocInfo};
                 delete $hid->{Allocated};
