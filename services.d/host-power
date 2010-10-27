@@ -1,0 +1,5 @@
+ignore-fd 0
+execute bash -ec '
+    cd for-userv-testing.git
+    ./ts-host-powercycle --power="$1" host="$2"
+'
