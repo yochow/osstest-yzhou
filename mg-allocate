@@ -99,8 +99,8 @@ END
 		    my $allshareok= 1;
 		    foreach (my $sharerow= $shresq->fetchrow_hashref()) {
 			next if $isallocatable->($sharerow);
-			next if $sharerow->{sharerow} == $tid;
-			next if $sharerow->{sharerow} == $magictask{preparing};
+			next if $sharerow->{taskid} == $tid;
+			next if $sharerow->{taskid} == $magictask{preparing};
 			logm("$desc: shared, $sharerow->{shareix} locked by ".
 			     $findowner->($sharerow));
 			$allshareok= 0;
@@ -117,7 +117,7 @@ END
 		    if ($isshared) {
 			logm("$desc: available, unsharing");
 		    } elsif ($isallocatable->($candrow)) {
-                        logm("$desc: available ($candrow->{refkey})");
+                        logm("$desc: allocating (was $candrow->{refkey})");
                     } else {
                         logm("$desc: locked by ".$findowner->($candrow));
                         next;
