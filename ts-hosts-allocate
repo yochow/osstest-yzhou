@@ -555,7 +555,7 @@ END
 
             print DEBUG "HARRMFH ".scalar(@newprovs)."\n";
 
-            return 0 unless @newprovs; # keep what we have, and wait
+            return 0; # unless @newprovs; # keep what we have, and wait
 
             logm("host allocation: need to wait, rolling back");
 
