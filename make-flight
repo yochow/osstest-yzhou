@@ -131,7 +131,7 @@ for xenarch in i386 amd64; do
                 !host $PAIR_RUNVARS $RUNVARS $TEST_RUNVARS $most_runvars  \
 		debian_kernkind=$kernkind				  \
 		debian_arch=$dom0arch   				  \
-		all_hostflags=$most_hostflags
+		all_hostflags=$most_hostflags,equiv-1
 
     done
 
