@@ -73,8 +73,13 @@ for (;;) {
     my $spawn= sub {
         $!=0; my $r= system @_; die "@_ $r $!" if $r;
     };
-    $spawn->(qw(ssh -n), @sshopts, $pubhost,
-     "set -e; cd $pubdir; test -e $flight; printf remote...; rm -rf $flight");
+    $spawn->(qw(ssh -n), @sshopts, $pubhost, <<END);
+             set -e
+             cd $pubdir
+             test -e $flight || exit 0
+             printf remote...
+             rm -rf $flight
+END
 
     printf "local..";
     $spawn->(qw(rm -rf), $flight);
