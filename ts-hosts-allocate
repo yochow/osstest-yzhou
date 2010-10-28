@@ -32,6 +32,7 @@ our $fi;
 our %magictaskid;
 our %provisional;
 our %allocating;
+our %equivs;
 
 our ($res1q, $claim_setres_q);
 
@@ -162,13 +163,45 @@ END
         my $dbg= "HID $hid->{Ident} HOST $candrow->{resname}";
         print DEBUG "$dbg\n";
         my @nogood;
-        foreach my $flag (keys %{ $hid->{Flags} }) {
+
+        my $needflag= sub {
+            my ($flag) = @_;
             print DEBUG "$dbg FLAG $flag\n";
             $flagscheckq->execute($candrow->{resname}, $flag);
-            next if $flagscheckq->fetchrow_arrayref();
-            push @nogood, $flag;
+            my $row= $flagscheckq->fetchrow_arrayref();
             $flagscheckq->finish();
+            return if $row;
+            push @nogood, $flag;
+        };
+
+        foreach my $flag (keys %{ $hid->{Flags} }) {
+            $needflag->($flag);
         }
+        my $equiv= $hid->{Equiv};
+        if ($equiv && !defined $use) {
+            # if it was specified exactly we don't care about equiv classes
+            # if you specify one of a class you should specify all, then!
+            print DEBUG "$dbg EQUIV $equiv->{FormalClass}\n";
+            if (defined $equiv->{ActualClass}) {
+                $needflag->($equiv->{ActualClass});
+            } else {
+                my $equiv_actual= $dbh_tests->selectrow_hashref
+                    (<<END,{}, $candrow->{resname});
+                        SELECT * FROM hostflags
+                                WHERE hostname = ?
+                                  AND hostflag LIKE 'equiv-%'
+END
+                if (!$equiv_actual) {
+                    print DEBUG "$dbg EQUIV $equiv->{FormalClass} NO-CLASS\n";
+                    push @nogood, "[$equiv->{FormalClass}]";
+                } else {
+                    $equiv->{ActualClass}= $equiv_actual->{hostflag};
+                    print DEBUG "$dbg EQUIV $equiv->{FormalClass}".
+                        " SETTING $equiv->{ActualClass}\n";
+                }
+            }
+        }
+
         print DEBUG "$dbg FLAGS NOGOOD: @nogood.\n";
         if (@nogood) {
             next unless defined $use;
@@ -490,6 +523,14 @@ sub alloc_hosts () {
                 print DEBUG "HID $ident FLAG $flag SHARE $shr".
                     " $hid->{SharedMaxTasks} $hid->{SharedMaxWear}\n";
                 next;
+            } elsif ($flag =~ m/^equiv-/) {
+                my $formalclass= $';
+                die if exists $hid->{Equiv};
+                $equivs{$formalclass}{FormalClass}= $formalclass;
+                $equivs{$formalclass}{Wanted}++;
+                my $equiv= $hid->{Equiv}= $equivs{$formalclass};
+                print DEBUG "HID $ident FLAG $flag EQUIV $equiv->{Wanted}\n";
+                next;
             }
             $flags{$flag}= $allflags{$flag}= 1;
         }
@@ -536,6 +577,9 @@ END
                 delete $hid->{AllocInfo};
                 delete $hid->{Allocated};
                 delete $hid->{ProvResKey};
+            }
+            foreach my $equiv (values %equivs) {
+                delete $equiv->{ActualClass};
             }
 
             my $allok= 1;
