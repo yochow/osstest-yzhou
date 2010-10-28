@@ -278,7 +278,11 @@ END
 
     @candidates= sort { $a->{Cost} <=> $b->{Cost} } @candidates;
     if (!@candidates) {
-        logm("none of $any hosts for $hid->{Ident} available");
+        if (defined $use) {
+            logm("specified host $use for $hid->{Ident} unavailable");
+        } else {
+            logm("none of $any hosts for $hid->{Ident} available");
+        }
         die "no possible hosts" unless $any;
         $cleanup->();
         return 0;
@@ -375,6 +379,7 @@ sub setup () {
         SELECT * FROM flights
          WHERE flight = ?
 END
+    logm("flight $flight intended $fi->{intended}");
 
     foreach my $rk (qw(allocatable shared preparing idle)) {
         $magictaskid{$rk}= $dbh_tests->selectrow_array(<<END, {}, $rk);
