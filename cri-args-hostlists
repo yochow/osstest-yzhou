@@ -53,21 +53,6 @@ fi
 : ${OSSTEST_HTML_DIR:=/home/xc_osstest/$OSSTEST_HTML_SUBDIR}
 : ${OSSTEST_HTML_URL:=http://teravault-1.cam.xci-test.com/xc_osstest/$OSSTEST_HTML_SUBDIR}
 
-: ${ARCH_RUNVARS_i386:="host=$OSSTEST_HOST_i386"}
-: ${ARCH_RUNVARS_amd64:="host=$OSSTEST_HOST_amd64"}
-export ARCH_RUNVARS_i386
-export ARCH_RUNVARS_amd64
-
-if [ "x$OSSTEST_HOST_i386" != x"$OSSTEST_HOST_amd64" ]; then
-	hostlists1="$OSSTEST_HOST_i386 $OSSTEST_HOST_amd64"
-else
-	hostlists1="$OSSTEST_HOST_i386"
-fi
-
-export PAIR_RUNVARS="src_host=$OSSTEST_PAIR_HOST1 dst_host=$OSSTEST_PAIR_HOST2"
-hostlists2=`perl -e 'print join ",", sort @ARGV' \
-	$OSSTEST_PAIR_HOST1 $OSSTEST_PAIR_HOST2`
-
 execute_flight () {
         case "x$OSSTEST_SIMULATE" in
         x|x0)   ;;
