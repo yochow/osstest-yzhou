@@ -10,6 +10,8 @@ opendb_state();
 
 open DEBUG, ">/dev/null" or die $!;
 
+unshift @ARGV, '-D';
+
 while (@ARGV and $ARGV[0] =~ m/^-/) {
     $_= shift @ARGV;
     last if m/^--$/;
