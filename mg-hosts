@@ -41,7 +41,7 @@ sub cmd_setflags () {
     my ($flags,$dsts) = @ARGV; # each flag may start with - to remove
     db_retry($dbh_tests, [qw(resources)], sub {
         foreach my $flag (l($flags)) {
-            my $remove= $flag =~ s/^\-//;
+            my $remove= $flag =~ s/^[-!]//;
             foreach my $dst (l($dsts)) {
                 $dbh_tests->do(<<END,{}, $dst,$flag);
                     DELETE FROM hostflags
