@@ -9,7 +9,7 @@ wlem=$1; shift
 LOGFILE=tmp/cr-for-branches.log
 export LOGFILE
 
-BRANCHES='xen-4.0-testing xen-3.4-testing xen-unstable linux'
+BRANCHES='xen-4.0-testing xen-unstable linux'
 export BRANCHES
 
 export LOCK_ACQUIRE_START=`date +%s`
