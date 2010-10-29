@@ -16,8 +16,10 @@ my $builddir= "/home/osstest/$leaf";
 sub checkout () {
     target_cmd($ho, "rm -rf $builddir && mkdir $builddir", 600);
 
+    build_clone($ho, 'xen', $builddir, 'xen-unstable');
+
     build_clone($ho, 'linux', $builddir, 'linux');
-    
+
     if (length($r{tree_pq_linux})) {
         build_clone($ho, 'pq_linux', $builddir, 'linux/.hg/patches');
         
@@ -28,21 +30,38 @@ END
     }
 }
 
-sub build () {
-    target_cmd_build($ho, 1000, $builddir, <<END);
-	cd linux
-	perl -i.bak -pe '
-		s/^(CONFIG_(?:AGP|DRM|FB)(?:_.*)?)=m\$/# \$1 is not set/;
-		s/^CONFIG_(?: VGA | VIDEO | FRAMEBUFFER | BOOTSPLASH
-			XEN_FRAMEBUFFER ).*//x;
-                s/^\\# CONFIG_BLK_DEV_NBD//;
-          END {
-                 print "\\nCONFIG_DEBUG_INFO=y\\n";
-                 print "\\nCONFIG_BLK_DEV_NBD=m\\n";
-          }
-	' buildconfigs/linux-defconfig_*[^~]
-	make -f buildconfigs/Rules.mk defconfig </dev/null
+sub config () {
+    my $edscript= "$builddir/enable-xen-config.ed";
+    target_putfilecontents_stash($ho,1000,<<'END',$edscript);
+$
+?^exit 0
+i
+
+setopt CONFIG_AGP n
+setopt CONFIG_DRM n
+setopt CONFIG_FB n
+setopt CONFIG_VIDEO n
+setopt CONFIG_FRAMEBUFFER n
+setopt CONFIG_BOOTSPLASH n
+
+setopt CONFIG_DEBUG_INFO y
+setopt CONFIG_BLK_DEV_NBD m
+
+.
+w
+q
 END
+    target_cmd_build($ho, 1000, $builddir, <<END);
+        cp xen-unstable/enable-xen-config .
+        ed <$edscript enable-xen-config
+        cd linux
+        make defconfig
+        ../enable-xen-config .config
+        yes '' | make oldconfig
+END
+}
+
+sub build () {
     target_cmd_build($ho, 9000, $builddir, <<END);
 	cd linux
         (make -j4 all modules 2>&1 && touch ../build-ok-stamp) |tee ../log
@@ -77,6 +96,7 @@ END
 }
 
 checkout();
+config();
 build();
 kinstall();
 built_stash($ho, $builddir, 'dist', 'kerndist');

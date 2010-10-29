@@ -25,9 +25,16 @@ if [ x$buildflight = x ]; then
 	tree_xen=http://hg.uk.xensource.com/$xenbranch.hg		     \
 		$RUNVARS $BUILD_RUNVARS $arch_runvars			     \
 		host_hostflags=share-build-$arch,arch-$arch,build	     \
+		revision_xen=$REVISION_XEN				     \
+		revision_qemu=$REVISION_QEMU
+
+    ./cs-job-create $flight build-$arch-pvops build-kern		     \
+		arch=$arch						     \
+	tree_xen=http://hg.uk.xensource.com/$xenbranch.hg		     \
+		$RUNVARS $BUILD_RUNVARS $arch_runvars			     \
+		host_hostflags=share-build-$arch,arch-$arch,build	     \
 		xen_kernels=linux-2.6-pvops				     \
 		revision_xen=$REVISION_XEN				     \
-		revision_qemu=$REVISION_QEMU				     \
 		tree_linux=$TREE_LINUX					     \
 		revision_linux=$REVISION_LINUX
 
@@ -72,18 +79,15 @@ fi
 for xenarch in i386 amd64; do
 
   for kern in '' -xcpkern; do
-	#  -oldkern   does not work on spider
 
     case $kern in
     '')
+                kernbuild=pvops
 		kernkind=pvops
-		;;
-    -oldkern)
-		kernkind=2618
-		if [ "x$REVISION_LINUX_OLD" = xdisable ]; then continue; fi
 		;;
     -xcpkern)
 		kernkind=2627
+                kernkind=xcpkern
 		if [ "x$REVISION_LINUX_XCP" = xdisable ]; then continue; fi
 		;;
     *)		echo >&2 "kernkind ?  $kern"; exit 1 ;;
@@ -104,7 +108,7 @@ for xenarch in i386 amd64; do
       most_runvars="
 		arch=$dom0arch			        	\
 		xenbuildjob=${bfi}build-$xenarch        	\
-		kernbuildjob=${bfi}build-$dom0arch$kern 	\
+		kernbuildjob=${bfi}build-$dom0arch-$kernbuild 	\
 		buildjob=${bfi}build-$dom0arch	        	\
 		kernkind=$kernkind		        	\
 		$arch_runvars

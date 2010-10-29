@@ -74,6 +74,7 @@ BEGIN {
                       target_cmd_output_root target_cmd_output
                       target_getfile target_getfile_root
                       target_putfile target_putfile_root
+                      target_putfilecontents_stash
 		      target_putfilecontents_root_stash
                       target_editfile_root target_file_exists
                       target_install_packages target_install_packages_norec
@@ -591,14 +592,22 @@ sub target_somefile_getleaf ($$$) {
     $$lleaf_ref= "$ho->{Name}--$$lleaf_ref";
 }
 
-sub target_putfilecontents_root_stash ($$$$;$) {
-    my ($ho,$timeout,$filedata, $rdest,$lleaf) = @_;
+sub tpfcs_core {
+    my ($tputfilef,$ho,$timeout,$filedata, $rdest,$lleaf) = @_;
     target_somefile_getleaf(\$lleaf,$rdest,$ho);
 
     my $h= new IO::File "$stash/$lleaf", 'w' or die "$lleaf $!";
     print $h $filedata or die $!;
     close $h or die $!;
-    target_putfile_root($ho,$timeout, "$stash/$lleaf", $rdest);
+    $tputfilef->($ho,$timeout, "$stash/$lleaf", $rdest);
+}
+sub target_putfilecontents_stash ($$$$;$) {
+    my ($ho,$timeout,$filedata,$rdest, $lleaf) = @_;
+    tpfcs_core(\&target_putfile, @_);
+}
+sub target_putfilecontents_root_stash ($$$$;$) {
+    my ($ho,$timeout,$filedata,$rdest, $lleaf) = @_;
+    tpfcs_core(\&target_putfile_root, @_);
 }
 
 sub target_file_exists ($$) {

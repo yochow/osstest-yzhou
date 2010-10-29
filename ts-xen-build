@@ -39,8 +39,10 @@ END
                (length($r{revision_linux}) ? <<END : '').
 	echo >>.config export XEN_LINUX_GITREV='$r{revision_linux}'
 END
-               (length($kerns) ? <<END : '')
+               (length($kerns) ? <<END : <<END)
 	echo >>.config KERNELS='$kerns'
+END
+	echo >>.config KERNELS=''
 END
                );
 }
