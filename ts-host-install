@@ -14,7 +14,7 @@ our $ho= selecthost($whhost);
 exit 0 if $ho->{SharedReady};
 die if $ho->{SharedOthers};
 
-our %timeout= qw(ReadPreseed  250
+our %timeout= qw(ReadPreseed  350
                  Sshd        1200);
 
 sub install () {
