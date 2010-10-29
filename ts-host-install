@@ -71,7 +71,8 @@ sub setup_pxeboot_firstboot($) {
     my $d_i= $c{PxeDiBase}.'/'.$r{arch}.'/current';
     $ps_url =~ s,^http://,,;
     
-    my @installcmdline= qw(vga=normal auto=true preseed);
+    my @installcmdline= qw(vga=normal auto=true preseed
+                           hw-detect/load_firmware=false);
 
     my $initrd= "$d_i/initrd.gz";
     my @firmwares= grep { m/^need-firmware-deb-/ } keys %{ $ho->{Flags} };
@@ -285,8 +286,6 @@ d-i clock-setup/ntp boolean true
 
 d-i partman-auto/method string lvm
 #d-i partman-auto/method string regular
-
-d-i hw-detect/load_firmware boolean false
 
 d-i partman-md/device_remove_md boolean true
 d-i partman-lvm/device_remove_lvm boolean true
