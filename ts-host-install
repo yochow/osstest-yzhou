@@ -225,7 +225,7 @@ if test -f $stamp; then exit 0; fi
 >$stamp
 zero () {
     if test -b $dev; then
-        dd if=/dev/zero of=$dev count=64
+        dd if=/dev/zero of=$dev count=64 ||:
     fi
 }
 for sd in sd hd; do
