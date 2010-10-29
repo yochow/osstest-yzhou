@@ -7,7 +7,9 @@ use POSIX;
 
 readconfig();
 opendb_state();
-our $ho= selecthost('host');
+our ($whhost) = @ARGV;
+$whhost ||= 'host';
+our $ho= selecthost($whhost);
 exit 0 if $ho->{SharedReady};
 
 sub prep () {
@@ -80,4 +82,4 @@ sub cacheing_git_install () {
 prep();
 cacheing_git_mount();
 cacheing_git_install();
-resource_shared_mark_ready('host', $r{host}, "build-$r{arch}");
+resource_shared_mark_ready($ho->{Ident}, $ho->{Name}, "build-$r{arch}");
