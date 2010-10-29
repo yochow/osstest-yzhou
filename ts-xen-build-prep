@@ -12,6 +12,29 @@ $whhost ||= 'host';
 our $ho= selecthost($whhost);
 exit 0 if $ho->{SharedReady};
 
+sub lvextend () {
+    my $vg= "$ho->{Name}.$c{TestHostDomain}";
+
+    target_cmd_root($ho, <<END);
+        set -ex; if ! test -f /root/swap_osstest_enabled; then
+            lvcreate -L 10G -n swap_osstest_build $vg ||:
+            mkswap /dev/$vg/swap_osstest_build ||:
+            swapon /dev/$vg/swap_osstest_build
+            touch /root/swap_osstest_enabled
+        fi
+END
+
+    my $vginfo= target_cmd_output_root($ho, "vgdisplay --colon $vg");
+    my @vginfo= split /\:/, $vginfo;
+    @vginfo >= 17 or die "$vginfo ?";
+    my $free_pe= $vginfo[15];
+
+    my $lv= "/dev/$vg/root";
+
+    target_cmd_root($ho, "lvextend -l +$free_pe $lv") if $free_pe;
+    target_cmd_root($ho, "resize2fs $lv", 2000);
+}
+
 sub prep () {
     target_install_packages($ho,
                             qw(mercurial
@@ -79,6 +102,7 @@ sub cacheing_git_install () {
     target_putfile_root($ho,10, "cacheing-git","/usr/local/bin/git", "-p");
 }
 
+lvextend();
 prep();
 cacheing_git_mount();
 cacheing_git_install();
