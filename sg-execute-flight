@@ -111,12 +111,20 @@ proc main_iteration {} {
     lvarpop running $ix
 }
 
-proc main {} {
-    global running
-    set running {}
-    while 1 main_iteration
+proc parse-args {} {
+    global argv blessing
+    set-flight
+    if {[llength $argv]!=1} { error "wrong # args" }
+    lassign $argv blessing
 }
 
-set-flight
+proc main {} {
+    global running flight blessing
+    set running {}
+    while 1 main_iteration
+    exec ./cs-flight-bless $flight $blessing 2>@ stderr
+}
+
+parse-args
 db-open
 main
