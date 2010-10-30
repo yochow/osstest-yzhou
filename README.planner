@@ -48,10 +48,12 @@ Booking list is:
 		array for each resource for which
 		client has already done actual allocation
 			Reskey	"restype resname shareix"
+			Xinfo	string to add to "set-info job ..."
 			End	rel end time
 	Bookings
 		array for each booking
 			Reskey
+			Xinfo
 			Start	rel start time
 			End	rel end time
 

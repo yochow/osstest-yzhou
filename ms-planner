@@ -155,6 +155,15 @@ sub parse_reskey ($) {
     return $rk;
 }
 
+sub parse_xinfo ($$) {
+    my ($baseinfo,$xi) = @_;
+    return $baseinfo unless defined $xi;
+    die if ref $xi;
+    die if $xi =~ m/[^[:ascii:]]/;
+    die if $xi =~ m/[^[:print:]]/;
+    return "$baseinfo $xi";
+}
+
 sub parse_reltime2abs ($) {
     my ($rt) = @_;
     die unless defined $rt;
@@ -165,7 +174,7 @@ sub parse_reltime2abs ($) {
 
 sub cmd_book_resources () {
     die unless @ARGV==1;
-    my ($info) = @ARGV;
+    my ($baseinfo) = @ARGV;
     
     local ($/)= undef;
     my $bookingsdata= <STDIN>;
@@ -181,7 +190,7 @@ sub cmd_book_resources () {
 	die if $plan->{Allocations}{$reskey};
 	my $endtime= parse_reltime2abs($jbook->{End});
 	$plan->{Allocations}{$reskey}= {
-	    Info => $info,
+	    Info => parse_xinfo($baseinfo, $jbook->{Xinfo}),
 	    Start => $plan->{Start},
 	    PlanEnd => $endtime,
 	    ExptEnd => $endtime,
@@ -190,7 +199,7 @@ sub cmd_book_resources () {
 
     foreach my $jbook (@{ $jbookings->{Bookings} }) {
 	push @{ $plan->{Bookings}{ parse_reskey($jbook->{Reskey}) } }, {
-	    Info => $info,
+	    Info => parse_xinfo($baseinfo, $jbook->{Xinfo}),
 	    Start => parse_reltime2abs($jbook->{Start}),
 	    End => parse_reltime2abs($jbook->{End}),
 	};
