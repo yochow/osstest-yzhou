@@ -712,11 +712,11 @@ sub poll_loop ($$$&) {
 sub logm ($) {
     my ($m) = @_;
     my @t = gmtime;
-    printf "%04d-%02d-%02d %02d:%02d:%02d Z %s\n",
+    printf STDERR "%04d-%02d-%02d %02d:%02d:%02d Z %s\n",
         $t[5]+1900,$t[4]+1,$t[3], $t[2],$t[1],$t[0],
         $m
     or die $!;
-    STDOUT->flush or die $!;
+    STDERR->flush or die $!;
 }
 
 sub get_filecontents ($;$) {
