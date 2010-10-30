@@ -9,6 +9,7 @@ use Osstest;
 use JSON;
 use POSIX;
 use Data::Dumper;
+use HTML::Entities;
 
 open DEBUG, ">/dev/null" or die $!;
 
@@ -227,6 +228,136 @@ sub cmd_book_resources () {
     }
 
     write_new_plan();
+}
+
+sub show_rel_time ($) {
+    my ($abs) = @_;
+    my $rel= $abs - $plan->{Start};
+    my $minus= $rel < 0 ? '-' : '';
+    $rel= -$rel if $minus;
+    my $mins= $rel % 60;   $rel -= $mins;   $rel /= 60;
+    my $hours= $rel % 60;  $rel -= $hours;  $rel /= 60;
+    sprintf "%s%d:%02d:%02d", $minus, $rel, $hours, $mins;
+}
+
+sub cmd_show_html () {
+    get_current_plan();
+    my $now= time;
+
+    foreach my $books (values %{ $plan->{Bookings} }) {
+	$_->{Type}= Booking foreach @$books;
+    }
+    
+    my $earliest= $plan->{Start};
+    while (my ($reskey,$alloc) = each %{ $plan->{Allocations} }) {
+	unshift @{ $plan->{Bookings}{$reskey} }, {
+	    %$alloc,
+	    Type => Allocation,
+	    End => $alloc->{PlanEnd},
+	};
+	if ($alloc->{ExptEnd} > $alloc->{PlanEnd}) {
+	    unshift @{ $plan->{Bookings}{$reskey} }, {
+		%$alloc,
+		Type => Overrun,
+		Start => $alloc->{PlanEnd},
+		End => $alloc->{ExptEnd},
+	    };
+	}
+	my $earlybook= $plan->{Bookings}{$reskey}[0];
+	$earliest= $earlybook->{Start} if
+	    $earlybook && $earlybook->{Start} < $earliest;
+    }
+    my @colheads = sort keys %{ $plan->{Bookings} };
+
+    print DEBUG Dumper($earliest, $plan->{Bookings});
+
+    my @outcols;
+    foreach my $reskey (@colheads) {
+	my @incol;
+	my $dopush= sub {
+	    my ($ni) = @_;
+	    if ($incol[-1]{Start} == $ni->{Start}) {
+		pop @incol;
+	    }
+	    $ni->{Rowspan}=1;
+	    push @incol, $ni;
+	};
+
+	push @incol, { Type=>Idle, Info=>"", Rowspan=>1, Start=>$earliest };
+
+	foreach my $booking (@{ $plan->{Bookings}{$reskey} }) {
+	    $dopush->({ %$booking });
+	    $dopush->({ Type=>Idle, Info=>"", Start => $booking->{End} });
+	}
+	push @incol, { Type=>Infinity, Start=>Inf };
+
+	my @outcol;
+	foreach (my $ix=0; $ix<@incol-1; $ix++) {
+	    push @outcol, {
+		Start => $incol[$ix]{Start},
+		End => $incol[$ix+1]{Start},
+		Content => $incol[$ix],
+	    };
+	}
+	push @outcols, \@outcol;
+    }
+
+    my @rows;
+    my (@newoutcols) = map { [] } @outcols;
+    for (;;) {
+	print DEBUG "==========\n", Dumper(\@outcols);
+	    
+	my $firstend= Inf;
+	my $anystart= undef;
+	foreach my $col (@outcols) {
+	    my $cell= $col->[0];
+	    $firstend= $cell->{End} if $cell->{End} < $firstend;
+	    $anystart= $cell->{Start} if !defined $anystart;
+	    die unless $cell->{Start}==$anystart;
+	}
+
+	print DEBUG Dumper($anystart, $firstend);
+
+	foreach (my $colix=0; $colix<@outcols; $colix++) {
+	    my $col= $outcols[$colix];
+	    my $cell= shift @$col;
+	    if ($cell->{End} != $firstend) {
+		unshift @$col, { %$cell, Start=>$firstend };
+		$cell = { %$cell, End=>$firstend },
+		$cell->{Content}{Rowspan}++;
+	    }
+	    push @{ $newoutcols[$colix] }, $cell;
+	}
+	push @rows, { Start => $anystart, End => $firstend };
+
+	last if $firstend == Inf;
+    }
+
+    print DEBUG "==============================\n",
+        Dumper(\@rows, \@newoutcols);
+
+    printf "<table rules=all><tr><td>plan age %s</td>\n", show_rel_time($now);
+    foreach my $ch (@colheads) {
+	printf "<th>%s</th>", encode_entities($ch);
+    }
+    print "</tr>\n";
+
+    foreach my $event (@rows) {
+	printf "<tr><th>%s</th>", show_rel_time($event->{Start});
+	foreach my $col (@newoutcols) {
+	    my $cell= shift @$col;
+	    my $content= $cell->{Content};
+	    if (!$content->{Printed}) {
+		printf "<td rowspan=%d>%s %s</td>",
+		    $content->{Rowspan},
+		    $content->{Type},
+		    encode_entities($content->{Info});
+		$content->{Printed}= 1;
+	    }
+	}
+	printf "</tr>\n";
+    }
+    printf "</table>\n";
 }
 
 die unless @ARGV;
