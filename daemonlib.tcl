@@ -6,6 +6,13 @@ proc chan-error {chan emsg} {
     puts-chan $chan "ERROR $emsg"
 }
 
+proc chan-destroy {chan} {
+    chan-destroy-stuff $chan
+    upvar #0 chandesc($chan) desc
+    catch { unset desc }
+    catch { close $chan }
+}
+
 proc for-chan {chan script} {
     uplevel 1 [list upvar \#0 chandesc($chan) desc]
     upvar #0 chandesc($chan) desc
@@ -16,8 +23,7 @@ proc for-chan {chan script} {
         catch { chan-error $chan $emsg }
         log "error: $desc: $emsg"
         foreach l [split $errorInfo "\n"] { log "EI $l" }
-        chan-destroy-stuff $chan
-        catch { close $chan }
+        chan-destroy $chan
     }
 }
 
@@ -62,8 +68,7 @@ proc chan-read {chan} {
         }
         if {[eof $chan]} {
             puts-chan-desc $chan {$$}
-            chan-destroy-stuff $chan
-            close $chan
+            chan-destroy $chan
         }
     }
 }
