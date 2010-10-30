@@ -36,6 +36,8 @@ $c{QueueDaemonHoldoff}= 30; # seconds
 $c{QueueThoughtsTimeout}= 30; # seconds
 $c{QueueResourcePollInterval}= 60; # seconds
 
+$c{PlanRogueAllocationDuration}= 86400;
+
 $c{SerialLogPattern}= '/root/sympathy/%host%.log*';
 
 $c{OverlayLocal}= '/export/home/osstest/overlay-local';

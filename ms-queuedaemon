@@ -150,6 +150,7 @@ proc runneeded-poll-now {} {
 proc queuerun-start {} {
     log-event queuerun-start
     global queue_running queue
+    exec ./ms-planner reset < /dev/null
     set queue_running $queue
     after idle queuerun-perhaps-step
 }
@@ -224,6 +225,21 @@ proc cmd/thought-done {chan desc} {
     queuerun-step-done thought-done
     dequeue-chan $chan thought-wait
     puts-chan $chan "OK thought"
+}
+
+proc cmd/get-plan {chan desc} {
+    #check-we-are-thinking $chan
+    set plan [exec -keepnewline ./ms-planner get-plan < /dev/null]
+    puts-chan-data $chan OK $plan
+}
+
+proc cmd/book-resources {chan desc bytes} {
+    read-chan-data $chan $bytes do-book-resources
+}
+proc do-book-resources {chan desc data} {
+    set info [chan-get-info $chan {"job $val(job)"} $desc]
+    exec ./ms-planner book-resources $info << $data
+    puts-chan $chan "OK book-resources"
 }
 
 proc cmd/unwait {chan desc} {

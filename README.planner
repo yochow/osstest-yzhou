@@ -1,0 +1,65 @@
+Resource planner / scheduler
+
+ms-queuedaemon commands
+
+	> wait
+		I want to join the plan
+
+	< !OK think
+		Now is the time to add yourself to the plan
+
+		> get-plan
+		< OK plan
+                BYTES
+		PLAN-DATA
+
+		[ if taking any resources now, do so at this point ]
+		> book-resources BYTES
+		< SEND
+		RESOURCE-DATA
+		< OK book-resources
+
+	> thought-done | thought-wait
+
+
+Plan is:
+	Start	time_t used for "now" *
+	Allocations
+		map from
+			"restype resname shareix"
+		to
+			Info	info string about what this is *
+			Start	abs start time *
+			PlanEnd	abs planned end time *
+			ExptEnd	abs expected end time *
+			End	rel expected end time +
+	Bookings
+		map from
+			"restype resname shareix"
+		to array for each booking, sorted by Start
+			Info *
+			Start	abs* rel+ start time
+			End	abs* rel+ end time
+	* = internal to plan
+	+ = as shown to clients
+
+Booking list is:
+	Allocations
+		array for each resource for which
+		client has already done actual allocation
+			Reskey	"restype resname shareix"
+			End	rel end time
+	Bookings
+		array for each booking
+			Reskey
+			Start	rel start time
+			End	rel end time
+
+
+Sharing resources:
+
+Allocations includes both the master, and each share.
+Bookings includes only the master and assumes no sharing.
+
+Note that whether a resource is free, or simply nonexistent, is not
+represented.

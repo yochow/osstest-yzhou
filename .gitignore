@@ -11,3 +11,5 @@ publish-lock
 bisecting-sticky-branch
 [tu].*
 [tu]
+data-plan.pl
+data-plan.pl.new

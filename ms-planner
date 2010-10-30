@@ -1,0 +1,228 @@
+#!/usr/bin/perl
+#
+# this script has no locking; it expects to be called only
+# from ms-queuedaemon
+
+use strict qw(vars refs);
+use DBI;
+use Osstest;
+use JSON;
+use POSIX;
+use Data::Dumper;
+
+open DEBUG, ">/dev/null" or die $!;
+
+while (@ARGV and $ARGV[0] =~ m/^-/) {
+    $_= shift @ARGV;
+    last if m/^--$/;
+    while (m/^-./) {
+        if (s/^-D/-/) {
+            open DEBUG, ">&STDERR" or die $!;
+        } else {
+            die "$_ ?";
+        }
+    }
+}
+
+csreadconfig();
+
+sub allocations ($) {
+    my ($each) = @_;
+    my $q= $dbh_tests->prepare(<<END);
+        SELECT * FROM resources
+	        WHERE owntaskid !=
+		     (SELECT taskid FROM tasks
+                       WHERE type='magic' AND refkey='allocatable')
+END
+    $q->execute();
+    while (my $row= $q->fetchrow_hashref()) {
+	my $reskey= join " ", map { $row->{$_} } qw(restype resname shareix);
+	$each->($reskey, $row);
+    }
+    $q->finish();
+}
+
+our ($plan);
+
+my $fn= "data-plan.pl";
+
+sub get_current_plan () {
+    if (!open P, $fn) {
+	die $! unless $!==&ENOENT;
+	$plan= { Allocations=>{ }, Bookings=>{ } };
+	return;
+    }
+    local $/;
+    my $plandump= <P>;
+    P->error and die $!;
+    close P or die $!;
+    $plan= eval $plandump;
+}
+
+sub write_new_plan () {
+    my $f= new IO::File "$fn.new", 'w' or die $!;
+    my $d= new Data::Dumper([$plan]);
+    $d->Terse(1);
+    print $f $d->Dump() or die $!;
+    close $f or die $!;
+    rename "$fn.new",$fn or die $!;
+}
+
+sub cmd_reset () {
+    die if @ARGV;
+
+    get_current_plan();
+
+    $plan->{Bookings}= { };
+    $plan->{Start}= time;
+
+    # get rid of now-freed allocations and look for any rogue allocations:
+    my %current;
+    allocations(sub {
+	my ($reskey, $arow) = @_;
+	$current{$reskey}= 1;
+
+	my $alloc= $plan->{Allocations}{$reskey};
+	next if defined $alloc;
+
+	# rogue allocation!
+	my $endtime= $plan->{Start} + $c{PlanRogueAllocationDuration};
+	print STDERR "rogue $reskey: $arow->{owntaskid} $endtime\n" or die $!;
+	$plan->{Allocations}{$reskey}= {
+	    Info => "rogue task $arow->{owntaskid} $arow->{subtask}",
+	    Start => $plan->{Start},
+	    PlanEnd => $endtime,
+	    ExptEnd => $endtime,
+	};
+    });
+    foreach my $reskey (keys %{ $plan->{Allocations} }) {
+	next if $current{$reskey};
+	delete $plan->{Allocations}{$reskey};
+    }
+
+    # compute new expected finishing times:
+    while (my ($reskey,$alloc) = each %{ $plan->{Allocations} }) {
+	my $untilend_exptd= $alloc->{PlanEnd} - $plan->{Start};
+	if ($untilend_exptd <= 0) {
+	    my $duration_sofar= $plan->{Start} - $alloc->{Start};
+	    my $duration_planned= $alloc->{PlanEnd} - $alloc->{Start};
+	    my $duration_exptd=
+		$duration_sofar * ($duration_sofar+1) / ($duration_planned+1);
+	    # we square the error - ie, we expect it to take
+	    # longer than it has done so far by the proportion
+	    # by which it has so far exceeded the original estimate
+	    $untilend_exptd= $alloc->{Start} + ceil($duration_exptd);
+	    die unless $untilend_exptd >= 0;
+	    print STDERR "readjust $reskey: $duration_planned".
+		" < $duration_sofar $untilend_exptd\n" or die $!;
+	}
+	$alloc->{ExptEnd}= $untilend_exptd + $plan->{Start};
+    }
+
+    write_new_plan();
+}
+
+sub cmd_get_plan () {
+    die if @ARGV;
+
+    get_current_plan();
+
+    my $jplan= { Allocations=>{}, Bookings=>{} };
+    while (my ($reskey,$alloc) = each %{ $plan->{Allocations} }) {
+	$jplan->{Allocations}{$reskey}= {
+	    End => $alloc->{ExptEnd} - $plan->{Start},
+	};
+    }
+    while (my ($reskey,$books) = each %{ $plan->{Bookings} }) {
+	next unless @$books;
+	my @jbooks;
+	foreach my $book (@$books) {
+	    push @jbooks, {
+		Start => $book->{Start} - $plan->{Start},
+		End   => $book->{End}   - $plan->{Start},
+	    };
+	}
+	$jplan->{Bookings}{$reskey}= \@jbooks;
+    }
+    print to_json($jplan),"\n" or die $!;
+}
+
+sub parse_reskey ($) {
+    my ($rk) = @_;
+    die unless defined $rk;
+    die if ref $rk;
+    die if $rk =~ m,[^-+_.!*%(){}:\#/0-9a-zA-Z],;
+    return $rk;
+}
+
+sub parse_reltime2abs ($) {
+    my ($rt) = @_;
+    die unless defined $rt;
+    die if ref $rt;
+    die unless $rt =~ m/^(0|[1-9][0-9]{0,8})$/;
+    return $1 + $plan->{Start};
+}
+
+sub cmd_book_resources () {
+    die unless @ARGV==1;
+    my ($info) = @ARGV;
+    
+    local ($/)= undef;
+    my $bookingsdata= <STDIN>;
+    my $jbookings= from_json($bookingsdata);
+
+    get_current_plan();
+
+    die unless $jbookings->{Allocations};
+    die unless $jbookings->{Bookings};
+
+    foreach my $jbook (@{ $jbookings->{Allocations} }) {
+	my $reskey= parse_reskey($jbook->{Reskey});
+	die if $plan->{Allocations}{$reskey};
+	my $endtime= parse_reltime2abs($jbook->{End});
+	$plan->{Allocations}{$reskey}= {
+	    Info => $info,
+	    Start => $plan->{Start},
+	    PlanEnd => $endtime,
+	    ExptEnd => $endtime,
+	};
+    }
+
+    foreach my $jbook (@{ $jbookings->{Bookings} }) {
+	push @{ $plan->{Bookings}{ parse_reskey($jbook->{Reskey}) } }, {
+	    Info => $info,
+	    Start => parse_reltime2abs($jbook->{Start}),
+	    End => parse_reltime2abs($jbook->{End}),
+	};
+    }
+
+    # sort the bookings list and check no double booking
+    foreach my $reskey (keys %{ $plan->{Bookings} }) {
+	print DEBUG "new bookings $reskey\n";
+	my @books= sort { $a->{Start} <=> $b->{Start} }
+	    @{ $plan->{Bookings}{$reskey} };
+	my $alloc= $plan->{Allocations}{$reskey};
+	my $last_end= defined($alloc) ? $alloc->{ExptEnd} : $plan->{Start};
+	print DEBUG "  last_end $last_end\n";
+	foreach my $book (@books) {
+	    print DEBUG "  $book->{Start} $book->{End} $book->{Info}\n";
+	    $book->{Start} >= $last_end
+		or die "$reskey $book->{Start} $last_end";
+	    $last_end= $book->{End};
+	}
+	$plan->{Bookings}{$reskey}= \@books;
+    }
+
+    write_new_plan();
+}
+
+die unless @ARGV;
+die if $ARGV[0] =~ m/^-/;
+my $subcmd= shift @ARGV;
+$subcmd =~ s/-/_/g;
+die if @ARGV && $ARGV[0] =~ m/^-/;
+my $subcmdproc;
+{
+    $subcmdproc= \&{ "cmd_$subcmd" };
+}
+$subcmdproc->();
