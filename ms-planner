@@ -107,7 +107,7 @@ sub cmd_reset () {
 	    my $duration_sofar= $plan->{Start} - $alloc->{Start};
 	    my $duration_planned= $alloc->{PlanEnd} - $alloc->{Start};
 	    my $duration_exptd=
-		$duration_sofar * ($duration_sofar+1) / ($duration_planned+1);
+		$duration_sofar * $duration_sofar / $duration_planned;
 	    # we square the error - ie, we expect it to take
 	    # longer than it has done so far by the proportion
 	    # by which it has so far exceeded the original estimate
@@ -189,6 +189,7 @@ sub cmd_book_resources () {
 	my $reskey= parse_reskey($jbook->{Reskey});
 	die if $plan->{Allocations}{$reskey};
 	my $endtime= parse_reltime2abs($jbook->{End});
+	die unless $endtime > $plan->{Start};
 	$plan->{Allocations}{$reskey}= {
 	    Info => parse_xinfo($baseinfo, $jbook->{Xinfo}),
 	    Start => $plan->{Start},
@@ -198,10 +199,13 @@ sub cmd_book_resources () {
     }
 
     foreach my $jbook (@{ $jbookings->{Bookings} }) {
+	my $starttime= parse_reltime2abs($jbook->{Start});
+	my $endtime= parse_reltime2abs($jbook->{End});
+	die unless $endtime > $starttime;
 	push @{ $plan->{Bookings}{ parse_reskey($jbook->{Reskey}) } }, {
 	    Info => parse_xinfo($baseinfo, $jbook->{Xinfo}),
-	    Start => parse_reltime2abs($jbook->{Start}),
-	    End => parse_reltime2abs($jbook->{End}),
+	    Start => $starttime,
+	    End => $endtime,
 	};
     }
 
