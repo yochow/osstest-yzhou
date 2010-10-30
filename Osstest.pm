@@ -113,6 +113,11 @@ sub opendb_tests () {
 
 sub csreadconfig () {
     require 'config.pl';
+    foreach my $v (keys %c) {
+	my $e= $ENV{"OSSTEST_C_$v"};
+	next unless defined $e;
+	$c{$v}= $e;
+    }
     opendb_tests();
 }
 
