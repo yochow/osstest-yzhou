@@ -185,7 +185,7 @@ proc we-are-thinking {chan} {
 
 proc check-we-are-thinking {chan} {
     if {![we-are-thinking $chan]} {
-        puts-chan $chan "ERROR timed out (too pensive)"
+        puts-chan $chan "ERROR you are not thinking"
         return -code return
     }
 }
