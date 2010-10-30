@@ -8,8 +8,10 @@ proc chan-error {chan emsg} {
 
 proc chan-destroy {chan} {
     chan-destroy-stuff $chan
-    upvar #0 chandesc($chan) desc
-    catch { unset desc }
+    foreach v {chandesc chan-data-len chan-data-data chan-data-then} {
+	upvar #0 "${v}($chan)" $v
+	catch { unset $v }
+    }
     catch { close $chan }
 }
 
@@ -90,6 +92,58 @@ proc puts-chan {chan m} {
     puts-chan-desc $chan ">> $m"
     puts $chan $m
 }
+
+#---------- data ----------
+
+proc puts-chan-data {chan m data} {
+    puts-chan $chan "$m [string length $data]"
+    puts -nonewline $chan $data
+    flush $chan
+}
+
+proc read-chan-data {chan bytes args} {
+    upvar #0 chan-data-len($chan) len
+    set len [expr {$bytes + 0}]
+
+    if {$len < 0 && $len > 65536} {
+	chan-error "bytes out of range"
+	return
+    }
+    upvar #0 chan-data-data($chan) data
+    set data {}
+
+    upvar #0 chan-data-then($chan) then
+    set then $args
+
+    puts-chan $chan SEND
+    fileevent $chan readable [list chan-read-data $chan]
+    chan-read-data $chan
+}
+
+proc chan-read-data {chan} {
+    upvar #0 chandesc($chan) desc
+    upvar #0 chan-data-len($chan) len
+    upvar #0 chan-data-data($chan) data
+    upvar #0 chan-data-then($chan) then
+
+    for-chan $chan {
+	while {$len>0} {
+	    set got [read $chan $len]
+	    if {[eof $chan]} {
+		puts-chan-desc $chan {$$(data)}
+		chan-destroy $chan
+		return
+	    }
+	    append data $got
+	    incr len -[string length $got]
+	}
+	fileevent $chan readable [list chan-read $chan]
+	puts-chan-desc $chan "<\[data]"
+	eval $then [list $chan $desc $data]
+    }
+}
+
+#---------- main ----------
 
 proc newconn {chan addr port} {
     global chandesc
