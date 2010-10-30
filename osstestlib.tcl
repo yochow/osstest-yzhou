@@ -39,7 +39,14 @@ proc logputs {f m} {
 }
 
 proc db-open {} {
-    pg_connect -conninfo "dbname=osstestdb" -connhandle dbh
+    global env
+    set conninfo "dbname=osstestdb"
+    foreach e {DBI_HOST DBI_PASS DBI_USER} \
+	    p {host password user} {
+		if {![info exists env($e)]} continue
+		append conninfo " $p=$env($e)"
+	    }
+    pg_connect -conninfo $conninfo -connhandle dbh
 }
 
 proc db-update-1 {stmt} {
