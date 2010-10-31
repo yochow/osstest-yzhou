@@ -974,13 +974,14 @@ our $alloc_resources_waitstart;
 sub alloc_resources {
     my ($resourcecall) = pop @_;
     my (%xparams) = @_;
-    # $resourcecall should die (abort) or return a hashref
-    #    if the hashref contains keys
-    #        Allocations and Bookings       commit, completed ok
-    #        Allocations=>[] and Bookings   rollback, wait and try again
+    # $resourcecall should die (abort) or return ($ok, $bookinglist)
+    #
+    #  values of $ok
     #            0  rollback, wait and try again
     #            1  commit, completed ok
     #            2  commit, wait and try again
+    #  $bookinglist should be undef or a hash for making a booking
+    #
     # $resourcecall should not look at tasks.live
     #  instead it should look for resources.owntaskid == the allocatable task
     # $resourcecall runs with all tables locked (see above)
@@ -1041,39 +1042,48 @@ sub alloc_resources {
 
             opendb_tests();
 
-            db_retry($flight,'running', $dbh_tests, \@all_lock_tables, sub {
+            my ($plan,$bookinglist);
 
+	    db_retry($flight,'running', $dbh_tests, \@all_lock_tables,
+		     [ sub {
 		print $qserv "get-plan\n" or die $!;
 		$_= <$qserv>; defined && m/^OK get-plan (\d+)\s/ or die "$_ ?";
 
 		my $jplanlen= $1;
 		my $jplan;
 		read($qserv, $jplan, $jplanlen) == $jplanlen or die $!;
-		my $plan= from_json($jplan);
-		while (my ($reskey, $alloc) = each %{ $plan->{Allocations} }) {
-		    unshift @{ $plan->{Bookings}{$reskey} }, {
-			%$alloc, Start=>0,
-		    };
-		}
-
-		my $bookinglist;
+		$plan= from_json($jplan);
+	    }, sub {
 		if (!eval {
-		    $bookinglist= $resourcecall->($plan);
-		    $ok= @{ $bookinglist->{Allocations} } ? 1 : 0;
+		    ($ok, $bookinglist) = $resourcecall->($plan);
 		    1;
 		}) {
 		    warn "resourcecall $@";
 		    $ok=-1;
-                }
-                return db_retry_abort() unless $ok>0;
-            });
+		}
+		return db_retry_abort() unless $ok>0;
+	    }]);
+
+	    if ($bookinglist && $ok!=-1) {
+		my $jbookings= to_json($bookinglist);
+
+		printf $qserv "book-resources %d\n", length $jbookings
+		    or die $!;
+		$_= <$qserv>; defined && m/^SEND\s/ or die "$_ ?";
+
+		print $qserv $jbookings or die $!;
+		$_= <$qserv>; defined && m/^OK book-resources\s/ or die "$_ ?";
+
+		logm("resource allocation: we are in the plan.");
+	    }
+
             if ($ok==1) {
                 print $qserv "thought-done\n" or die $!;
             } elsif ($ok<0) {
                 return 1;
             } else { # 0 or 2
-                logm("resource allocation: rolled back") if $ok==0;
-                logm("resource allocation: deferring");
+                logm("resource allocation: deferring") if $ok==0;
+                logm("resource allocation: partial commit, deferring");
                 print $qserv "thought-wait\n" or die $!;
             }
             $_= <$qserv>;  defined && m/^OK thought\s$/ or die "$_ ?";
