@@ -4,6 +4,7 @@ use strict;
 use DBI;
 use Osstest;
 use Data::Dumper;
+use POSIX;
 
 readconfig();
 opendb_state();
@@ -56,7 +57,12 @@ END
 #---------- prepared sql statements ----------
 # all users of these must ->finish them afterwards, to avoid db deadlock
 
-our ($flagscheckq, $equivflagscheckq, $recentflights_q);
+our ($flagscheckq, $equivflagscheckq, $recentflights_q,
+     $latest_finish_q, $elapsed_start_q, $elapsed_finish_q,
+     $alloc_findres_q, $alloc_shared_q, $alloc_sharing_slot_q,
+     $claim_share_reuse_q, $claim_maxshare_q, $claim_rmshares_q,
+     $claim_noshares_q, $claim_rmshare_q, $claim_setres_q,
+     $claim_share_new_q, $claim_share_newresource_q);
     
 sub prepare_statements () {
     $flagscheckq= $dbh_tests->prepare(<<END);
@@ -189,6 +195,8 @@ END
 our @hids;
 
 sub compute_hids () {
+    our %equivs;
+
     foreach my $ident (@ARGV) {
         my @flags= get_hostflags($ident);
         print DEBUG "HID $ident FLAGS @flags\n";
@@ -220,7 +228,7 @@ sub compute_hids () {
                 print DEBUG "HID $ident FLAG $flag EQUIV $equiv->{Wanted}\n";
                 next;
             }
-            $flags{$flag}= $allflags{$flag}= 1;
+            $flags{$flag}= 1;
         }
         $hid->{Flags}= \%flags;
         print DEBUG "HID $ident FLAGS ".(join ',', sort keys %flags)."\n";
@@ -235,6 +243,7 @@ sub hid_find_possibilities ($) {
 
     my $use= $r{ $hid->{Ident} };
 
+    my $findhostsq;
     if (defined $use) {
         print DEBUG "HID $hid->{Ident} USE $use\n";
 	$findhostsq= $dbh_tests->prepare(<<END);
@@ -251,7 +260,7 @@ END
 		ON (restype='host' AND shareix=0 AND
 		    resname=hostname AND hostflag=?)
 END
-        $hostsq->execute("blessed-$fi->{intended}");
+        $findhostsq->execute("blessed-$fi->{intended}");
     }
 
     my @candidates;
@@ -343,9 +352,11 @@ END
 	    print DEBUG "$dbg GOOD DURATION $candrow->{Duration}\n";
 	}
 
-	push @candidates $candrow;
+	push @candidates, $candrow;
 	print DEBUG "$dbg CANDIDATE.\n";
     }
+    $findhostsq->finish();
+
     if (!@candidates) {
         if (defined $use) {
             logm("specified host $use for $hid->{Ident} nonexistent?");
@@ -378,29 +389,31 @@ sub optimally_order_hids () {
 our $plan;
 our $best;
 
+sub hid_recurse ($$);
 sub hid_recurse ($$) {
     my ($actualmap, $hidix) = @_;
     # fills in the plan from $hidix (inclusive) to the end
 
     my $dbg= sprintf "RECURSE %*s", $hidix*2, '';
     if ($hidix < @hids) {
-	print DEBUG "$dbg...\n";
+	my $hid= $hids[$hidix];
+	print DEBUG "$dbg $hid->{Ident}...\n";
 	foreach my $cand (@{ $hid->{Candidates} }) {
-	    print DEBUG "$dbg CAND $candrow->{Reso}\n";
+	    print DEBUG "$dbg CAND $cand->{Reso}\n";
 	    my $poss_actual= $cand->{EquivActual};
 	    my $newactualmap= $actualmap;
 	    if (defined $poss_actual) { # i.e. iff $hid->{Equiv} and not $use
 		my $equiv= $hid->{Equiv};
 		my $formal= $equiv->{FormalClass};
-		my $already= $actualmap{$formal};
+		my $already= $actualmap->{$formal};
 		if (defined $already) {
 		    if ($already ne $poss_actual) {
-			print DEBUG "$dbg CAND $candrow->{Reso} EQUIV".
+			print DEBUG "$dbg CAND $cand->{Reso} EQUIV".
 			    " WRONG $formal: $already != $poss_actual\n";
 			next;
 		    }
 		} else {
-		    print DEBUG "$dbg CAND $candrow->{Reso} EQUIV".
+		    print DEBUG "$dbg CAND $cand->{Reso} EQUIV".
 			" SET $formal: $poss_actual\n";
 		    $newactualmap= { %$actualmap, $formal => $poss_actual };
 		}
@@ -421,7 +434,7 @@ sub hid_recurse ($$) {
     foreach my $hid (@hids) {
 	my $cand= $hid->{Selected};
 	my $recent= $cand->{MostRecent};
-	$variation_age += $recent ? now - $recent->{started} : 90*86400;
+	$variation_age += $recent ? time - $recent->{started} : 90*86400;
 	$duration= $cand->{Duration} if
 	    !defined($duration) ||
 	    defined($cand->{Duration}) && $cand->{Duration} >= $duration;
@@ -451,7 +464,7 @@ sub hid_recurse ($$) {
 
 	    # check the period from $events[$ix] to next event
 	    my $startevt= $events->[$ix];
-	    my $endevt= $ix<@$events ? $events->[$ix+1] : { Time=>Inf };
+	    my $endevt= $ix<@$events ? $events->[$ix+1] : { Time=>inf };
 	    next if $endevt->{Time} <= $try_time; # quite after this
 	    last if $try_time + $duration <= $startevt->{Time};
 
@@ -464,7 +477,7 @@ sub hid_recurse ($$) {
 		    last CHECK unless defined $hid->{Shared};
 		    last CHECK unless $hid->{Shared} eq $eshare->{Type};
 		    if (defined $share_wear) {
-			$share_wear++ if $startevt->{Type} eq Start;
+			$share_wear++ if $startevt->{Type} eq 'Start';
 		    } else {
 			$share_wear= $eshare->{Wear}+1;
 		    }
@@ -498,7 +511,7 @@ sub hid_recurse ($$) {
 	    (join ' ', map { $_->{Selected}{Reso} } @hids);
 	$best= {
 	    Cost => $cost,
-	    Selections => map { $_->{Selected} }, @hids,
+	    Selections => (map { $_->{Selected} } @hids),
 	    Start => $try_time,
 	    Duration => $duration,
 	};
@@ -583,10 +596,10 @@ sub compute_booking_list () {
 #---------- actually allocate things ----------
 
 sub actual_allocation ($) {
+    my ($hid) = @_;
+
     # if successful returns { Allocated =>, Share => }
     # as for booking list otherwise undef
-
-    my ($hid) = @_;
 
     my $sel= $hid->{Selected};
     my $shr= $hid->{Shared};
