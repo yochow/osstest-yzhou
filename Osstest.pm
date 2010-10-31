@@ -241,27 +241,33 @@ sub db_begin_work ($;$) {
 sub db_retry ($$$;$$) {
     # $code should return whatever it likes, and that will
     #     be returned by db_retry
+    # $code may be [ \&around_loop_init, \&actual_code ]
     my ($fl,$flok, $dbh,$tables,$code) = (@_==5 ? @_ :
                                           @_==3 ? (undef,undef,@_) :
                                           die);
+    my ($pre,$body) =
+        (ref $code eq 'ARRAY') ? @$code : (sub { }, $code);
+
     my $retries= 20;
     my $r;
     local $db_retry_stop;
     for (;;) {
+        $pre->();
+
         db_begin_work($dbh, $tables);
         if (defined $fl) {
             die unless $dbh eq $dbh_tests;
             dbfl_check($fl,$flok);
         }
         $db_retry_stop= 0;
-        $r= &$code;
+        $r= &$body;
         if ($db_retry_stop) {
             $dbh->rollback();
             last if $db_retry_stop eq 'abort';
         } else {
             last if eval { $dbh->commit(); 1; };
         }
-        die "$dbh $code $@ ?" unless $retries-- > 0;
+        die "$dbh $body $@ ?" unless $retries-- > 0;
         sleep(1);
     }
     return $r;
