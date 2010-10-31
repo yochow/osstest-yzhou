@@ -1,0 +1,163 @@
+{
+          'Events' => {
+                        'host gall-mite' => [
+                                              {
+                                                'Avail' => 0,
+                                                'Time' => 1288531479,
+                                                'Allocated' => {
+                                                                 'Shareix' => '0'
+                                                               },
+                                                'Info' => 'rogue task 2303 2475.test-amd64-amd64-pair src_host',
+                                                'IsStart' => {}
+                                              },
+                                              {
+                                                'IsEnd' => {},
+                                                'Time' => 1288617879,
+                                                'Allocated' => {
+                                                                 'Shareix' => '0'
+                                                               },
+                                                'Info' => 'rogue task 2303 2475.test-amd64-amd64-pair src_host'
+                                              }
+                                            ],
+                        'sponge share' => [
+                                            {
+                                              'Avail' => 2,
+                                              'Time' => 1288531521,
+                                              'Share' => {
+                                                           'Type' => 'zorkmids',
+                                                           'Wear' => 1,
+                                                           'Shares' => 3
+                                                         },
+                                              'Info' => 'foo ha ha',
+                                              'IsStart' => {}
+                                            },
+                                            {
+                                              'IsEnd' => {},
+                                              'Time' => 1288531579,
+                                              'Share' => {
+                                                           'Type' => 'zorkmids',
+                                                           'Shares' => 3
+                                                         },
+                                              'Info' => 'foo ha ha'
+                                            }
+                                          ],
+                        'host insider' => [
+                                            {
+                                              'Avail' => 0,
+                                              'Time' => 1288531479,
+                                              'Allocated' => {
+                                                               'Shareix' => '0'
+                                                             },
+                                              'Info' => 'rogue task 21 manual insider',
+                                              'IsStart' => {}
+                                            },
+                                            {
+                                              'IsEnd' => {},
+                                              'Time' => 1288617879,
+                                              'Allocated' => {
+                                                               'Shareix' => '0'
+                                                             },
+                                              'Info' => 'rogue task 21 manual insider'
+                                            }
+                                          ],
+                        'host itch-mite' => [
+                                              {
+                                                'Avail' => 0,
+                                                'Time' => 1288531479,
+                                                'Allocated' => {
+                                                                 'Shareix' => '0'
+                                                               },
+                                                'Info' => 'rogue task 2303 2475.test-amd64-amd64-pair dst_host',
+                                                'IsStart' => {}
+                                              },
+                                              {
+                                                'IsEnd' => {},
+                                                'Time' => 1288617879,
+                                                'Allocated' => {
+                                                                 'Shareix' => '0'
+                                                               },
+                                                'Info' => 'rogue task 2303 2475.test-amd64-amd64-pair dst_host'
+                                              }
+                                            ],
+                        'host woodlouse' => [
+                                              {
+                                                'Avail' => 0,
+                                                'Time' => 1288531479,
+                                                'Allocated' => {
+                                                                 'Shareix' => '0'
+                                                               },
+                                                'Info' => 'rogue task 21 manual woodlouse',
+                                                'IsStart' => {}
+                                              },
+                                              {
+                                                'IsEnd' => {},
+                                                'Time' => 1288617879,
+                                                'Allocated' => {
+                                                                 'Shareix' => '0'
+                                                               },
+                                                'Info' => 'rogue task 21 manual woodlouse'
+                                              }
+                                            ],
+                        'sponge dribble' => [
+                                              {
+                                                'Avail' => 0,
+                                                'Time' => 1288531521,
+                                                'Info' => 'foo ha ha',
+                                                'IsStart' => {}
+                                              },
+                                              {
+                                                'Time' => 1288531579,
+                                                'IsEnd' => {},
+                                                'Info' => 'foo ha ha'
+                                              }
+                                            ],
+                        'host chicken-mite' => [
+                                                 {
+                                                   'Avail' => 0,
+                                                   'Time' => 1288531479,
+                                                   'Allocated' => {
+                                                                    'Shareix' => '0'
+                                                                  },
+                                                   'Info' => 'rogue task 21 manual chicken-mite',
+                                                   'IsStart' => {}
+                                                 },
+                                                 {
+                                                   'IsEnd' => {},
+                                                   'Time' => 1288617879,
+                                                   'Allocated' => {
+                                                                    'Shareix' => '0'
+                                                                  },
+                                                   'Info' => 'rogue task 21 manual chicken-mite'
+                                                 }
+                                               ]
+                      },
+          'Bookings' => {},
+          'Start' => 1288531479,
+          'Allocations' => {
+                             'host itch-mite 0' => {
+                                                     'End' => 1288617879,
+                                                     'Info' => 'rogue task 2303 2475.test-amd64-amd64-pair dst_host',
+                                                     'Start' => 1288531479
+                                                   },
+                             'host woodlouse 0' => {
+                                                     'End' => 1288617879,
+                                                     'Info' => 'rogue task 21 manual woodlouse',
+                                                     'Start' => 1288531479
+                                                   },
+                             'host insider 0' => {
+                                                   'End' => 1288617879,
+                                                   'Info' => 'rogue task 21 manual insider',
+                                                   'Start' => 1288531479
+                                                 },
+                             'host chicken-mite 0' => {
+                                                        'End' => 1288617879,
+                                                        'Info' => 'rogue task 21 manual chicken-mite',
+                                                        'Start' => 1288531479
+                                                      },
+                             'host gall-mite 0' => {
+                                                     'End' => 1288617879,
+                                                     'Info' => 'rogue task 2303 2475.test-amd64-amd64-pair src_host',
+                                                     'Start' => 1288531479
+                                                   }
+                           }
+        }
