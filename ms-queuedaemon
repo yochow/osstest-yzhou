@@ -228,15 +228,16 @@ proc cmd/thought-done {chan desc} {
 }
 
 proc cmd/get-plan {chan desc} {
-    #check-we-are-thinking $chan
     set plan [exec -keepnewline ./ms-planner get-plan < /dev/null]
     puts-chan-data $chan "OK get-plan" $plan
 }
 
 proc cmd/book-resources {chan desc bytes} {
+    check-we-are-thinking $chan
     read-chan-data $chan $bytes do-book-resources
 }
 proc do-book-resources {chan desc data} {
+    check-we-are-thinking $chan
     set info [chan-get-info $chan {"job $val(job)"} $desc]
     exec ./ms-planner book-resources $info << $data
     puts-chan $chan "OK book-resources"
