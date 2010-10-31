@@ -521,8 +521,7 @@ sub hid_recurse ($$) {
 #---------- committing to a plan ----------
 
 sub alloc_hosts () {
-    alloc_resources(WaitStartAdjust => (@idents * -10),
-		    WaitStart => $fi->{started},
+    alloc_resources(WaitStart => $fi->{started},
 		    \&attempt_allocation);
 }
 
@@ -575,7 +574,7 @@ sub attempt_allocation {
     }
 
     my $booklist= compute_booking_list();
-    return ($retval, $boolist);
+    return ($retval, $booklist);
 }
 
 sub compute_booking_list () {
@@ -612,6 +611,7 @@ sub actual_allocation ($) {
     if (!$cand) { warn "resource $sel->{Reso} ?"; return undef; }
 
     my $allocatable= $cand->{owntaskid} == $magictaskid{allocatable};
+    my $dbg= "$hid->{Ident} $sel->{Reso}";
     printf DEBUG "%s ALLOC PLAIN %d\n", $dbg, $allocatable;
 
     my $shared;
@@ -624,7 +624,7 @@ sub actual_allocation ($) {
 	$shared= $alloc_shared_q->fetchrow_hashref();
 	$alloc_shared_q->finish();
 
-	if (!$shared) { warn "$candrow->{resname} ?"; return undef; }
+	if (!$shared) { warn "$sel->{Reso} ?"; return undef; }
 
 	print DEBUG "$dbg ALLOC ISSHARED".
 	    " $shared->{sharetype} $shared->{state}".
@@ -636,6 +636,8 @@ sub actual_allocation ($) {
         }
     }
 
+    my @allocwarnings;
+
     if (defined $shr &&
 	defined $shared &&
 	$shared->{sharetype} eq $shr &&
@@ -646,8 +648,8 @@ sub actual_allocation ($) {
 	if ($shared->{state} eq 'ready') {
 	    $alloc_sharing_slot_q->execute($shrestype, $shared->{resname},
 					   $magictaskid{allocatable});
-	    my $slot= $sharing_slot_q->fetchrow_hashref();
-	    $sharing_slot_q->finish();
+	    my $slot= $alloc_sharing_slot_q->fetchrow_hashref();
+	    $alloc_sharing_slot_q->finish();
 	    if (!$slot) {
 		# this is no use then
 		print DEBUG "$dbg ALLOC SHARED AVAIL BUSY\n";
@@ -665,12 +667,10 @@ sub actual_allocation ($) {
 		return undef;
 
                 # someone was preparing it but they aren't any more
-                push @{ $candrow->{Warnings} },
+                push @allocwarnings,
                     "previous preparation apparently abandoned";
                 $allocatable= 1;
             }
-        } else {
-            next unless $allocatable;
         }
     }
 
@@ -742,8 +742,8 @@ sub actual_allocation ($) {
         }
     }
     
-    logm("allocating for $hid->{Ident} (from $any): ".show_reskey(@reskey));
-    foreach my $warn (@{ $candrow->{Warnings} }) {
+    logm("allocating for $hid->{Ident}: ".show_reskey(@reskey));
+    foreach my $warn (@allocwarnings, @{ $cand->{Warnings} }) {
         logm("warning about ".show_reskey(@reskey).": $warn");
     }
 
