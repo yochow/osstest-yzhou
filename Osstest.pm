@@ -232,6 +232,7 @@ sub db_retry_retry () { $db_retry_stop= 'retry'; undef; }
 sub db_begin_work ($;$) {
     my ($dbh,$tables) = @_;
     $dbh->begin_work();
+    return if $ENV{OSSTEST_DEBUG_NOSQLLOCK};
     foreach my $tab (@$tables) {
         $dbh->do("LOCK TABLE $tab IN ACCESS EXCLUSIVE MODE");
     }
