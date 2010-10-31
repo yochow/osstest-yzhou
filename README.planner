@@ -9,8 +9,7 @@ ms-queuedaemon commands
 		Now is the time to add yourself to the plan
 
 		> get-plan
-		< OK plan
-                BYTES
+		< OK get-plan BYTES
 		PLAN-DATA
 
 		[ if taking any resources now, do so at this point ]
