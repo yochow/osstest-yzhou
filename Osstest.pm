@@ -968,7 +968,10 @@ our $alloc_resources_waitstart;
 sub alloc_resources {
     my ($resourcecall) = pop @_;
     my (%xparams) = @_;
-    # $resourcecall should die (abort) or return
+    # $resourcecall should die (abort) or return a hashref
+    #    if the hashref contains keys
+    #        Allocations and Bookings       commit, completed ok
+    #        Allocations=>[] and Bookings   rollback, wait and try again
     #            0  rollback, wait and try again
     #            1  commit, completed ok
     #            2  commit, wait and try again
@@ -1033,28 +1036,28 @@ sub alloc_resources {
             opendb_tests();
 
             db_retry($flight,'running', $dbh_tests, \@all_lock_tables, sub {
-                my $pending= $dbh_tests->selectrow_hashref(<<END);
-                        SELECT * FROM resources
-                                WHERE owntaskid !=
-                     (SELECT taskid FROM tasks
-                                   WHERE type='magic' AND refkey='allocatable')
-                                 AND NOT (SELECT live FROM tasks
-                                                     WHERE taskid=owntaskid)
-                                LIMIT 1
-END
-                if ($pending) {
-                    logm("resource(s) nearly free".
-                         " ($pending->{restype} $pending->{resname}".
-                         " $pending->{shareix}), deferring");
-                    $ok= 0;
-                } else {
-                    if (!eval {
-                        $ok= $resourcecall->();
-                        1;
-                    }) {
-                        warn "resourcecall $@";
-                        $ok=-1;
-                    }
+
+		print $qserv "get-plan\n" or die $!;
+		$_= <$qserv>; defined && m/^OK get-plan (\d+)\s/ or die "$_ ?";
+
+		my $jplanlen= $1;
+		my $jplan;
+		read($qserv, $jplan, $jplanlen) == $jplanlen or die $!;
+		my $plan= from_json($jplan);
+		while (my ($reskey, $alloc) = each %{ $plan->{Allocations} }) {
+		    unshift @{ $plan->{Bookings}{$reskey} }, {
+			%$alloc, Start=>0,
+		    };
+		}
+
+		my $bookinglist;
+		if (!eval {
+		    $bookinglist= $resourcecall->($plan);
+		    $ok= @{ $bookinglist->{Allocations} } ? 1 : 0;
+		    1;
+		}) {
+		    warn "resourcecall $@";
+		    $ok=-1;
                 }
                 return db_retry_abort() unless $ok>0;
             });
