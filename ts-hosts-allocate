@@ -24,571 +24,16 @@ while (@ARGV and $ARGV[0] =~ m/^-/) {
     }
 }
 
-our @idents= @ARGV;
-
 # initialised by setup:
 our $taskid;
-our $fi;
 our %magictaskid;
-our %provisional;
-our %allocating;
-our %equivs;
+our $fi;
 
-our ($res1q, $claim_setres_q);
+#---------- general utilities, setup, etc. ----------
 
 sub show_reskey {
     my (@reskey) = @_;
     return $reskey[2] eq '0' ? "@reskey[0..1]" : "@reskey";
-}
-
-our $flagscheckq= $dbh_tests->prepare(<<END);
-        SELECT * FROM hostflags
-         WHERE hostname = ? AND hostflag = ?
-END
-
-
-sub hid_find_possibilities ($) {
-    my ($hid) = @_;
-    # returns a list of the possible candidates for $hid
-
-    my $use= $r{ $hid->{Ident} };
-
-    if (defined $use) {
-        print DEBUG "HID $hid->{Ident} USE $use\n";
-	$findhostsq= $dbh_tests->prepare(<<END);
-	    SELECT *
-	      FROM resources
-	     WHERE restype=? AND resname=? AND shareix=?
-END
-        $findhostsq->execute('host',$use,0);
-    } else {
-        print DEBUG "HID $hid->{Ident} INTENDED $fi->{intended}\n";
-	$findhostsq= $dbh_tests->prepare(<<END);
-	    SELECT *
-	      FROM resources JOIN hostflags
-		ON (restype='host' AND resname=hostname AND hostflag=?)
-END
-        $hostsq->execute("blessed-$fi->{intended}");
-    }
-
-    my @candidates;
-    my $any=0;
-
-    while (my $candrow= $findhostsq->fetchrow_hashref()) {
-        $candrow->{Warnings}= [ ];
-        $candrow->{Reskey}= join ' ', map { $candrow->{$_} },
-			      qw(restype resname shareix);
-
-        my $dbg= "HID $hid->{Ident} TRY $candrow->{Reskey}:";
-        print DEBUG "$dbg\n";
-        my @missingflags;
-
-        my $needflag= sub {
-            my ($flag) = @_;
-            print DEBUG "$dbg NEEDFLAG $flag\n";
-            $flagscheckq->execute($candrow->{resname}, $flag);
-            my $row= $flagscheckq->fetchrow_arrayref();
-            $flagscheckq->finish();
-            return if $row;
-            push @missingflags, $flag;
-        };
-
-        foreach my $flag (keys %{ $hid->{Flags} }) {
-            $needflag->($flag);
-        }
-        my $equiv= $hid->{Equiv};
-        if ($equiv && !defined $use) {
-            # if it was specified exactly we don't care about equiv classes
-            # if you specify one of a class you should specify all, then!
-            print DEBUG "$dbg EQUIV $equiv->{FormalClass}\n";
-            if (defined $equiv->{ActualClass}) {
-                $needflag->($equiv->{ActualClass});
-            } else {
-                my $equiv_actual= $dbh_tests->selectrow_hashref
-                    (<<END,{}, $candrow->{resname});
-                        SELECT * FROM hostflags
-                                WHERE hostname = ?
-                                  AND hostflag LIKE 'equiv-%'
-END
-                if (!$equiv_actual) {
-                    print DEBUG "$dbg EQUIV $equiv->{FormalClass} NO-CLASS\n";
-                    push @missingflags, "[$equiv->{FormalClass}]";
-                } else {
-		    $candrow->{EquivSet}= $equiv_actual->{hostflag};
-                    print DEBUG "$dbg EQUIV $equiv->{FormalClass}".
-                        " SETTING $equiv->{ActualClass}\n";
-                }
-	    }
-        }
-
-        print DEBUG "$dbg FLAGS MISSINGFLAGS: @missingflags.\n";
-        if (@missingflags) {
-            next unless defined $use;
-            push @{ $candrow->{Warnings} },
-                "specified host lacks flags @missingflags";
-        }
-        $any++;
-
-        print DEBUG "$dbg GOOD $candrow->{owntaskid} $reskey\n";
-
-	push @candidates $candrow;
-
-	$recentflights_q->execute($fi->{intended},
-				  $fi->{branch},
-				  $job,
-				  $candrow->{hostname});
-	$candrow->{MostRecent}= $recentflights_q->fetchrow_hashref();
-	$recentflights_q->finish();
-
-	my $refflight= $candrow->{MostRecent}{flight};
-	$elapsed_finish_q->execute($refflight, $job);
-	my ($finish) = $elapsed_finish_q->fetchrow_array();
-	$elapsed_finish_q->finish();
-	if (!defined $finish) {
-	    $latest_finish_q->execute($job, $fi->{intended}, $fi->{branch});
-	    ($finish,$refflight) = $latest_finish_q->fetchrow_array();
-	    $latest_finish_q->finish();
-	}
-	my $start;
-	if (defined $finish) {
-	    $elapsed_start_q->execute($refflight, $job);
-	    ($start) = $elapsed_start_q->fetchrow_array();
-	    $elapsed_start_q->finish();
-	}
-	$candrow->{Duration}= $finish - $start if defined($start);
-
-	print DEBUG "$dbg ALLOC PLAIN OK $candrow->{MostRecentlyUsed}\n";
-    }
-    return @candidates;
-}
-
-our $plan;
-
-sub hid_recurse ($) {
-    my ($hidix) = @_;
-
-    if ($hidix < @hids) {
-	foreach my $cand (@{ $hid->{Candidates} }) {
-	    $hid->{Selected}= $cand;
-	    hid_recurse($hidix+1);
-	}
-    } else {
-	my $variation_age= 0;
-	my $duration= undef;
-	foreach my $hid (@hids) {
-	    my $cand= $hid->{Selected};
-	    my $recent= $cand->{MostRecent};
-	    $variation_age += $recent ? now - $recent->{started} : 90*86400;
-	    $duration= $cand->{Duration} if
-		!defined($duration) ||
-		defined($cand->{Duration}) && $cand->{Duration} >= $duration;
-	}
-	$duration= 10000 if !defined $duration;
-	$duration += 10;
-
-	# when could we do this
-	my $try_hidix= 0;
-	my $try_time= 0;
-	my $confirmedok= 0;
-	my $share_wear;
-
-	for (;;) {
-	    my $hid= $hids[$hidix];
-	    my $reskey= $hid->{Selected}{Reskey};
-	    my $events= $plan->{Events}{$reskey};
-
-	    # can we do $try_hid at $try_time ?  If not, when later can we ?
-	  EVENT:
-	    foreach (my $ix=0; $ix<@$events; $ix++) {
-		# check the period from $events[$ix] to next event
-		my $startevt= $events->[$ix];
-		my $endevt= $ix<@$events ? $events->[$ix+1] : { Time=>Inf };
-		next if $endevt->{Time} <= $try_time; # quite after this
-		last if $try_time + $duration <= $startevt->{Time};
-
-		# this period overlaps
-	      CHECK:
-		{
-		    last CHECK unless $startevt->{Avail};
-		    my $eshare= $startevt->{Share};
-		    if ($eshare) {
-			last CHECK unless defined $hid->{Shared};
-			last CHECK unless $hid->{Shared} eq $eshare->{Type};
-			if (defined $share_wear) {
-			    $share_wear++ if $startevt->{Type} eq Start;
-			} else {
-			    $share_wear= $eshare->{Wear}+1;
-			}
-			last CHECK if $share_wear > $hid->{SharedMaxWear};
-			last CHECK if $eshare->{Shares} !=
-			    $hid->{SharedMaxTasks};
-		    }
-		    # it fits here
-		    next EVENT;
-		};
-		
-		# nope
-		$try_time= $endevt->{Time};
-		$confirmedok= 0;
-		undef $share_wear;
-	    }
-	    $confirmedok++;
-	    last if $confirmedok==@hids;
-	}
-
-	my $cost= $try_time + $duration - ($variation_age / 30);
-	if (!defined $best || $cost < $best->{Cost}) {
-	    $best= {
-		Cost => $cost,
-		Selections => map { $_->{Selected} }, @hids,
-		Start => $try_time,
-		Duration => $duration,
-	    };
-	}
-    }
-}
-
-
-
-	    
-	    $best_cost= $cost;
-	    $best_selections= 
-	
-	my $allocate= 0;
-	my @booking;
-	foreach my $hid (@hids) {
-	    my $reskey= $hid->{Selected}{Reskey};
-	    $allocate &&= !exists $plan->{Allocations}{$reskey};
-	    push @booking, {
-		Reskey => $reskey,
-		Xinfo => $hid->{Ident},
-		Start => $try_time,
-		End => $try_time + $duration,
-	    };
-	}
-	
-		
-	
-
-		if ($bookix<@bookings
-
-		next if $bookings
-		last if $bookix>
-	    foreach my $booking (@
-    
-		~}
-
-		$hid->{Equiv} && !defined $hid->{Equiv}{ActualClass} ?
-		$hid->{Equiv} : undef;
-	    
-                    $equiv->{ActualClass}= 
-   
-
-
-
-	    my $equivset= $cand->{EquivSet};
-	    $hid->{Equiv}{ActualClass}= $cand->{EquivSet} if $equivset;
-	my @candidates= hid_find_possibilities($hids[$hidix]);
-	    delete $hid->{Equiv}{ActualClass} if $equivset;
-
-
-
-
-        my $allocatable= $candrow->{owntaskid} == $magictaskid{allocatable}
-            || ($candrow->{owntaskid} == $taskid &&
-                defined $provisional{$reskey} &&
-                !defined $allocating{$reskey});
-
-        print DEBUG "$dbg ALLOC PLAIN $allocatable\n";
-
-        my $shared;
-        if ($candrow->{owntaskid} == $magictaskid{shared}) {
-            $candrow->{SharedResType}= 'share-'.$candrow->{restype};
-            $shared_q->execute
-                ($candrow->{SharedResType}, $candrow->{resname},
-                 $magictaskid{allocatable}, $magictaskid{preparing},
-                 $candrow->{restype}, $candrow->{resname});
-
-            $shared= $shared_q->fetchrow_hashref();
-            $shared_q->finish();
-
-            die "$candrow->{resname} ?" unless $shared;
-            $candrow->{Shared}= $shared;
-
-            print DEBUG "$dbg ALLOC ISSHARED".
-                " $shared->{sharetype} $shared->{state}".
-                " $shared->{ntasks} $shared->{wear}\n";
-
-            if (!$shared->{ntasks}) {
-                print DEBUG "$dbg ALLOC ISSHARED CAN-UNSHARE\n";
-                $allocatable= 1;
-            }
-        }
-
-        if (defined $shr &&
-            defined $shared &&
-            $shared->{sharetype} eq $shr &&
-            $shared->{wear} < $hid->{SharedMaxWear}) {
-            print DEBUG "$dbg ALLOC SHARED ST".
-                " $candrow->{SharedResType} $shared->{state}\n";
-
-            if ($shared->{state} eq 'ready') {
-                $sharing_slot_q->execute($candrow->{SharedResType},
-                                         $shared->{resname},
-                                         $magictaskid{allocatable});
-                my $slot= $sharing_slot_q->fetchrow_hashref();
-                $sharing_slot_q->finish();
-                if (!$slot) {
-                    # this is no use then
-                    print DEBUG "$dbg ALLOC SHARED AVAIL BUSY\n";
-                    next;
-                } else {
-                    print DEBUG "$dbg ALLOC SHARED AVAIL SLOTFREE".
-                        " $slot->{shareix}\n";
-                    $allocatable= 1;
-                    $slot->{Host}= $candrow->{resname};
-                    $slot->{BaseRow}= $candrow;
-                    $slot->{Warnings}= $candrow->{Warnings};
-                    $slot->{SharingReuse}= 1;
-                    $slot->{Cost}= 0;
-                    $slot->{BaseResKey}= $candrow->{BaseResKey};
-                    $candrow= $slot;
-                }
-            } else {
-                if ($shared->{ntasks}) {
-                    # someone else is preparing it, we must wait
-                    # no point thinking any more
-                    logm("host $candrow->{resname} shareable $shr".
-                         " for $hid->{Ident} is being prepared".
-                         " ($shared->{state}, $shared->{ntasks})");
-                    $cleanup->();
-                    return 0;
-                }
-                # someone was preparing it but they aren't any more
-                push @{ $candrow->{Warnings} },
-                "previous preparation apparently abandoned";
-                $allocatable= 1;
-                $candrow->{Cost}= 1;
-            }
-        } else {
-            next unless $allocatable;
-        }
-
-        die unless $allocatable;
-        push @candidates, $candrow;
-    }
-
-    
-
-sub alloc_one_hid ($) {
-    my ($hid) = @_;
-    # return values:
-    #    1: some host allocated OK
-    #    0: no hosts available, must defer
-
-
-    my $recentflights_q= $dbh_tests->prepare(<<END);
-            SELECT f.flight AS flight
-		   f.started AS started
-		     FROM flights f
-                     JOIN jobs j USING (flight)
-                     JOIN runvars r
-                             ON  f.flight=r.flight
-                            AND  r.name='host'
-                    WHERE  j.job=r.job
-                      AND  f.blessing=?
-                      AND  f.branch=?
-                      AND  j.job=?
-                      AND  r.val=?
-		      AND  (j.status=='pass' OR j.status=='fail')
-                 ORDER BY f.started DESC
-                    LIMIT 1
-END
-
-    my $latest_finish_q= $dbh_tests->prepare(<<END);
-            SELECT s.started AS t, f.flight AS flight
-		      FROM steps s JOIN flights f
-		        ON s.flight=r.flight
-		     WHERE s.job=? AND f.blessing=? AND f.branch=?
-                     ORDER BY started ASC
-		     LIMIT 1
-END
-
-    my $elapsed_start_q= $dbh_tests->prepare(<<END);
-            SELECT started AS t FROM steps
-		          WHERE flight=? AND job=?
-		          ORDER BY started ASC
-			  LIMIT 1
-END
-
-    my $elapsed_finish_q= $dbh_tests->prepare(<<END);
-            SELECT finished AS t FROM steps
-		          WHERE flight=? AND job=?
-		          ORDER BY finished DESC
-			  LIMIT 1
-END
-
-    my $shared_q= $dbh_tests->prepare(<<END);
-            SELECT s.restype, s.resname, s.sharetype, s.state, s.wear,
-                   ( SELECT count(*)
-		       FROM resources r
-	              WHERE r.restype=?
-                        AND r.resname=?
-                        AND r.owntaskid!=?
-                        AND r.owntaskid!=?
-                     ) AS ntasks
-              FROM resource_sharing s
-             WHERE s.restype=? AND s.resname=?
-END
-
-    my $sharing_slot_q= $dbh_tests->prepare(<<END);
-            SELECT * FROM resources
-	            WHERE restype=? AND resname=? AND owntaskid=?
-		    LIMIT 1
-END
-
-    my $claim_share_reuse_q= $dbh_tests->prepare(<<END);
-        UPDATE resource_sharing
-           SET wear = wear + 1
-         WHERE restype=? AND resname=?
-END
-
-    my $claim_rmshares_q= $dbh_tests->prepare(<<END);
-        DELETE FROM resources
-              WHERE restype=? AND resname=?
-                AND (owntaskid=? OR owntaskid=?)
-END
-    my $claim_noshares_q= $dbh_tests->prepare(<<END);
-        SELECT * FROM resources
-              WHERE restype=? AND resname=?
-              LIMIT 1
-END
-    my $claim_rmshare_q= $dbh_tests->prepare(<<END);
-        DELETE FROM resource_sharing
-              WHERE restype=? AND resname=?
-END
-
-    my $claim_share_new_q= $dbh_tests->prepare(<<END);
-        INSERT INTO resource_sharing
-                    (restype, resname, sharetype, state,  wear)
-             VALUES (?,       ?,       ?,         'prep', 1   )
-END
-    my $claim_share_newresource_q= $dbh_tests->prepare(<<END);
-        INSERT INTO resources
-                    (restype, resname, shareix, owntaskid, subtask)
-             VALUES (?,       ?,       ?,       ?,         ''     )
-END
-
-    my $shr= $hid->{Shared};
-    my $findhostsq;
-
-    $claim_setres_q= $dbh_tests->prepare(<<END);
-        UPDATE resources
-           SET owntaskid = ?, subtask = ?
-         WHERE restype=? AND resname=? AND shareix=?
-END
-
-    my $cleanup= sub {
-        $res1q->finish();
-        $hostsq->finish();
-    };
-
-    print DEBUG "HID $hid->{Ident} CANDS ".scalar(@candidates)."\n";
-
-    @candidates= sort { $a->{Cost} <=> $b->{Cost} } @candidates;
-    if (!@candidates) {
-        if (defined $use) {
-            logm("specified host $use for $hid->{Ident} unavailable");
-        } else {
-            logm("none of $any hosts for $hid->{Ident} available");
-        }
-        die "no possible hosts" unless $any;
-        $cleanup->();
-        return 0;
-    }
-
-    # Right, allocate this one!
-    my $candrow= $candidates[0];
-    my @reskey= map { $candrow->{$_} } qw(restype resname shareix);
-
-    print DEBUG "HID $hid->{Ident} GO @reskey\n";
-
-    if ($candrow->{SharingReuse}) {
-        print DEBUG "HID $hid->{Ident} GO @reskey SHARING REUSE\n";
-        $claim_share_reuse_q->execute($candrow->{BaseRow}{restype},
-                                      $candrow->{resname});
-        $claim_share_reuse_q->finish();
-    } else {
-        if ($candrow->{Shared}) {
-            print DEBUG "HID $hid->{Ident} GO @reskey UNSHARE\n";
-            $claim_rmshares_q->execute($candrow->{SharedResType},
-                                       $candrow->{Shared}{resname},
-                                       $magictaskid{allocatable},
-                                       $magictaskid{preparing});
-            $claim_rmshares_q->finish();
-            $claim_noshares_q->execute($candrow->{SharedResType},
-                                       $candrow->{Shared}{resname});
-            my $bad= $claim_noshares_q->fetchrow_hashref();
-            $claim_noshares_q->finish();
-            die Dumper($bad).'?' if $bad;
-            
-            $claim_rmshare_q->execute($candrow->{restype},
-                                      $candrow->{resname});
-            $claim_rmshare_q->finish();
-        }
-        if ($shr) {
-            print DEBUG "HID $hid->{Ident} GO @reskey SHARE\n";
-            $claim_setres_q->execute($magictaskid{shared},"", @reskey);
-            $claim_setres_q->finish();
-            $claim_share_new_q->execute($candrow->{restype},
-                                        $candrow->{resname},
-                                        $shr);
-            $claim_share_new_q->finish();
-            my $shrestype= 'share-'.$candrow->{restype};
-            for (my $ix=1; $ix<=$hid->{SharedMaxTasks}; $ix++) {
-                $claim_share_newresource_q->execute
-                    ($shrestype, $candrow->{resname}, $ix,
-                     ($ix==1 ? $magictaskid{allocatable}
-                      : $magictaskid{preparing}));
-                $claim_share_newresource_q->finish();
-            }
-            $reskey[0]= $shrestype;
-            $reskey[2]= 1;
-        }
-    }
-    
-    logm("allocating for $hid->{Ident} (from $any): ".show_reskey(@reskey));
-    foreach my $warn (@{ $candrow->{Warnings} }) {
-        logm("warning about ".show_reskey(@reskey).": $warn");
-    }
-
-    print DEBUG "HID $hid->{Ident} GO @reskey ALLOCATE\n";
-    my $allocd= $claim_setres_q->execute
-        ($taskid, "$flight.$job $hid->{Ident}", @reskey);
-    die unless $allocd;
-    $claim_setres_q->finish();
-
-    $candrow->{ResKey}= \@reskey;
-    $hid->{AllocInfo}= $candrow;
-    $hid->{Allocated}= $candrow->{Host};
-
-    print DEBUG "HID ALLOCATING BASE $candrow->{BaseResKey}\n";
-
-    $allocating{ $candrow->{BaseResKey} }= 1;
-    #
-    # This is actually purely to stop us using provisionally-allocated
-    # resources more than once: normally, resources which are
-    # allocated to us already aren't considered available to us unless
-    # they are in %provisionals.  If they are in there then we may
-    # allocate them "from ourself".  But that means we could allocate
-    # the same resource for two different purposes, so this catches
-    # that corner case.
-    #
-    # Provisional allocations are always of bases, not shares, and that's
-    # what the candidate searcher loop looks up in %allocating.
-
-    $cleanup->();
-    return 1;
 }
 
 sub setup () {
@@ -608,86 +53,143 @@ END
     }
 }
 
-sub new_provisionals {
-    our (@hids) = @_;
-    my @provs;
+#---------- prepared sql statements ----------
+# all users of these must ->finish them afterwards, to avoid db deadlock
+
+our ($flagscheckq, $equivflagscheckq, $recentflights_q);
     
-    foreach my $hid (@hids) {
-        print DEBUG "PROV-NEW HID $hid->{Ident}\n";
+sub prepare_statements () {
+    $flagscheckq= $dbh_tests->prepare(<<END);
+	    SELECT * FROM hostflags
+	     WHERE hostname = ? AND hostflag = ?
+END
 
-        my $candrow= $hid->{AllocInfo};
-        next unless $candrow;
-        print DEBUG "PROV-NEW HID $hid->{Ident} CAND $candrow->{resname}\n";
+    $equivflagscheckq= $dbh_tests->prepare(<<END);
+	    SELECT * FROM hostflags
+		    WHERE hostname = ?
+		      AND hostflag LIKE 'equiv-%'
+END
 
-        next if $hid->{Shared};
+    $recentflights_q= $dbh_tests->prepare(<<END);
+            SELECT f.flight AS flight
+		   f.started AS started
+		     FROM flights f
+                     JOIN jobs j USING (flight)
+                     JOIN runvars r
+                             ON  f.flight=r.flight
+                            AND  r.name='host'
+                    WHERE  j.job=r.job
+                      AND  f.blessing=?
+                      AND  f.branch=?
+                      AND  j.job=?
+                      AND  r.val=?
+		      AND  (j.status=='pass' OR j.status=='fail')
+                 ORDER BY f.started DESC
+                    LIMIT 1
+END
 
-        my (@reskey)= ($candrow->{restype},
-                       $candrow->{resname},
-                       $candrow->{shareix});
-        $hid->{ProvResKey}= \@reskey;
-        print DEBUG "PROV-NEW HID $hid->{Ident} NO-SHARE @reskey\n";
+    $latest_finish_q= $dbh_tests->prepare(<<END);
+            SELECT s.started AS t, f.flight AS flight
+		      FROM steps s JOIN flights f
+		        ON s.flight=r.flight
+		     WHERE s.job=? AND f.blessing=? AND f.branch=?
+                     ORDER BY started ASC
+		     LIMIT 1
+END
 
-        next if defined $provisional{"@reskey"};
-        print DEBUG "PROV-NEW HID $hid->{Ident} NEW-PROV\n";
+    $elapsed_start_q= $dbh_tests->prepare(<<END);
+            SELECT started AS t FROM steps
+		          WHERE flight=? AND job=?
+		          ORDER BY started ASC
+			  LIMIT 1
+END
 
-        push @provs, $hid;
-    }
-    return @provs;
+    $elapsed_finish_q= $dbh_tests->prepare(<<END);
+            SELECT finished AS t FROM steps
+		          WHERE flight=? AND job=?
+		          ORDER BY finished DESC
+			  LIMIT 1
+END
+
+    # for allocation
+
+    $alloc_findres_q= $dbh_tests->prepare(<<END);
+	    SELECT *
+	      FROM resources
+	     WHERE restype=? AND resname=? AND shareix=0
+END
+
+    $alloc_shared_q= $dbh_tests->prepare(<<END);
+            SELECT s.restype, s.resname, s.sharetype, s.state, s.wear,
+                   ( SELECT count(*)
+		       FROM resources r
+	              WHERE r.restype=?
+                        AND r.resname=?
+                        AND r.owntaskid!=?
+                        AND r.owntaskid!=?
+                     ) AS ntasks
+              FROM resource_sharing s
+             WHERE s.restype=? AND s.resname=?
+END
+
+    $alloc_sharing_slot_q= $dbh_tests->prepare(<<END);
+            SELECT * FROM resources
+	            WHERE restype=? AND resname=? AND owntaskid=?
+		    LIMIT 1
+END
+
+    $claim_share_reuse_q= $dbh_tests->prepare(<<END);
+        UPDATE resource_sharing
+           SET wear = wear + 1
+         WHERE restype=? AND resname=?
+END
+
+    $claim_maxshare_q= $dbh_tests->prepare(<<END);
+        SELECT max(shareix) AS shares
+          FROM resources WHERE restype=? AND resname=?
+END
+
+    $claim_rmshares_q= $dbh_tests->prepare(<<END);
+        DELETE FROM resources
+              WHERE restype=? AND resname=?
+                AND (owntaskid=? OR owntaskid=?)
+END
+
+    $claim_noshares_q= $dbh_tests->prepare(<<END);
+        SELECT * FROM resources
+              WHERE restype=? AND resname=?
+              LIMIT 1
+END
+
+    $claim_rmshare_q= $dbh_tests->prepare(<<END);
+        DELETE FROM resource_sharing
+              WHERE restype=? AND resname=?
+END
+
+    $claim_setres_q= $dbh_tests->prepare(<<END);
+        UPDATE resources
+           SET owntaskid = ?, subtask = ?
+         WHERE restype=? AND resname=? AND shareix=?
+END
+    $claim_share_new_q= $dbh_tests->prepare(<<END);
+        INSERT INTO resource_sharing
+                    (restype, resname, sharetype, state,  wear)
+             VALUES (?,       ?,       ?,         'prep', 1   )
+END
+    $claim_share_newresource_q= $dbh_tests->prepare(<<END);
+        INSERT INTO resources
+                    (restype, resname, shareix, owntaskid, subtask)
+             VALUES (?,       ?,       ?,       ?,         ''     )
+END
+
 }
 
-sub grab_more_provisionals {
-    our (@hids) = @_;
+#---------- finding possibilites for a particular host ----------
 
-    foreach my $hid (@hids) {
-        my $reskey= $hid->{ProvResKey};
-        print DEBUG "PROV-MORE HID $hid->{Ident} @$reskey\n";
+our @hids;
 
-        $res1q->execute(@$reskey);
-        my $was= $res1q->fetchrow_hashref();
-        $res1q->finish();
-        print DEBUG "PROV-MORE HID $hid->{Ident} WAS $was->{owntaskid}\n";
-
-        next unless $was->{owntaskid} == $magictaskid{allocatable};
-        print DEBUG "PROV-MORE HID $hid->{Ident} WAS ALLOCATABLE\n";
-        
-        $claim_setres_q->execute($taskid, "$flight.$job (prov.)", @$reskey);
-        $claim_setres_q->finish();
-        $provisional{"@$reskey"}= 1;
-
-        logm("provisionally allocated: $hid->{Ident} ".show_reskey(@$reskey));
-    }
-    print DEBUG "PROV-MORE DONE\n";
-}
-
-sub free_provisionals_all_except {
-    our (@keephids) = @_;
-    foreach my $hid (@keephids) {
-        next unless $hid->{AllocInfo};
-        my $reskey= "@{ $hid->{AllocInfo}{ResKey} }";
-        print DEBUG "PROV CLEANING $reskey\n";
-        delete $provisional{$reskey};
-    }
-    foreach my $reskey (sort keys %provisional) {
-        my (@reskey) = split / /, $reskey;
-        logm("cancelling provisional allocation ".show_reskey(@reskey));
-        $res1q->execute(@reskey);
-        my $was= $res1q->fetchrow_hashref();
-        $res1q->finish();
-        print DEBUG "PROV CLEANING @reskey WAS $was->{owntaskid}\n";
-        die "@reskey $was->{owntaskid}" unless $was->{owntaskid} == $taskid;
-        $claim_setres_q->execute($magictaskid{idle}, "", @reskey);
-        $claim_setres_q->finish();
-    }
-    print DEBUG "PROV CLEANED.\n";
-}
-
-sub alloc_hosts () {
-    my @hids;
-    my %allflags;
-
-    # greedy allocator, but we sort by flags wanted so
-    # at least we don't do things obviously stupidly
-    foreach my $ident (@idents) {
+sub compute_hids () {
+    foreach my $ident (@ARGV) {
         my @flags= get_hostflags($ident);
         print DEBUG "HID $ident FLAGS @flags\n";
         my $hid= { Ident => $ident };
@@ -724,93 +226,526 @@ sub alloc_hosts () {
         print DEBUG "HID $ident FLAGS ".(join ',', sort keys %flags)."\n";
         push @hids, $hid;
     }
+}
 
-    my $flagscountq= $dbh_tests->prepare(<<END);
-        SELECT count(*)
-          FROM hostflags
-         WHERE hostflag = ?
+sub hid_find_possibilities ($) {
+    my ($hid) = @_;
+
+    delete $hid->{Candidates};
+
+    my $use= $r{ $hid->{Ident} };
+
+    if (defined $use) {
+        print DEBUG "HID $hid->{Ident} USE $use\n";
+	$findhostsq= $dbh_tests->prepare(<<END);
+	    SELECT *
+	      FROM resources
+	     WHERE restype=? AND resname=? AND shareix=0
 END
-    foreach my $f (keys %allflags) {
-        $flagscountq->execute($f);
-        my $row= $flagscountq->fetchrow_arrayref();
-        $flagscountq->finish();
-        die unless defined $row;
-        print DEBUG "FLAG $f $row->[0]\n";
-        $allflags{$f}= $row->[0];
+        $findhostsq->execute('host',$use);
+    } else {
+        print DEBUG "HID $hid->{Ident} INTENDED $fi->{intended}\n";
+	$findhostsq= $dbh_tests->prepare(<<END);
+	    SELECT *
+	      FROM resources JOIN hostflags
+		ON (restype='host' AND shareix=0 AND
+		    resname=hostname AND hostflag=?)
+END
+        $hostsq->execute("blessed-$fi->{intended}");
     }
-    my @allflags = sort { $allflags{$a} <=> $allflags{$b} } keys %allflags;
 
-    print DEBUG "FLAGS ALL @allflags\n";
+    my @candidates;
+    my $any=0;
 
+    while (my $candrow= $findhostsq->fetchrow_hashref()) {
+        $candrow->{Warnings}= [ ];
+        $candrow->{Reso}= "$candrow->{restype} $candrow->{resname}";
+
+        my $dbg= "HID $hid->{Ident} TRY $candrow->{Reso}:";
+        print DEBUG "$dbg\n";
+        my @missingflags;
+
+        my $needflag= sub {
+            my ($flag) = @_;
+            print DEBUG "$dbg NEEDFLAG $flag\n";
+            $flagscheckq->execute($candrow->{resname}, $flag);
+            my $row= $flagscheckq->fetchrow_arrayref();
+            $flagscheckq->finish();
+            return if $row;
+            push @missingflags, $flag;
+        };
+
+        foreach my $flag (keys %{ $hid->{Flags} }) {
+            $needflag->($flag);
+        }
+        my $equiv= $hid->{Equiv};
+        if ($equiv && !defined $use) {
+            # if it was specified exactly we don't care about equiv classes
+            # if you specify one of a class you should specify all, then!
+            print DEBUG "$dbg EQUIV $equiv->{FormalClass}\n";
+	    $equivflagscheckq->execute($candrow->{resname});
+	    my $erow= $equivflagscheckq->fetchrow_hashref();
+	    if (!$erow) {
+		print DEBUG "$dbg EQUIV $equiv->{FormalClass} NO-CLASSES\n";
+		next;
+	    }
+	    my $eq= $erow->{hostflag};
+	    print DEBUG "$dbg EQUIV $equiv->{FormalClass} MAYBE $eq\n";
+	    $candrow->{EquivActual}= $eq;
+	    $erow= $equivflagscheckq->fetchrow_hashref();
+	    if ($erow) {
+		push @{ $candrow->{Warnings} },
+		    "host has multiple equivalence class flags";
+	    }
+	    $equivflagscheckq->finish();
+	}
+
+        print DEBUG "$dbg FLAGS MISSINGFLAGS: @missingflags.\n";
+        if (@missingflags) {
+            next unless defined $use;
+            push @{ $candrow->{Warnings} },
+                "specified host lacks flags @missingflags";
+        }
+        $any++;
+
+        print DEBUG "$dbg GOOD\n";
+
+	$recentflights_q->execute($fi->{intended},
+				  $fi->{branch},
+				  $job,
+				  $candrow->{hostname});
+	my $mostrecent=$recentflights_q->fetchrow_hashref();
+	$recentflights_q->finish();
+	if ($mostrecent) {
+	    $candrow->{MostRecent}= $mostrecent;
+	    print DEBUG "$dbg GOOD MOST-RECENT $mostrecent->{flight}\n";
+	}
+
+	my $refflight= $candrow->{MostRecent}{flight};
+	$elapsed_finish_q->execute($refflight, $job);
+	my ($finish) = $elapsed_finish_q->fetchrow_array();
+	$elapsed_finish_q->finish();
+	if (!defined $finish) {
+	    print DEBUG "$dbg GOOD DURATION NONE-EXACT\n";
+	    $latest_finish_q->execute($job, $fi->{intended}, $fi->{branch});
+	    ($finish,$refflight) = $latest_finish_q->fetchrow_array();
+	    $latest_finish_q->finish();
+	}
+	my $start;
+	if (defined $finish) {
+	    print DEBUG "$dbg GOOD DURATION REF $refflight\n";
+	    $elapsed_start_q->execute($refflight, $job);
+	    ($start) = $elapsed_start_q->fetchrow_array();
+	    $elapsed_start_q->finish();
+	}
+	if (defined $start) {
+	    $candrow->{Duration}= $finish - $start;
+	    print DEBUG "$dbg GOOD DURATION $candrow->{Duration}\n";
+	}
+
+	push @candidates $candrow;
+	print DEBUG "$dbg CANDIDATE.\n";
+    }
+    if (!@candidates) {
+        if (defined $use) {
+            logm("specified host $use for $hid->{Ident} nonexistent?");
+        } else {
+            logm("no suitable host for $hid->{Ident} (out of $any)");
+        }
+    }
+
+    $hid->{Candidates} = @candidates;
+}
+
+#---------- constructing a plan ----------
+
+sub hid_class_size {
+    my ($hid) = @_;
+    my $equiv= $hid->{Equiv};
+    return 0 unless $equiv;
+    return $equiv->{Wanted};
+}
+
+sub optimally_order_hids () {
+    @hids= sort {
+	hid_class_size($b) <=> hid_class_size($a) ||
+	@{ $a->{Candidates} } <=> @{ $b->{Candidates} }
+    } @hids;
+    print DEBUG "ORDER ".(join ' ', map { $_->{Ident} } @hids)."\n";
+}
+
+# reset each time around:
+our $plan;
+our $best;
+
+sub hid_recurse ($$) {
+    my ($actualmap, $hidix) = @_;
+    # fills in the plan from $hidix (inclusive) to the end
+
+    my $dbg= sprintf "RECURSE %*s", $hidix*2, '';
+    if ($hidix < @hids) {
+	print DEBUG "$dbg...\n";
+	foreach my $cand (@{ $hid->{Candidates} }) {
+	    print DEBUG "$dbg CAND $candrow->{Reso}\n";
+	    my $poss_actual= $cand->{EquivActual};
+	    my $newactualmap= $actualmap;
+	    if (defined $poss_actual) { # i.e. iff $hid->{Equiv} and not $use
+		my $equiv= $hid->{Equiv};
+		my $formal= $equiv->{FormalClass};
+		my $already= $actualmap{$formal};
+		if (defined $already) {
+		    if ($already ne $poss_actual) {
+			print DEBUG "$dbg CAND $candrow->{Reso} EQUIV".
+			    " WRONG $formal: $already != $poss_actual\n";
+			next;
+		    }
+		} else {
+		    print DEBUG "$dbg CAND $candrow->{Reso} EQUIV".
+			" SET $formal: $poss_actual\n";
+		    $newactualmap= { %$actualmap, $formal => $poss_actual };
+		}
+	    }
+	    
+	    $hid->{Selected}= $cand;
+	    hid_recurse($newactualmap, $hidix+1);
+	}
+	return;
+    }
+
+    # hah, got to the end, see when we could do it and calculate the cost
+
+    print DEBUG "$dbg EVAL\n";
+
+    my $variation_age= 0;
+    my $duration= undef;
     foreach my $hid (@hids) {
-        $hid->{Priority}= join '', map {
-            exists($hid->{Flags}{$_}) ? '1' : '0'
-            } @allflags;
-        print DEBUG "HID $hid->{Ident} PRIORITY $hid->{Priority}\n";
+	my $cand= $hid->{Selected};
+	my $recent= $cand->{MostRecent};
+	$variation_age += $recent ? now - $recent->{started} : 90*86400;
+	$duration= $cand->{Duration} if
+	    !defined($duration) ||
+	    defined($cand->{Duration}) && $cand->{Duration} >= $duration;
     }
-    @hids= sort { $b->{Priority} cmp $a->{Priority} } @hids;
+    $duration= 10000 if !defined $duration;
+    $duration += 10;
 
-    my $finalok= 0;
-    while (!$finalok) {
-        alloc_resources(WaitStartAdjust => (@idents * -10),
-                        WaitStart => $fi->{started},
-                        sub {
+    print DEBUG "$dbg EVAL DURATION $duration\n";
 
-            logm("allocating hosts: ".join(' ', map { $_->{Ident} } @hids));
+    # when could we do this
+    my $try_hidix= 0;
+    my $try_time= 0;
+    my $confirmedok= 0;
+    my $share_wear;
 
-            undef %allocating;
-            foreach my $hid (@hids) {
-                delete $hid->{AllocInfo};
-                delete $hid->{Allocated};
-                delete $hid->{ProvResKey};
-            }
-            foreach my $equiv (values %equivs) {
-                delete $equiv->{ActualClass};
-            }
+    for (;;) {
+	my $hid= $hids[$hidix];
+	my $reso= $hid->{Selected}{Reso};
+	my $events= $plan->{Events}{$reso};
 
-            my $allok= 1;
-            foreach my $hid (@hids) {
-                $allok= 0 unless
-                    alloc_one_hid($hid);
-            }
+	# can we do $try_hid at $try_time ?  If not, when later can we ?
+      EVENT:
+	foreach (my $ix=0; $ix<@$events; $ix++) {
+	    print DEBUG "$dbg PLAN LOOP hids[$hidix]=$hids[$hidix]{Ident}".
+		" try=$try_time confirmed=$confirmedok".
+		(defined($share_wear) ? " wear=$share_wear" : "")."\n";
 
-            # Now @hids contains a proposed, perhaps partial, allocation
+	    # check the period from $events[$ix] to next event
+	    my $startevt= $events->[$ix];
+	    my $endevt= $ix<@$events ? $events->[$ix+1] : { Time=>Inf };
+	    next if $endevt->{Time} <= $try_time; # quite after this
+	    last if $try_time + $duration <= $startevt->{Time};
 
-            if ($allok) {
-                print DEBUG "YES YES YES\n";
-                free_provisionals_all_except(@hids);
-                $finalok= 1;
-                return 1;
-            }
+	    # this period overlaps
+	  CHECK:
+	    {
+		last CHECK unless $startevt->{Avail};
+		my $eshare= $startevt->{Share};
+		if ($eshare) {
+		    last CHECK unless defined $hid->{Shared};
+		    last CHECK unless $hid->{Shared} eq $eshare->{Type};
+		    if (defined $share_wear) {
+			$share_wear++ if $startevt->{Type} eq Start;
+		    } else {
+			$share_wear= $eshare->{Wear}+1;
+		    }
+		    last CHECK if $share_wear > $hid->{SharedMaxWear};
+		    last CHECK if $eshare->{Shares} !=
+			$hid->{SharedMaxTasks};
+		}
+		# it fits here
+		next EVENT;
+	    };
+		
+	    # nope
+	    $try_time= $endevt->{Time};
+	    $confirmedok= 0;
+	    undef $share_wear;
+	}
+	print DEBUG "$dbg PLAN NEXT hids[$hidix]=$hids[$hidix]{Ident}".
+	    " try=$try_time confirmed=$confirmedok".
+	    (defined($share_wear) ? " wear=$share_wear" : "")."\n";
 
-            print DEBUG "HARRMFH\n";
-
-            # Does this proposed allocation contain any hosts which we
-            # don't have already provisionally allocated, and which
-            # we would like to provisionally allocate ?
-            my @newprovs= new_provisionals(@hids);
-
-            print DEBUG "HARRMFH ".scalar(@newprovs)."\n";
-
-            return 0; # unless @newprovs; # keep what we have, and wait
-
-            logm("host allocation: need to wait, rolling back");
-
-            alloc_resources_rollback_begin_work();
-            free_provisionals_all_except(@hids);
-            grab_more_provisionals(@newprovs);
-
-            return 2;
-        });
+	$confirmedok++;
+	$hidix++;
+	$hidix %= @hids;
+	last if $confirmedok==@hids;
     }
+    my $cost= $try_time + $duration - ($variation_age / 30);
+    print DEBUG "$dbg FINAL try=$try_time va=$variation_age cost=$cost\n";
 
-    foreach my $hid (@hids) {
-        my $hn= $hid->{Allocated};;
-        die $hid->{Ident} unless defined $hn;
-            
-        store_runvar($hid->{Ident}, $hn);
+    if (!defined $best || $cost < $best->{Cost}) {
+        print DEBUG "$dbg FINAL BEST: ".
+	    (join ' ', map { $_->{Selected}{Reso} } @hids);
+	$best= {
+	    Cost => $cost,
+	    Selections => map { $_->{Selected} }, @hids,
+	    Start => $try_time,
+	    Duration => $duration,
+	};
     }
 }
 
+#---------- committing to a plan ----------
+
+sub alloc_hosts () {
+    alloc_resources(WaitStartAdjust => (@idents * -10),
+		    WaitStart => $fi->{started},
+		    \&attempt_allocation);
+}
+
+sub attempt_allocation {
+    ($plan) = @_;
+    undef $best;
+
+    logm("allocating hosts: ".join(' ', map { $_->{Ident} } @hids));
+
+    prepare_statements();
+
+    foreach my $hid (@hids) {
+	delete $hid->{Allocated};
+	hid_find_possibilites($hid);
+    }
+    optimally_order_hids();
+
+    hid_recurse({}, 0);
+
+    if (!$best) {
+	logm("no plan is possible");
+	die "no plan is possible";
+    }
+
+    foreach (my $ix=0; $ix<@hids; $ix++) {
+	$hids[$ix]{Selected}= $best->{Selections}[$ix];
+    }
+
+    my $retval=0;
+
+    if (!$best->{Start}) {
+	$retval= 1;
+	foreach my $hid (@hids) {
+	    my $got= actual_allocation($hid);
+	    if (!$got) {
+		$retval= 0;
+		last;
+	    }
+	    $hid->{Allocated}= $got;
+	}
+    }
+    if (!$retval) {
+	foreach my $hid (@hids) { delete $hid->{Allocated}; }
+    }
+
+    if ($retval) {
+	logm("host allocation: successful, reporting to planner.");
+    } else {
+	logm("host allocation: planned start in $best->{Start} seconds.");
+    }
+
+    my $booklist= compute_booking_list();
+    return ($retval, $boolist);
+}
+
+sub compute_booking_list () {
+    my @bookings;
+    foreach my $hid (@hids) {
+	my $sel= $hid->{Selected};
+	my $alloc= $hid->{Allocated};
+	my $book= $alloc || { };
+	$book->{Reso}= "$sel->{restype} $sel->{resname}";
+	$book->{Xinfo}= $hid->{Ident};
+	$book->{Start}= $best->{Start},
+	$book->{End}= $best->{Start} + $best->{Duration},
+	push @bookings, $book;
+    }
+    return { Bookings => \@bookings };
+}
+
+#---------- actually allocate things ----------
+
+sub actual_allocation ($) {
+    # if successful returns { Allocated =>, Share => }
+    # as for booking list otherwise undef
+
+    my ($hid) = @_;
+
+    my $sel= $hid->{Selected};
+    my $shr= $hid->{Shared};
+
+    die unless $sel->{shareix}==0;
+
+    $alloc_findres_q->execute($sel->{restype}, $sel->{resname});
+    my $cand= $alloc_findres_q->fetchrow_hashref();
+    $alloc_findres_q->finish();
+    if (!$cand) { warn "resource $sel->{Reso} ?"; return undef; }
+
+    my $allocatable= $cand->{owntaskid} == $magictaskid{allocatable};
+    printf DEBUG "%s ALLOC PLAIN %d\n", $dbg, $allocatable;
+
+    my $shared;
+    my $shrestype= 'share-'.$sel->{restype};
+    if ($cand->{owntaskid} == $magictaskid{shared}) {
+	$alloc_shared_q->execute
+                ($shrestype, $sel->{resname},
+                 $magictaskid{allocatable}, $magictaskid{preparing},
+                 $sel->{restype}, $sel->{resname});
+	$shared= $alloc_shared_q->fetchrow_hashref();
+	$alloc_shared_q->finish();
+
+	if (!$shared) { warn "$candrow->{resname} ?"; return undef; }
+
+	print DEBUG "$dbg ALLOC ISSHARED".
+	    " $shared->{sharetype} $shared->{state}".
+	    " $shared->{ntasks} $shared->{wear}\n";
+
+	if (!$shared->{ntasks}) {
+	    print DEBUG "$dbg ALLOC ISSHARED CAN-UNSHARE\n";
+	    $allocatable= 1;
+        }
+    }
+
+    if (defined $shr &&
+	defined $shared &&
+	$shared->{sharetype} eq $shr &&
+	$shared->{wear} < $hid->{SharedMaxWear}) {
+
+	print DEBUG "$dbg ALLOC SHARED ST $shrestype $shared->{state}\n";
+
+	if ($shared->{state} eq 'ready') {
+	    $alloc_sharing_slot_q->execute($shrestype, $shared->{resname},
+					   $magictaskid{allocatable});
+	    my $slot= $sharing_slot_q->fetchrow_hashref();
+	    $sharing_slot_q->finish();
+	    if (!$slot) {
+		# this is no use then
+		print DEBUG "$dbg ALLOC SHARED AVAIL BUSY\n";
+		warn "no slots $shrestype $shared->{resname}";
+		return undef;
+	    } else {
+		print DEBUG "$dbg ALLOC SHARED AVAIL SLOTFREE".
+		    " $slot->{shareix}\n";
+		$allocatable= 1;
+		$cand= $slot;
+	    }
+	} else {
+	    if ($shared->{ntasks}) {
+		warn "$shrestype $shared->{resname} $shared->{state} ?";
+		return undef;
+
+                # someone was preparing it but they aren't any more
+                push @{ $candrow->{Warnings} },
+                    "previous preparation apparently abandoned";
+                $allocatable= 1;
+            }
+        } else {
+            next unless $allocatable;
+        }
+    }
+
+    if (!$allocatable) {
+	warn "$sel->{restype} $sel->{resname} ?";
+	return undef;
+    }
+
+    # Right, allocate this one!
+    my @reskey= map { $cand->{$_} } qw(restype resname shareix);
+    print DEBUG "HID $hid->{Ident} ALLOC @reskey\n";
+
+    my $bookalloc= { };
+
+    if ($cand != $sel) {
+	# sharing reuse
+        print DEBUG "HID $hid->{Ident} GO @reskey SHARING REUSE\n";
+
+        $claim_share_reuse_q->execute($sel->{restype}, $cand->{resname});
+        $claim_share_reuse_q->finish();
+
+	$claim_maxshare_q->execute($shrestype, $cand->{resname});
+	my ($nshares) = $claim_maxshare_q->fetchrow_array();
+	$claim_maxshare_q->finish();
+
+	$bookalloc->{Share}= {
+	    Type => $shr,
+	    Shares => $nshares,
+	};
+    } else {
+        if ($shared) {
+            print DEBUG "HID $hid->{Ident} GO @reskey UNSHARE\n";
+            $claim_rmshares_q->execute($shrestype, $cand->{resname},
+                   $magictaskid{allocatable}, $magictaskid{preparing});
+            $claim_rmshares_q->finish();
+
+            $claim_noshares_q->execute($shrestype, $cand->{resname});
+            my $bad= $claim_noshares_q->fetchrow_hashref();
+            $claim_noshares_q->finish();
+            die Dumper($bad).'?' if $bad;
+
+            $claim_rmshare_q->execute($cand->{restype},$cand->{resname});
+            $claim_rmshare_q->finish();
+        }
+        if ($shr) {
+            print DEBUG "HID $hid->{Ident} GO @reskey SHARE\n";
+            $claim_setres_q->execute($magictaskid{shared},"",
+				     $cand->{restype},$cand->{resname},0);
+            $claim_setres_q->finish();
+
+            $claim_share_new_q->execute($cand->{restype},$cand->{resname},
+					$shr);
+            $claim_share_new_q->finish();
+
+            for (my $ix=1; $ix<=$hid->{SharedMaxTasks}; $ix++) {
+                $claim_share_newresource_q->execute
+                    ($shrestype, $cand->{resname}, $ix,
+                     ($ix==1 ? $magictaskid{allocatable}
+                      : $magictaskid{preparing}));
+                $claim_share_newresource_q->finish();
+            }
+            $reskey[0]= $shrestype;
+            $reskey[2]= 1;
+
+	    $bookalloc->{Share}= {
+		Type => $shr,
+		Shares => $hid->{SharedMaxTasks},
+	    };
+        }
+    }
+    
+    logm("allocating for $hid->{Ident} (from $any): ".show_reskey(@reskey));
+    foreach my $warn (@{ $candrow->{Warnings} }) {
+        logm("warning about ".show_reskey(@reskey).": $warn");
+    }
+
+    print DEBUG "HID $hid->{Ident} GO @reskey ALLOCATE\n";
+    my $allocd= $claim_setres_q->execute
+        ($taskid, "$flight.$job $hid->{Ident}", @reskey);
+    die unless $allocd;
+    $claim_setres_q->finish();
+
+    $bookalloc->{Allocated}= { Shareix => $reskey[2] };
+    return $bookalloc;
+}
+
+#---------- main program ----------
+
 setup();
+compute_hids();
 alloc_hosts();
