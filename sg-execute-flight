@@ -35,11 +35,15 @@ proc check {} {
                           OR d.status = 'preparing'
                           OR d.status = 'running'
                           OR d.status = 'retriable' )
-                       AND d.job IN (SELECT val FROM runvars r
+                       AND (d.job IN (SELECT val FROM runvars r
                                      WHERE r.flight = $flight
                                        AND r.job = j.job
-                                       AND r.name LIKE '%job'
-                                       AND r.val NOT LIKE '%.%')
+                                       AND r.name LIKE '%job')
+                        OR d.flight || '.' || d.job IN
+                                     (SELECT val FROM runvars r
+                                     WHERE r.flight = $flight
+                                       AND r.job = j.job
+                                       AND r.name LIKE '%job'))
                    )
          ORDER BY job
     " maybe-spawn-job
