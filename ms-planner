@@ -94,13 +94,14 @@ END
     our $allocations_shares_q ||= $dbh_tests->prepare(<<END);
         SELECT count(*) AS shares FROM resources WHERE restype=? AND resname=?
 END
-    my $shares= $allocations_shares_q->execute("share-$restype", $resname);
+    $allocations_shares_q->execute("share-$restype", $resname);
+    my $shares= $allocations_shares_q->fetchrow_hashref();
     $allocations_shares_q->finish();
 
     return {
-	Type => $sharing->{type},
+	Type => $sharing->{sharetype},
 	Wear => $sharing->{wear},
-	Shares => $shares->{count},
+	Shares => $shares->{shares},
     };
 }
 
