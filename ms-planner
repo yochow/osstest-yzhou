@@ -572,7 +572,8 @@ sub cmd_show_html () {
 	    if (!$content->{Printed}) {
 		my $show= join "<br>",
                     map { encode_entities($_) } @{ $content->{Show} };
-		$show= 'Idle' if !length $show;
+		$show= 'Idle' if !length $show &&
+                    $event->{Start} >= $plan->{Start};
                 my $colour=
                     !$content->{Avail} ?
                     ($content->{Allocated} ? "#ff8888" : "#ffff88") :
