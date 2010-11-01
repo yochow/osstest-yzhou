@@ -7,7 +7,7 @@ source osstestlib.tcl
 readconfig
 
 proc check {} {
-    global flight jobinfo running
+    global flight jobinfo running blessing
 
     set nqueued [pg_execute dbh "
         SELECT job FROM jobs j
@@ -21,6 +21,7 @@ proc check {} {
 
     if {!$nqueued && !$nrunning} {
         log "flight $flight ending."
+        exec ./cs-flight-bless $flight $blessing 2>@ stderr
         exit 0
     }
 
@@ -119,10 +120,9 @@ proc parse-args {} {
 }
 
 proc main {} {
-    global running flight blessing
+    global running flight
     set running {}
     while 1 main_iteration
-    exec ./cs-flight-bless $flight $blessing 2>@ stderr
 }
 
 parse-args
