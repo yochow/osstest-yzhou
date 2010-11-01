@@ -28,6 +28,7 @@ Plan is:
 		map from
 			"restype resname shareix"
 		to
+			Task	owntaskid
 			Info    info string about who this is *
 			Start   abs start time *
 			End	abs planned end time *
@@ -47,6 +48,7 @@ Plan is:
 			Allocated	optional, in start and end,
 					  struct containing
 						Shareix
+						Task
 
 	* = internal to plan
 	** = computed by launder_check_plan

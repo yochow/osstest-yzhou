@@ -219,7 +219,8 @@ END
 	}
 
 	$current{$reskey}= 1;
-	return if $plan->{Allocations}{$reskey};
+        my $oldalloc= $plan->{Allocations}{$reskey};
+	return if $oldalloc && $oldalloc->{Task}==$arow->{owntaskid};
 
 	# rogue allocation!
 	my $endtime;
@@ -230,9 +231,10 @@ END
 	} else {
 	    print DEBUG "rogue $reso $shareix: $arow->{owntaskid} $endtime\n";
 	    $endtime= $plan->{Start} + $c{PlanRogueAllocationDuration};
-	    $info= "rogue task $arow->{owntaskid} $arow->{subtask}";
+	    $info= "rogue task $arow->{subtask}";
 	}
 	$plan->{Allocations}{$reskey}= {
+            Task => $arow->{owntaskid},
 	    Info => $info,
 	    Start => $plan->{Start},
 	    End => $endtime,
@@ -273,18 +275,23 @@ END
 	    $end_exptd= $started + $duration_exptd;
 	}
 
+        my @ealloc= (
+                     Task => $alloc->{Task},
+                     Shareix => $shareix,
+                    );
+        
 	push @{ $plan->{Events}{$reso} }, {
 	    Time => $alloc->{Start},
 	    Info => $alloc->{Info},
 	    Type => Start,
 	    ($share ? (Share => { %$share }) : ()),
-	    Allocated => { Shareix => $shareix },
+	    Allocated => { @ealloc },
 	}, {
 	    Time => $end_exptd,
 	    Info => $alloc->{Info},
 	    Type => End,
 	    ($share ? (Share => { %$share }) : ()),
-	    Allocated => { Shareix => $shareix },
+	    Allocated => { @ealloc },
 	};
     }
 
@@ -390,13 +397,16 @@ sub cmd_book_resources () {
 	my $jalloc= $jbook->{Allocated};
 	if ($jalloc) {
             my $shareix= parse_number($jalloc->{Shareix});
+            my $task= parse_number($jalloc->{Task});
 	    @alloc= (
 		     Shareix => $shareix,
+                     Task => $task,
 		     );
 
             my $reskey= "$jbook->{Reso} $shareix";
             die if exists $plan->{Allocations}{$reskey};
             $plan->{Allocations}{$reskey}= {
+                Task => $task,
                 Info => $info,
                 Start => $starttime,
                 End => $endtime,
@@ -488,7 +498,8 @@ sub cmd_show_html () {
 		$type eq End ? ($evt->{Share} ? "End $evt->{Info}" : "") :
 		($type eq Overrun || $type eq Unshare)
 		? ("$type $evt->{Info}") :
-		($evt->{Allocated} ? Allocation : Booking)." ".$evt->{Info};
+		($evt->{Allocated} ? "Allocation $evt->{Allocated}{Task}"
+                 : Booking)." ".$evt->{Info};
 	    my $share= $evt->{Share};
 	    if ($share) {
 		$show .= sprintf(" [%s %d/%d %d]",
