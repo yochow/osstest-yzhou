@@ -1068,7 +1068,8 @@ sub alloc_resources {
 
 	    if ($bookinglist && $ok!=-1) {
 		my $jbookings= to_json($bookinglist);
-                logm("resource allocation: booking $jbookings\n");
+                chomp($jbookings);
+                logm("resource allocation: booking $jbookings");
 
 		printf $qserv "book-resources %d\n", length $jbookings
 		    or die $!;
