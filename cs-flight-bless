@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # args:
-#   <flight> <blessing>
+#   <flight> <blessing> <oldblessings>
 
 use strict qw(vars);
 use DBI;
