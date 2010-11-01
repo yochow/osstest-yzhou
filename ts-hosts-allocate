@@ -798,7 +798,7 @@ sub actual_allocation ($) {
     die unless $allocd;
     $claim_setres_q->finish();
 
-    $bookalloc->{Allocated}= { Shareix => $reskey[2] };
+    $bookalloc->{Allocated}= { Shareix => $reskey[2], Task => $taskid };
     return $bookalloc;
 }
 
