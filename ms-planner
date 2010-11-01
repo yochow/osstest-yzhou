@@ -83,6 +83,8 @@ sub current_sharing_info ($) {
     my ($reso) = @_;
     my ($restype,$resname) = split / /, $reso, 2;
     
+    my $shrestype= "share-$restype";
+
     our $allocations_sharing_q ||= $dbh_tests->prepare(<<END);
         SELECT * FROM resource_sharing WHERE restype=? AND resname=?
 END
@@ -94,9 +96,23 @@ END
     our $allocations_shares_q ||= $dbh_tests->prepare(<<END);
         SELECT count(*) AS shares FROM resources WHERE restype=? AND resname=?
 END
-    $allocations_shares_q->execute("share-$restype", $resname);
+    $allocations_shares_q->execute($shrestype, $resname);
     my $shares= $allocations_shares_q->fetchrow_hashref();
     $allocations_shares_q->finish();
+
+    our $allocations_nonprep_q ||= $dbh_tests->prepare(<<END);
+        SELECT count(*) AS prep FROM resources WHERE restype=? AND resname=?
+          AND owntaskid IN (SELECT taskid FROM tasks WHERE type='magic' AND
+                              (refkey='allocatable' OR refkey='preparing'))
+END
+    $allocations_nonprep_q->execute($shrestype, $resname);
+    my $nonprep= $allocations_nonprep_q->fetchrow_hashref();
+    $allocations_nonprep_q->finish();
+    if ($nonprep->{prep} == $shares->{shares}) {
+        return {
+            OnlyPreparing => 1,
+        };
+    }
 
     return {
 	Type => $sharing->{sharetype},
@@ -213,7 +229,7 @@ END
 	if ($arow->{owntaskid} == $magictask{shared}) {
 	    die if $shareix;
 	    my $cs= current_sharing_info($reso);
-	    die unless $cs;
+	    die "$reso ?" unless $cs;
 	    $currentshare{$reso}= $cs;
 	    next;
 	}
@@ -226,6 +242,10 @@ END
 	my $endtime;
 	my $info;
 	if ($arow->{owntaskid} == $magictask{preparing}) {
+            my $cs= current_sharing_info($reso);
+            die "$reso ?" unless $cs;
+            next if $cs->{OnlyPreparing};
+
 	    $endtime= $plan->{Start} + 1000;
 	    $info= "(preparing)";
 	} else {
