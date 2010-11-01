@@ -390,7 +390,7 @@ sub cmd_book_resources () {
 	my $jalloc= $jbook->{Allocated};
 	if ($jalloc) {
 	    @alloc= (
-		     Shareix => parse_number($jalloc->{Allocated}),
+		     Shareix => parse_number($jalloc->{Shareix}),
 		     );
 	}
 
