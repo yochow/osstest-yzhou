@@ -21,7 +21,7 @@ proc check {} {
 
     if {!$nqueued && !$nrunning} {
         log "flight $flight ending."
-        exec ./cs-flight-bless $flight $blessing 2>@ stderr
+        exec ./cs-flight-bless $flight $blessing running 2>@ stderr
         exit 0
     }
 
