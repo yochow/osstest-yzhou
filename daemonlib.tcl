@@ -3,6 +3,7 @@
 source osstestlib.tcl
 
 proc chan-error {chan emsg} {
+    regsub -all {\n} $emsg { / } emsg
     puts-chan $chan "ERROR $emsg"
 }
 
