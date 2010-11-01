@@ -1023,7 +1023,7 @@ sub alloc_resources {
                 $_= <$qserv>;  defined && m/^OK wait\s/ or die "$_ ?";
             }
 
-            $dbh_tests->disconnect();
+            $dbh_tests->disconnect() if $dbh_tests;
             undef $dbh_tests;
 
             logm("resource allocation: awaiting our slot...");
