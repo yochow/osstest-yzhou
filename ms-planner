@@ -134,7 +134,7 @@ sub launder_check_plan () {
 	    if ($allocinfo) {
 		$bad->('late allocation') unless
                     $type eq End || $evt->{Time}<=$plan->{Start};
-		$bad->('allocation no shareix') unless
+		$bad->('allocation not in allocations') unless
                     $plan->{Allocations}{"$reso $allocinfo->{Shareix}"};
 	    }
 
