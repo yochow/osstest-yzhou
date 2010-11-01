@@ -190,29 +190,47 @@ sub hid_recurse ($) {
 	my $try_hidix= 0;
 	my $try_time= 0;
 	my $confirmedok= 0;
+	my $share_wear;
 
 	for (;;) {
-	    my $reskey= $hids[$hidix]{Selected}{Reskey};
-	    my $bookings= $plan->{Bookings}{$reskey};
+	    my $hid= $hids[$hidix];
+	    my $reskey= $hid->{Selected}{Reskey};
+	    my $events= $plan->{Events}{$reskey};
 
-	    # can we do $try_hid at $try_time ?  If not, when later can we
-	    my $okhere=0;
-	    for (my $bookix=0; $bookix<=@$bookings; $bookix++) {
-		# $bookix is the booking we're going to put it before
-		my $slotstart= $bookix==0 ? 0 : $bookings->[$bookix-1]{End};
-		my $slotend= $bookix<@$bookings ? $bookings->[$bookix]{Start}
-		    : Inf;
+	    # can we do $try_hid at $try_time ?  If not, when later can we ?
+	  EVENT:
+	    foreach (my $ix=0; $ix<@$events; $ix++) {
+		# check the period from $events[$ix] to next event
+		my $startevt= $events->[$ix];
+		my $endevt= $ix<@$events ? $events->[$ix+1] : { Time=>Inf };
+		next if $endevt->{Time} <= $try_time; # quite after this
+		last if $try_time + $duration <= $startevt->{Time};
 
-		if (!($slotstart <= $try_time)) {
-		    # it doesn't fit so early
-		    $try_time= $slotstart;
-		    $confirmedok= 0;
-		}
-
-		if ($slotend >= $try_time + $duration) {
-		    # it fits, where we planned
-		    last;
-		}
+		# this period overlaps
+	      CHECK:
+		{
+		    last CHECK unless $startevt->{Avail};
+		    my $eshare= $startevt->{Share};
+		    if ($eshare) {
+			last CHECK unless defined $hid->{Shared};
+			last CHECK unless $hid->{Shared} eq $eshare->{Type};
+			if (defined $share_wear) {
+			    $share_wear++ if $startevt->{Type} eq Start;
+			} else {
+			    $share_wear= $eshare->{Wear}+1;
+			}
+			last CHECK if $share_wear > $hid->{SharedMaxWear};
+			last CHECK if $eshare->{Shares} !=
+			    $hid->{SharedMaxTasks};
+		    }
+		    # it fits here
+		    next EVENT;
+		};
+		
+		# nope
+		$try_time= $endevt->{Time};
+		$confirmedok= 0;
+		undef $share_wear;
 	    }
 	    $confirmedok++;
 	    last if $confirmedok==@hids;
