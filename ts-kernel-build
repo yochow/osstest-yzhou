@@ -37,6 +37,8 @@ $
 ?^exit 0
 i
 
+setopt CONFIG_HIGHMEM64G y
+
 setopt CONFIG_AGP n
 setopt CONFIG_DRM n
 setopt CONFIG_FB n
@@ -47,13 +49,101 @@ setopt CONFIG_BOOTSPLASH n
 setopt CONFIG_DEBUG_INFO y
 setopt CONFIG_BLK_DEV_NBD m
 
+setopt CONFIG_SATA_SIL24 m
+setopt CONFIG_SATA_SVW m
+setopt CONFIG_SATA_MV m
+setopt CONFIG_SATA_NV m
+setopt CONFIG_SATA_QSTOR m
+setopt CONFIG_SATA_PROMISE m
+setopt CONFIG_SATA_SIL m
+setopt CONFIG_SATA_SIS m
+setopt CONFIG_SATA_ULI m
+setopt CONFIG_SATA_VIA m
+setopt CONFIG_SATA_VITESSE m
+setopt CONFIG_SATA_INIC162X m
+setopt CONFIG_SCSI_TGT m
+setopt CONFIG_SCSI_ISCSI_ATTRS m
+setopt CONFIG_SCSI_SAS_LIBSAS m
+setopt CONFIG_SCSI_SAS_HOST_SMP=y
+setopt CONFIG_SCSI_SAS_LIBSAS_DEBUG=y
+setopt CONFIG_SCSI_LOWLEVEL=y
+setopt CONFIG_ISCSI_TCP m
+setopt CONFIG_SCSI_CXGB3_ISCSI m
+setopt CONFIG_SCSI_BNX2_ISCSI m
+setopt CONFIG_BE2ISCSI m
+setopt CONFIG_BLK_DEV_3W_XXXX_RAID m
+setopt CONFIG_SCSI_3W_9XXX m
+setopt CONFIG_SCSI_ACARD m
+setopt CONFIG_SCSI_AACRAID m
+setopt CONFIG_SCSI_AIC7XXX m
+setopt CONFIG_SCSI_AIC79XX m
+setopt CONFIG_SCSI_AIC94XX m
+setopt CONFIG_SCSI_MVSAS m
+setopt CONFIG_SCSI_MVSAS_DEBUG=y
+setopt CONFIG_SCSI_DPT_I2O m
+setopt CONFIG_SCSI_ADVANSYS m
+setopt CONFIG_SCSI_ARCMSR m
+setopt CONFIG_SCSI_MPT2SAS m
+setopt CONFIG_SCSI_HPTIOP m
+setopt CONFIG_SCSI_BUSLOGIC m
+setopt CONFIG_LIBFC m
+setopt CONFIG_LIBFCOE m
+setopt CONFIG_FCOE m
+setopt CONFIG_FCOE_FNIC m
+setopt CONFIG_SCSI_DMX3191D m
+setopt CONFIG_SCSI_EATA m
+setopt CONFIG_SCSI_FUTURE_DOMAIN m
+setopt CONFIG_SCSI_GDTH m
+setopt CONFIG_SCSI_IPS m
+setopt CONFIG_SCSI_INITIO m
+setopt CONFIG_SCSI_INIA100 m
+setopt CONFIG_SCSI_STEX m
+setopt CONFIG_SCSI_SYM53C8XX_2 m
+setopt CONFIG_SCSI_IPR m
+setopt CONFIG_SCSI_AIC7XXX m
+setopt CONFIG_SCSI_AIC79XX m
+setopt CONFIG_SCSI_AIC94XX m
+setopt CONFIG_SCSI_MVSAS m
+setopt CONFIG_SCSI_MVSAS_DEBUG=y
+setopt CONFIG_SCSI_DPT_I2O m
+setopt CONFIG_SCSI_ADVANSYS m
+setopt CONFIG_SCSI_ARCMSR m
+setopt CONFIG_SCSI_MPT2SAS m
+setopt CONFIG_SCSI_HPTIOP m
+setopt CONFIG_SCSI_BUSLOGIC m
+setopt CONFIG_LIBFC m
+setopt CONFIG_LIBFCOE m
+setopt CONFIG_FCOE m
+setopt CONFIG_FCOE_FNIC m
+setopt CONFIG_SCSI_DMX3191D m
+setopt CONFIG_SCSI_EATA m
+setopt CONFIG_SCSI_FUTURE_DOMAIN m
+setopt CONFIG_SCSI_GDTH m
+setopt CONFIG_SCSI_IPS m
+setopt CONFIG_SCSI_INITIO m
+setopt CONFIG_SCSI_INIA100 m
+setopt CONFIG_SCSI_STEX m
+setopt CONFIG_SCSI_SYM53C8XX_2 m
+setopt CONFIG_SCSI_IPR m
+setopt CONFIG_SCSI_QLOGIC_1280 m
+setopt CONFIG_SCSI_QLA_FC m
+setopt CONFIG_SCSI_QLA_ISCSI m
+setopt CONFIG_SCSI_LPFC m
+setopt CONFIG_SCSI_DC395x m
+setopt CONFIG_SCSI_DC390T m
+setopt CONFIG_SCSI_NSP32 m
+setopt CONFIG_SCSI_PMCRAID m
+setopt CONFIG_SCSI_SRP m
+setopt CONFIG_SCSI_BFA_FC m
+
 .
 w
 q
 END
     target_cmd_build($ho, 1000, $builddir, <<END);
-        cp xen-unstable/enable-xen-config .
+        cp xen-unstable/buildconfigs/enable-xen-config .
         ed <$edscript enable-xen-config
+        chmod +x enable-xen-config
         cd linux
         make defconfig
         ../enable-xen-config .config

@@ -874,6 +874,16 @@ END
                          (length($r{"revision_$which"}) ? <<END : ''));
 	    hg update '$r{"revision_$which"}'
 END
+    } elsif ($tree =~ m/\.git$/) {
+        $vcs= 'git';
+
+        target_cmd_build($ho, 2000, $builddir, <<END.
+            git clone '$tree' $subdir
+            cd $subdir
+END
+                         (length($r{"revision_$which"}) ? <<END : ''));
+	    git checkout '$r{"revision_$which"}'
+END
     } else {
         die "unknown vcs for $which $tree ";
     }
