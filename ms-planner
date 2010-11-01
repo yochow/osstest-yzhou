@@ -113,15 +113,15 @@ sub launder_check_plan () {
 	my $cshare=undef;
         my $evt;
 
-        my $bad= sub {
-            my ($msg) = @_;
-            die "BAD PLAN $msg\n".Dumper($evt, $used, $cshare)." ";
-        };
-
-	foreach $evt (sort {
+	foreach my $evt (sort {
 	    $a->{Time} <=> $b->{Time} ||
 		!!($a->{Type} eq Start) <=> !!($b->{Type} eq Start);
 	} @{ $plan->{Events}{$reso} }) {
+            my $bad= sub {
+                my ($msg) = @_;
+                die "BAD PLAN $msg\n".Dumper($reso, $used, $evt, $cshare)." ";
+            };
+
 	    my $type= $evt->{Type};
 	    next if $type eq Unshare;
 
