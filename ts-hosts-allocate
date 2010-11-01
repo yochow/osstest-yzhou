@@ -29,6 +29,7 @@ while (@ARGV and $ARGV[0] =~ m/^-/) {
 our $taskid;
 our %magictaskid;
 our $fi;
+our $jobinfo;
 
 #---------- general utilities, setup, etc. ----------
 
@@ -45,6 +46,12 @@ sub setup () {
          WHERE flight = ?
 END
     logm("flight $flight intended $fi->{intended}");
+
+    $jobinfo= $dbh_tests->selectrow_hashref(<<END, {}, $flight, $job);
+        SELECT * FROM jobs
+         WHERE flight = ? AND job = ?
+END
+    logm("job $flight.$job recipe $jobinfo->{recipe}");
 
     foreach my $rk (qw(allocatable shared preparing idle)) {
         $magictaskid{$rk}= $dbh_tests->selectrow_array(<<END, {}, $rk);
@@ -442,7 +449,11 @@ sub hid_recurse ($$) {
     $duration= 10000 if !defined $duration;
     $duration += 10;
 
-    print DEBUG "$dbg EVAL DURATION $duration\n";
+    print DEBUG "$dbg EVAL DURATION $duration va=$variation_age\n";
+
+    if ($jobinfo->{recipe} !~ m/build/) {
+        $variation_age= 0;
+    }
 
     # when could we do this
     my $try_hidix= 0;
