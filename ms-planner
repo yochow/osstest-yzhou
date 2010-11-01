@@ -143,7 +143,8 @@ sub launder_check_plan () {
 		    die if $cshare;
 		    $evt->{Avail}= 1 - $used;
 		}
-		die "$reso $evt->{Time} $evt->{Avail}" if $evt->{Avail} < 0;
+		die "$reso $evt->{Time} $evt->{Avail} $eshare $cshare"
+                    if $evt->{Avail} < 0;
 	    } else {
 		$used--;
 		die unless $used >= 0;
