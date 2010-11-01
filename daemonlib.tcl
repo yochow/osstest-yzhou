@@ -19,14 +19,17 @@ proc chan-destroy {chan} {
 proc for-chan {chan script} {
     uplevel 1 [list upvar \#0 chandesc($chan) desc]
     upvar #0 chandesc($chan) desc
-    if {[catch {
-        uplevel 1 $script
-    } emsg]} {
-        global errorInfo
-        catch { chan-error $chan $emsg }
-        log "error: $desc: $emsg"
+    set rc [catch { uplevel 1 $script } emsg]
+    global errorInfo errorCode
+    if {$rc==1} {
+        set d "?$chan"
+        if {[info exists desc]} { set d $desc }
+        log "error: $d: $errorCode: $emsg"
         foreach l [split $errorInfo "\n"] { log "EI $l" }
+        catch { chan-error $chan $emsg }
         chan-destroy $chan
+    } else {
+        return -code $rc $emsg
     }
 }
 
