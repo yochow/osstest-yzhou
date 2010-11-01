@@ -178,6 +178,8 @@ proc main-daemon {port setup} {
     fconfigure stdout -buffering line
     fconfigure stderr -buffering none
 
+    log "starting"
+
     uplevel 1 $setup
 
     socket -server newconn -myaddr $host $port
