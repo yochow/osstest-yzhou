@@ -410,7 +410,8 @@ sub hid_recurse ($$) {
 	my $hid= $hids[$hidix];
 	print DEBUG "$dbg $hid->{Ident}...\n";
 	foreach my $cand (@{ $hid->{Candidates} }) {
-	    print DEBUG "$dbg CAND $cand->{Reso}\n";
+            my $reso= $cand->{Reso};
+	    print DEBUG "$dbg CAND $reso\n";
 	    my $poss_actual= $cand->{EquivActual};
 	    my $newactualmap= $actualmap;
 	    if (defined $poss_actual) { # i.e. iff $hid->{Equiv} and not $use
@@ -419,12 +420,12 @@ sub hid_recurse ($$) {
 		my $already= $actualmap->{$formal};
 		if (defined $already) {
 		    if ($already ne $poss_actual) {
-			print DEBUG "$dbg CAND $cand->{Reso} EQUIV".
+			print DEBUG "$dbg CAND $reso EQUIV".
 			    " WRONG $formal: $already != $poss_actual\n";
 			next;
 		    }
 		} else {
-		    print DEBUG "$dbg CAND $cand->{Reso} EQUIV".
+		    print DEBUG "$dbg CAND $reso EQUIV".
 			" SET $formal: $poss_actual\n";
 		    $newactualmap= { %$actualmap, $formal => $poss_actual };
 		}
