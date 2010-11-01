@@ -545,8 +545,10 @@ sub alloc_hosts () {
     foreach my $hid (@hids) {
         my $sel= $hid->{Selected};
         die $hid->{Ident} unless defined $sel->{resname};
-        store_runvar($hid->{Ident}.time, $sel->{resname});
+        store_runvar($hid->{Ident}, $sel->{resname});
     }
+
+    logm("host allocation: all successful and recorded.");
 }
 
 sub attempt_allocation {
@@ -599,7 +601,6 @@ sub attempt_allocation {
 
     my $booklist= compute_booking_list();
 
-print STDERR Dumper($booklist);
     return ($retval, $booklist);
 }
 
