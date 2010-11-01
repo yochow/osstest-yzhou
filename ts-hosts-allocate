@@ -635,7 +635,10 @@ sub actual_allocation ($) {
     $alloc_findres_q->execute($sel->{restype}, $sel->{resname});
     my $cand= $alloc_findres_q->fetchrow_hashref();
     $alloc_findres_q->finish();
-    if (!$cand) { warn "resource $sel->{Reso} ?"; return undef; }
+    if (!$cand) {
+        warn "resource $sel->{Reso} allegedly allocatable but not found";
+        return undef;
+    }
 
     my $allocatable= $cand->{owntaskid} == $magictaskid{allocatable};
     my $dbg= "$hid->{Ident} $sel->{Reso}";
@@ -652,7 +655,10 @@ sub actual_allocation ($) {
 	$shared= $alloc_shared_q->fetchrow_hashref();
 	$alloc_shared_q->finish();
 
-	if (!$shared) { warn "$sel->{Reso} ?"; return undef; }
+	if (!$shared) {
+            warn "resource $sel->{Reso} allegedly shared but no sharing info";
+            return undef;
+        }
 
 	print DEBUG "$dbg ALLOC ISSHARED".
 	    " $shared->{sharetype} $shared->{state}".
@@ -681,7 +687,8 @@ sub actual_allocation ($) {
 	    if (!$slot) {
 		# this is no use then
 		print DEBUG "$dbg ALLOC SHARED AVAIL BUSY\n";
-		warn "no slots $shrestype $shared->{resname}";
+		warn "resource $shrestype $shared->{resname} allegedly".
+                    " shareable but no slots";
 		return undef;
 	    } else {
 		print DEBUG "$dbg ALLOC SHARED AVAIL SLOTFREE".
@@ -691,7 +698,8 @@ sub actual_allocation ($) {
 	    }
 	} else {
 	    if ($shared->{ntasks}) {
-		warn "$shrestype $shared->{resname} $shared->{state} ?";
+		warn "resource $shrestype $shared->{resname} allegedly".
+                    " available but wrong state $shared->{state} and tasks";
 		return undef;
 
                 # someone was preparing it but they aren't any more
@@ -703,7 +711,8 @@ sub actual_allocation ($) {
     }
 
     if (!$allocatable) {
-	warn "$sel->{restype} $sel->{resname} ?";
+	warn "resource $sel->{restype} $sel->{resname} allegedly".
+            " allocatable but not really";
 	return undef;
     }
 
