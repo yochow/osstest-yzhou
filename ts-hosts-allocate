@@ -464,7 +464,7 @@ sub hid_recurse ($$) {
 
 	    # check the period from $events[$ix] to next event
 	    my $startevt= $events->[$ix];
-	    my $endevt= $ix<@$events ? $events->[$ix+1] : { Time=>inf };
+	    my $endevt= $ix<@$events ? $events->[$ix+1] : { Time=>1e100 };
 	    next if $endevt->{Time} <= $try_time; # quite after this
 	    last if $try_time + $duration <= $startevt->{Time};
 
