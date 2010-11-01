@@ -5,6 +5,7 @@ use DBI;
 use Osstest;
 use Data::Dumper;
 use POSIX;
+use JSON;
 
 readconfig();
 opendb_state();

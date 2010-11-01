@@ -10,6 +10,7 @@ use DBI;
 use Socket;
 use IPC::Open2;
 use IO::Handle;
+use JSON;
 
 # DATABASE TABLE LOCK HIERARCHY
 #
