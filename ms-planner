@@ -389,9 +389,18 @@ sub cmd_book_resources () {
 	my @alloc;
 	my $jalloc= $jbook->{Allocated};
 	if ($jalloc) {
+            my $shareix= parse_number($jalloc->{Shareix});
 	    @alloc= (
-		     Shareix => parse_number($jalloc->{Shareix}),
+		     Shareix => $shareix,
 		     );
+
+            my $reskey= "$jbook->{Reso} $shareix";
+            die if exists $plan->{Allocations}{$reskey};
+            $plan->{Allocations}{$reskey}= {
+                Info => $info,
+                Start => $starttime,
+                End => $endtime,
+            };
 	}
 
 	my $newevt= sub {
