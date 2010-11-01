@@ -111,7 +111,14 @@ sub launder_check_plan () {
 
 	my $used=0;
 	my $cshare=undef;
-	foreach my $evt (sort {
+        my $evt;
+
+        my $bad= sub {
+            my ($msg) = @_;
+            die "BAD PLAN $msg\n".Dumper($evt, $used, $cshare)." ";
+        };
+
+	foreach $evt (sort {
 	    $a->{Time} <=> $b->{Time} ||
 		!!($a->{Type} eq Start) <=> !!($b->{Type} eq Start);
 	} @{ $plan->{Events}{$reso} }) {
@@ -120,13 +127,15 @@ sub launder_check_plan () {
 
 	    push @evts, $evt;
 
-	    die unless $type eq Start || $type eq End;
+            $bad->('type') unless $type eq Start || $type eq End;
 	    my $eshare= $evt->{Share};
 
 	    my $allocinfo= $evt->{Allocated};
 	    if ($allocinfo) {
-		die unless $type eq End || $evt->{Time}<=$plan->{Start};
-		die unless $plan->{Allocations}{"$reso $allocinfo->{Shareix}"};
+		$bad->('late allocation') unless
+                    $type eq End || $evt->{Time}<=$plan->{Start};
+		$bad->('allocation no shareix') unless
+                    $plan->{Allocations}{"$reso $allocinfo->{Shareix}"};
 	    }
 
 	    if ($type eq Start) {
@@ -134,20 +143,21 @@ sub launder_check_plan () {
 		if ($eshare) {
 		    $cshare= { %$eshare, Wear=>0 } if !$cshare;
 		    foreach my $wh (qw(Type Shares)) {
-			die "$reso $evt->{Time} $wh"
+			$bad->("share mismatch $wh")
 			    unless $eshare->{$wh} eq $cshare->{$wh};
 		    }
 		    $eshare->{Wear}= ++$cshare->{Wear};
 		    $evt->{Avail}= $cshare->{Shares} - $used;
 		} else {
-		    die if $cshare;
+		    $bad->("stealth unshare") if $cshare;
 		    $evt->{Avail}= 1 - $used;
 		}
-		die "$reso $evt->{Time} $evt->{Avail} $eshare $cshare"
+		$bad->("clash")
                     if $evt->{Avail} < 0;
 	    } else {
 		$used--;
-		die unless $used >= 0;
+		$bad->("overfree")
+                    unless $used >= 0;
 		if ($eshare) {
 		    $eshare->{Wear}= $cshare->{Wear};
 		    $evt->{Avail}= $eshare->{Shares} - $used;
