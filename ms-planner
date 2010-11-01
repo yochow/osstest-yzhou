@@ -27,25 +27,30 @@ while (@ARGV and $ARGV[0] =~ m/^-/) {
 
 csreadconfig();
 
-sub allocations ($) {
-    my ($each) = @_;
-    my $q= $dbh_tests->prepare(<<END);
-        SELECT * FROM resources
-	        WHERE owntaskid !=
-		     (SELECT taskid FROM tasks
-                       WHERE type='magic' AND refkey='allocatable')
-END
-    $q->execute();
-    while (my $row= $q->fetchrow_hashref()) {
-	my $reskey= join " ", map { $row->{$_} } qw(restype resname shareix);
-	$each->($reskey, $row);
-    }
-    $q->finish();
-}
-
 our ($plan);
 
 my $fn= "data-plan.pl";
+
+sub allocations ($$) {
+    my ($init, $each) = @_;
+    db_retry($dbh_tests, \@all_lock_tables, sub {
+	$init->();
+	
+	our $resources_q ||= $dbh_tests->prepare(<<END);
+	    SELECT * FROM resources
+		    WHERE owntaskid !=
+			 (SELECT taskid FROM tasks
+			   WHERE type='magic' AND refkey='allocatable')
+END
+        $resources_q->execute();
+	while (my $row= $resources_q->fetchrow_hashref()) {
+	    my $reso= join " ", map { $row->{$_} } qw(restype resname);
+	    die unless !!$row->{shareix} == !!($reso =~ s/^share-//);
+	    $each->($reso, $row, $row->{shareix});
+	}
+	$resources_q->finish();
+    });
+}
 
 sub get_current_plan () {
     if (!open P, $fn) {
@@ -60,7 +65,7 @@ sub get_current_plan () {
     $plan= eval $plandump;
 }
 
-sub write_new_plan () {
+sub do_write_new_plan () {
     my $f= new IO::File "$fn.new", 'w' or die $!;
     my $d= new Data::Dumper([$plan]);
     $d->Terse(1);
@@ -69,108 +74,273 @@ sub write_new_plan () {
     rename "$fn.new",$fn or die $!;
 }
 
+sub check_write_new_plan () {
+    launder_check_plan();
+    do_write_new_plan();
+}
+
+sub current_sharing_info ($) {
+    my ($reso) = @_;
+    my ($restype,$resname) = split / /, $reso, 2;
+    
+    our $allocations_sharing_q ||= $dbh_tests->prepare(<<END);
+        SELECT * FROM resource_sharing WHERE restype=? AND resname=?
+END
+    $allocations_sharing_q->execute($restype,$resname);
+    my $sharing= $allocations_sharing_q->fetchrow_hashref();
+    $allocations_sharing_q->finish();
+    return undef unless $sharing;
+    
+    our $allocations_shares_q ||= $dbh_tests->prepare(<<END);
+        SELECT count(*) AS shares FROM resources WHERE restype=? AND resname=?
+END
+    my $shares= $allocations_shares_q->execute("share-$restype", $resname);
+    $allocations_shares_q->finish();
+
+    return {
+	Type => $sharing->{type},
+	Wear => $sharing->{wear},
+	Shares => $shares->{count},
+    };
+}
+
+sub launder_check_plan () {
+    foreach my $reso (keys %{ $plan->{Events} }) {
+	my @evts;
+
+	my $used=0;
+	my $cshare=undef;
+	foreach my $evt (sort {
+	    $a->{Time} <=> $b->{Time} ||
+		!!($a->{Type} eq Start) <=> !!($b->{Type} eq Start);
+	} @{ $plan->{Events}{$reso} }) {
+	    my $type= $evt->{Type};
+	    next if $type eq Unshare;
+
+	    push @evts, $evt;
+
+	    die unless $type eq Start || $type eq End;
+	    my $eshare= $evt->{Share};
+
+	    my $allocinfo= $evt->{Allocated};
+	    if ($allocinfo) {
+		die unless $type eq End || $evt->{Time}<=$plan->{Start};
+		die unless $plan->{Allocations}{"$reso $allocinfo->{Shareix}"};
+	    }
+
+	    if ($type eq Start) {
+		$used++;
+		if ($eshare) {
+		    $cshare= { %$eshare, Wear=>0 } if !$cshare;
+		    foreach my $wh (qw(Type Shares)) {
+			die "$reso $evt->{Time} $wh"
+			    unless $eshare->{$wh} eq $cshare->{$wh};
+		    }
+		    $eshare->{Wear}= ++$cshare->{Wear};
+		    $evt->{Avail}= $cshare->{Shares} - $used;
+		} else {
+		    die if $cshare;
+		    $evt->{Avail}= 1 - $used;
+		}
+		die "$reso $evt->{Time} $evt->{Avail}" if $evt->{Avail} < 0;
+	    } else {
+		$used--;
+		die unless $used >= 0;
+		if ($eshare) {
+		    $eshare->{Wear}= $cshare->{Wear};
+		    $evt->{Avail}= $eshare->{Shares} - $used;
+		} else {
+		    $evt->{Avail}= 1 - $used;
+		}
+		if (!$used && $cshare) {
+		    push @evts, {
+			Time => $evt->{Time},
+			Type => Unshare,
+			Avail => 1,
+			Info => "$cshare->{Type}",
+		    };
+		    $cshare= undef;
+		}
+	    }
+	}
+
+	$plan->{Events}{$reso}= \@evts;
+    }
+}
+
 sub cmd_reset () {
     die if @ARGV;
 
     get_current_plan();
 
-    $plan->{Bookings}= { };
     $plan->{Start}= time;
+    $plan->{Events}= { };
 
-    # get rid of now-freed allocations and look for any rogue allocations:
-    my %current;
-    allocations(sub {
-	my ($reskey, $arow) = @_;
-	$current{$reskey}= 1;
-
-	my $alloc= $plan->{Allocations}{$reskey};
-	next if defined $alloc;
-
-	# rogue allocation!
-	my $endtime= $plan->{Start} + $c{PlanRogueAllocationDuration};
-	print STDERR "rogue $reskey: $arow->{owntaskid} $endtime\n" or die $!;
-	$plan->{Allocations}{$reskey}= {
-	    Info => "rogue task $arow->{owntaskid} $arow->{subtask}",
-	    Start => $plan->{Start},
-	    PlanEnd => $endtime,
-	    ExptEnd => $endtime,
-	};
-    });
-    foreach my $reskey (keys %{ $plan->{Allocations} }) {
-	next if $current{$reskey};
-	delete $plan->{Allocations}{$reskey};
+    my %magictask;
+    foreach my $taskrefkey (qw(preparing shared)) {
+	($magictask{$taskrefkey}) =
+	    $dbh_tests->selectrow_array(<<END,{}, $taskrefkey);
+                SELECT taskid FROM tasks
+		             WHERE type='magic' AND refkey=?
+END
     }
 
-    # compute new expected finishing times:
-    while (my ($reskey,$alloc) = each %{ $plan->{Allocations} }) {
-	my $untilend_exptd= $alloc->{PlanEnd} - $plan->{Start};
-	if ($untilend_exptd <= 0) {
-	    my $duration_sofar= $plan->{Start} - $alloc->{Start};
-	    my $duration_planned= $alloc->{PlanEnd} - $alloc->{Start};
+    # Look for any rogue allocations, and note which allocations are
+    # still current.  We ignore master allocations for shares.  Preparing
+    # allocations of individual shares are treated as specially-short rogue.
+    my %current;
+    my %currentshare;
+
+    allocations(sub {
+	undef %current;
+	undef %currentshare;
+    }, sub {
+	my ($reso, $arow, $shareix) = @_;
+	my $reskey= "$reso $shareix";
+
+	if ($arow->{owntaskid} == $magictask{shared}) {
+	    die if $shareix;
+	    my $cs= current_sharing_info($reso);
+	    die unless $cs;
+	    $currentshare{$reso}= $cs;
+	    next;
+	}
+
+	$current{$reskey}= 1;
+	return if $plan->{Allocations}{$reskey};
+
+	# rogue allocation!
+	my $endtime;
+	my $info;
+	if ($arow->{owntaskid} == $magictask{preparing}) {
+	    $endtime= $plan->{Start} + 1000;
+	    $info= "(preparing)";
+	} else {
+	    print DEBUG "rogue $reso $shareix: $arow->{owntaskid} $endtime\n";
+	    $endtime= $plan->{Start} + $c{PlanRogueAllocationDuration};
+	    $info= "rogue task $arow->{owntaskid} $arow->{subtask}";
+	}
+	$plan->{Allocations}{$reskey}= {
+	    Info => $info,
+	    Start => $plan->{Start},
+	    End => $endtime,
+	};
+    });
+
+    # Delete our record of allocations now freed, and add new
+    # new events representing the still-current allocations:
+    foreach my $reskey (keys %{ $plan->{Allocations} }) {
+	if (!exists $current{$reskey}) {
+	    delete $plan->{Allocations}{$reskey};
+	    next;
+	}
+	my $alloc= $plan->{Allocations}{$reskey};
+
+	$reskey =~ m/ (\d+)$/;
+	my ($reso, $shareix) = ($`, $1);
+
+	my $share= $currentshare{$reso};
+	die unless !!$share == !!$shareix;
+
+	# compute new expected end time
+	my $end_exptd= $alloc->{End};
+	if ($end_exptd < $plan->{Start}) {
+	    # overdue
+	    my $started= $alloc->{Start};
+	    my $duration_sofar= $plan->{Start} - $started;
+	    my $duration_planned= $alloc->{End} - $started;
 	    my $duration_exptd=
 		$duration_sofar * $duration_sofar / $duration_planned;
 	    # we square the error - ie, we expect it to take
 	    # longer than it has done so far by the proportion
 	    # by which it has so far exceeded the original estimate
-	    $untilend_exptd= $alloc->{Start} + ceil($duration_exptd);
-	    die unless $untilend_exptd >= 0;
-	    print STDERR "readjust $reskey: $duration_planned".
-		" < $duration_sofar $untilend_exptd\n" or die $!;
+	    $duration_exptd= ceil($duration_exptd);
+	    print DEBUG "readjust $reskey: $duration_planned".
+		    " < $duration_sofar $duration_exptd\n" or die $!;
+	    die $duration_exptd unless $duration_exptd >= 0;
+	    $end_exptd= $started + $duration_exptd;
 	}
-	$alloc->{ExptEnd}= $untilend_exptd + $plan->{Start};
+
+	push @{ $plan->{Events}{$reso} }, {
+	    Time => $alloc->{Start},
+	    Info => $alloc->{Info},
+	    Type => Start,
+	    ($share ? (Share => $share) : ()),
+	    Allocated => { Shareix => $shareix },
+	}, {
+	    Time => $end_exptd,
+	    Info => $alloc->{Info},
+	    Type => End,
+	    ($share ? (Share => $share) : ()),
+	    Allocated => { Shareix => $shareix },
+	};
     }
 
-    write_new_plan();
+    # Now everything in the plan is good except that we
+    # need to sort the lists and compute Avails, which is done by
+    # check_write_new_plan.
+
+    check_write_new_plan();
 }
 
 sub cmd_get_plan () {
     die if @ARGV;
 
     get_current_plan();
+    launder_check_plan();
 
-    my $jplan= { Allocations=>{}, Bookings=>{} };
-    while (my ($reskey,$alloc) = each %{ $plan->{Allocations} }) {
-	$jplan->{Allocations}{$reskey}= {
-	    End => $alloc->{ExptEnd} - $plan->{Start},
-	};
-    }
-    while (my ($reskey,$books) = each %{ $plan->{Bookings} }) {
-	next unless @$books;
-	my @jbooks;
-	foreach my $book (@$books) {
-	    push @jbooks, {
-		Start => $book->{Start} - $plan->{Start},
-		End   => $book->{End}   - $plan->{Start},
+    my $jplan= { Events=>{} };
+
+    while (my ($reso,$evts) = each %{ $plan->{Events} }) {
+	my @jevts;
+	foreach my $evt (@$evts) {
+	    my $share= $evt->{Share};
+	    push @jevts, {
+		Time => $evt->{Time} - $plan->{Start},
+		Type => $evt->{Type},
+		Avail => $evt->{Avail},
+		($share ? (Share => $share) : ()),
 	    };
 	}
-	$jplan->{Bookings}{$reskey}= \@jbooks;
+	$jplan->{Events}{$reso}= \@jevts;
     }
     print to_json($jplan),"\n" or die $!;
 }
 
-sub parse_reskey ($) {
+sub parse_reso ($) {
     my ($rk) = @_;
     die unless defined $rk;
     die if ref $rk;
-    die if $rk =~ m,[^-+_.!*%(){}:\#/0-9a-zA-Z],;
+    die if $rk =~ m,[^-+_.!*%(){}:\#/ 0-9a-zA-Z],;
     return $rk;
+}
+
+sub parse_printstring ($) {
+    my ($ps) = @_;
+    die unless defined $ps;
+    die if ref $ps;
+    die if $ps =~ m/[^[:ascii:]]/;
+    die if $ps =~ m/[^[:print:]]/;
+    return $ps;
 }
 
 sub parse_xinfo ($$) {
     my ($baseinfo,$xi) = @_;
     return $baseinfo unless defined $xi;
-    die if ref $xi;
-    die if $xi =~ m/[^[:ascii:]]/;
-    die if $xi =~ m/[^[:print:]]/;
-    return "$baseinfo $xi";
+    return "$baseinfo ".parse_printstring($xi);
+}
+
+sub parse_number ($) {
+    my ($num) = @_;
+    die unless defined $num;
+    die if ref $num;
+    die unless $num =~ m/^(0|[1-9][0-9]{0,8})$/;
+    return $num + 0;
 }
 
 sub parse_reltime2abs ($) {
     my ($rt) = @_;
-    die unless defined $rt;
-    die if ref $rt;
-    die unless $rt =~ m/^(0|[1-9][0-9]{0,8})$/;
-    return $1 + $plan->{Start};
+    return parse_number($rt) + $plan->{Start};
 }
 
 sub cmd_book_resources () {
@@ -183,51 +353,55 @@ sub cmd_book_resources () {
 
     get_current_plan();
 
-    die unless $jbookings->{Allocations};
     die unless $jbookings->{Bookings};
 
-    foreach my $jbook (@{ $jbookings->{Allocations} }) {
-	my $reskey= parse_reskey($jbook->{Reskey});
-	die if $plan->{Allocations}{$reskey};
-	my $endtime= parse_reltime2abs($jbook->{End});
-	die unless $endtime > $plan->{Start};
-	$plan->{Allocations}{$reskey}= {
-	    Info => parse_xinfo($baseinfo, $jbook->{Xinfo}),
-	    Start => $plan->{Start},
-	    PlanEnd => $endtime,
-	    ExptEnd => $endtime,
-	};
-    }
-
     foreach my $jbook (@{ $jbookings->{Bookings} }) {
+	my $info= parse_xinfo($baseinfo, $jbook->{Xinfo});
 	my $starttime= parse_reltime2abs($jbook->{Start});
 	my $endtime= parse_reltime2abs($jbook->{End});
-	die unless $endtime > $starttime;
-	push @{ $plan->{Bookings}{ parse_reskey($jbook->{Reskey}) } }, {
-	    Info => parse_xinfo($baseinfo, $jbook->{Xinfo}),
-	    Start => $starttime,
-	    End => $endtime,
-	};
-    }
+	my $reso= parse_reso($jbook->{Reso});
 
-    # sort the bookings list and check no double booking
-    foreach my $reskey (keys %{ $plan->{Bookings} }) {
-	print DEBUG "new bookings $reskey\n";
-	my @books= sort { $a->{Start} <=> $b->{Start} }
-	    @{ $plan->{Bookings}{$reskey} };
-	my $alloc= $plan->{Allocations}{$reskey};
-	my $last_end= defined($alloc) ? $alloc->{ExptEnd} : $plan->{Start};
-	print DEBUG "  last_end $last_end\n";
-	foreach my $book (@books) {
-	    print DEBUG "  $book->{Start} $book->{End} $book->{Info}\n";
-	    $book->{Start} >= $last_end
-		or die "$reskey $book->{Start} $last_end";
-	    $last_end= $book->{End};
+	die unless $starttime < $endtime;
+
+	my @share;
+	my $jshare= $jbook->{Share};
+	if ($jshare) {
+	    my $nshares= parse_number($jshare->{Shares});
+	    die unless $nshares <= 30;
+	    @share= (
+		     Type => parse_printstring($jshare->{Type}),
+		     Shares => $nshares,
+		     );
 	}
-	$plan->{Bookings}{$reskey}= \@books;
+
+	my @alloc;
+	my $jalloc= $jbook->{Allocated};
+	if ($jalloc) {
+	    @alloc= (
+		     Shareix => parse_number($jalloc->{Allocated}),
+		     );
+	}
+
+	my $newevt= sub {
+	    push @{ $plan->{Events}{$reso} }, {
+		Info => $info,
+		(@share ? (Share => { @share }) : ()),
+		(@alloc ? (Allocated => { @alloc }) : ()),
+		@_,
+	    };
+	};
+
+	$newevt->(
+		  Time => $starttime,
+		  Type => Start,
+		  );
+	$newevt->(
+		  Time => $endtime,
+		  Type => End,
+		  );
     }
 
-    write_new_plan();
+    check_write_new_plan();
 }
 
 sub show_rel_time ($) {
@@ -244,58 +418,75 @@ sub cmd_show_html () {
     get_current_plan();
     my $now= time;
 
-    foreach my $books (values %{ $plan->{Bookings} }) {
-	$_->{Type}= Booking foreach @$books;
-    }
-    
     my $earliest= $plan->{Start};
     while (my ($reskey,$alloc) = each %{ $plan->{Allocations} }) {
-	unshift @{ $plan->{Bookings}{$reskey} }, {
-	    %$alloc,
-	    Type => Allocation,
-	    End => $alloc->{PlanEnd},
-	};
-	if ($alloc->{ExptEnd} > $alloc->{PlanEnd}) {
-	    unshift @{ $plan->{Bookings}{$reskey} }, {
-		%$alloc,
+	$earliest= $alloc->{Start} if $alloc->{Start} < $earliest;
+
+	$reskey =~ m/ (\d+)$/;
+	my ($reso, $shareix) = ($`, $1);
+
+	if ($alloc->{End} < $plan->{Start}) {
+	    unshift @{ $plan->{Events}{$reso} }, {
+		Time => $alloc->{End},
+		Info => $alloc->{Info},
 		Type => Overrun,
-		Start => $alloc->{PlanEnd},
-		End => $alloc->{ExptEnd},
 	    };
 	}
-	my $earlybook= $plan->{Bookings}{$reskey}[0];
-	$earliest= $earlybook->{Start} if
-	    $earlybook && $earlybook->{Start} < $earliest;
     }
-    my @colheads = sort keys %{ $plan->{Bookings} };
+    foreach my $reso (keys %{ $plan->{Events} }) {
+	$plan->{Events}{$reso}= [ sort {
+	    $a->{Time} <=> $b->{Time} ||
+		(!!($a->{Type} eq Start) <=> !!($b->{Type} eq Start)) ||
+		(!($a->{Type} eq End) <=> !($b->{Type} eq End))
+	} @{ $plan->{Events}{$reso} } ];
+    }
 
-    print DEBUG Dumper($earliest, $plan->{Bookings});
+    my @colheads = sort keys %{ $plan->{Events} };
+
+    #print DEBUG Dumper($earliest, $plan->{Events});
 
     my @outcols;
-    foreach my $reskey (@colheads) {
+    foreach my $reso (@colheads) {
 	my @incol;
 	my $dopush= sub {
 	    my ($ni) = @_;
-	    if ($incol[-1]{Start} == $ni->{Start}) {
-		pop @incol;
+	    if ($incol[-1]{Time} == $ni->{Time}) {
+		my $previous= pop @incol;
+		$ni->{Show}= "$previous->{Show};\n$ni->{Show}";
+		$ni->{Show} =~ s/(?:;\n$|^;\n)//;
 	    }
 	    $ni->{Rowspan}=1;
 	    push @incol, $ni;
 	};
 
-	push @incol, { Type=>Idle, Info=>"", Rowspan=>1, Start=>$earliest };
+	push @incol, { Show=>"", Rowspan=>1, Time=>$earliest };
 
-	foreach my $booking (@{ $plan->{Bookings}{$reskey} }) {
-	    $dopush->({ %$booking });
-	    $dopush->({ Type=>Idle, Info=>"", Start => $booking->{End} });
+	my $shares;
+	foreach my $evt (@{ $plan->{Events}{$reso} }) {
+	    my $type= $evt->{Type};
+	    my $show=
+		$type eq End ? ($evt->{Share} ? "End $evt->{Info}" : "") :
+		($type eq Overrun || $type eq Unshare)
+		? ("$type $evt->{Info}") :
+		($evt->{Allocated} ? Allocation : Booking)." ".$evt->{Info};
+	    my $share= $evt->{Share};
+	    if ($share) {
+		$show .= sprintf(" [%s %d/%d %d]",
+				 $share->{Type},
+				 $share->{Shares} - $evt->{Avail},
+				 $share->{Shares},
+				 $share->{Wear});
+		$show =~ s/^ //;
+	    }
+	    $dopush->({ %$evt, Show => $show });
 	}
-	push @incol, { Type=>Infinity, Start=>Inf };
+	push @incol, { Time=>Inf };
 
 	my @outcol;
 	foreach (my $ix=0; $ix<@incol-1; $ix++) {
 	    push @outcol, {
-		Start => $incol[$ix]{Start},
-		End => $incol[$ix+1]{Start},
+		Start => $incol[$ix]{Time},
+		End => $incol[$ix+1]{Time},
 		Content => $incol[$ix],
 	    };
 	}
@@ -305,7 +496,7 @@ sub cmd_show_html () {
     my @rows;
     my (@newoutcols) = map { [] } @outcols;
     for (;;) {
-	print DEBUG "==========\n", Dumper(\@outcols);
+	#print DEBUG "==========\n", Dumper(\@outcols);
 	    
 	my $firstend= Inf;
 	my $anystart= undef;
@@ -316,7 +507,7 @@ sub cmd_show_html () {
 	    die unless $cell->{Start}==$anystart;
 	}
 
-	print DEBUG Dumper($anystart, $firstend);
+	#print DEBUG Dumper($anystart, $firstend);
 
 	foreach (my $colix=0; $colix<@outcols; $colix++) {
 	    my $col= $outcols[$colix];
@@ -333,8 +524,8 @@ sub cmd_show_html () {
 	last if $firstend == Inf;
     }
 
-    print DEBUG "==============================\n",
-        Dumper(\@rows, \@newoutcols);
+    #print DEBUG "==============================\n",
+    #    Dumper(\@rows, \@newoutcols);
 
     printf "<table rules=all><tr><td>plan age %s</td>\n", show_rel_time($now);
     foreach my $ch (@colheads) {
@@ -348,10 +539,10 @@ sub cmd_show_html () {
 	    my $cell= shift @$col;
 	    my $content= $cell->{Content};
 	    if (!$content->{Printed}) {
+		my $show= $content->{Show};
+		$show= 'Idle' if !length $show;
 		printf "<td rowspan=%d>%s %s</td>",
-		    $content->{Rowspan},
-		    $content->{Type},
-		    encode_entities($content->{Info});
+		    $content->{Rowspan}, encode_entities($show);
 		$content->{Printed}= 1;
 	    }
 	}

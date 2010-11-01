@@ -23,44 +23,55 @@ ms-queuedaemon commands
 
 Plan is:
 	Start	time_t used for "now" *
-	Allocations
+
+	Allocations *
 		map from
 			"restype resname shareix"
 		to
-			Info	info string about what this is *
-			Start	abs start time *
-			PlanEnd	abs planned end time *
-			ExptEnd	abs expected end time *
-			End	rel expected end time +
-	Bookings
+			Info    info string about who this is *
+			Start   abs start time *
+			End	abs planned end time *
+
+	Events
 		map from
-			"restype resname shareix"
-		to array for each booking, sorted by Start
-			Info *
-			Start	abs* rel+ start time
-			End	abs* rel+ end time
+			"restype resname"
+		to array for each event, sorted by Time,
+			Time		abs* rel+ event time
+			Type		Start | End | Unshare**
+			Avail		number available from this time **
+			Info    	info string about who this is *
+			Share		optional struct containing
+						Type
+						Shares
+						Wear	from this time **
+			Allocated	optional, in start and end,
+					  struct containing
+						Shareix
+
 	* = internal to plan
+	** = computed by launder_check_plan
 	+ = as shown to clients
 
 Booking list is:
-	Allocations
-		array for each resource for which
-		client has already done actual allocation
-			Reskey	"restype resname shareix"
-			Xinfo	string to add to "set-info job ..."
-			End	rel end time
 	Bookings
-		array for each booking
-			Reskey
-			Xinfo
-			Start	rel start time
-			End	rel end time
-
+		array for each allocation or booking
+			Reso		"restype resname"
+			Xinfo		string to add to "set-info job ..."
+			Start		rel start time (0 if Allocated)
+			End		rel end time
+			Allocated	optional, see above, says client has
+					 done actual allocation
+			Share		optional struct containing
+						Type
+						Shares
 
 Sharing resources:
 
-Allocations includes both the master, and each share.
-Bookings includes only the master and assumes no sharing.
+Plan's Events and Booking list contain entries only for shares, named
+after the master.
+
+Allocations and bookings in plan include both the master, and each share.
+Bookings which do not create the share do not mention the master.
 
 Note that whether a resource is free, or simply nonexistent, is not
 represented.
