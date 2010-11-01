@@ -480,7 +480,7 @@ sub cmd_show_html () {
 	    }
 	    $dopush->({ %$evt, Show => $show });
 	}
-	push @incol, { Time=>Inf };
+	push @incol, { Time=>1e100 };
 
 	my @outcol;
 	foreach (my $ix=0; $ix<@incol-1; $ix++) {
@@ -498,7 +498,7 @@ sub cmd_show_html () {
     for (;;) {
 	#print DEBUG "==========\n", Dumper(\@outcols);
 	    
-	my $firstend= Inf;
+	my $firstend= 1e100;
 	my $anystart= undef;
 	foreach my $col (@outcols) {
 	    my $cell= $col->[0];
@@ -521,7 +521,7 @@ sub cmd_show_html () {
 	}
 	push @rows, { Start => $anystart, End => $firstend };
 
-	last if $firstend == Inf;
+	last if $firstend == 1e100;
     }
 
     #print DEBUG "==============================\n",
