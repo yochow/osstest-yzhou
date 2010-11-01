@@ -405,6 +405,7 @@ sub hid_recurse ($$) {
     my ($actualmap, $hidix) = @_;
     # fills in the plan from $hidix (inclusive) to the end
 
+    our %noreuse;
     my $dbg= sprintf "RECURSE %*s", $hidix*2, '';
     if ($hidix < @hids) {
 	my $hid= $hids[$hidix];
@@ -412,6 +413,8 @@ sub hid_recurse ($$) {
 	foreach my $cand (@{ $hid->{Candidates} }) {
             my $reso= $cand->{Reso};
 	    print DEBUG "$dbg CAND $reso\n";
+            next if defined $noreuse{$reso};
+
 	    my $poss_actual= $cand->{EquivActual};
 	    my $newactualmap= $actualmap;
 	    if (defined $poss_actual) { # i.e. iff $hid->{Equiv} and not $use
@@ -430,9 +433,11 @@ sub hid_recurse ($$) {
 		    $newactualmap= { %$actualmap, $formal => $poss_actual };
 		}
 	    }
-	    
+
 	    $hid->{Selected}= $cand;
+            $noreuse{$reso}=1;
 	    hid_recurse($newactualmap, $hidix+1);
+            delete $noreuse{$reso};
 	}
 	return;
     }
