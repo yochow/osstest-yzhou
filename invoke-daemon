@@ -1,4 +1,4 @@
 #!/bin/bash -e
 cd "${0%/*}"
 if [ "x$2" != x ]; then sleep $2; fi
-exec ./$1 | exec logger -t $1
+exec ./$1 2>&1 | exec logger -t $1
