@@ -99,6 +99,7 @@ proc puts-chan-data {chan m data} {
     puts-chan $chan "$m [string length $data]"
     puts -nonewline $chan $data
     flush $chan
+    puts-chan-desc $chan ">\[data]"
 }
 
 proc read-chan-data {chan bytes args} {
