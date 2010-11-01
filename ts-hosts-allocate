@@ -6,6 +6,7 @@ use Osstest;
 use Data::Dumper;
 use POSIX;
 use JSON;
+use IO::Handle;
 
 readconfig();
 opendb_state();
@@ -20,6 +21,7 @@ while (@ARGV and $ARGV[0] =~ m/^-/) {
     while (m/^-./) {
         if (s/^-D/-/) {
             open DEBUG, ">&STDERR" or die $!;
+            DEBUG->autoflush(1);
         } else {
             die "$_ ?";
         }
