@@ -30,6 +30,7 @@ proc for-chan {chan script} {
 }
 
 proc chan-read {chan} {
+    upvar #0 chandesc($chan) desc
     for-chan $chan {
         while {[gets $chan l] > 0} {
             log "$desc << $l"
@@ -67,6 +68,7 @@ proc chan-read {chan} {
                 }
                 eval $basel $rhs
             }
+            if {![info exists desc]} return
         }
         if {[eof $chan]} {
             puts-chan-desc $chan {$$}
