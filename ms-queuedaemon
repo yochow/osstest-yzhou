@@ -290,7 +290,7 @@ proc chan-get-info {chan expr default} {
 }
 
 proc cmd/wait {chan desc} {
-    global queue need_queue_run
+    global queue need_queue_run queue_running
     lappend queue $chan
 
     upvar #0 chan-info/$chan info
@@ -304,6 +304,7 @@ proc cmd/wait {chan desc} {
     foreach item $sortq { log "QI $item"; lappend queue [lindex $item 1] }
 
     puts-chan $chan "OK wait"
+    if {[info exists queue_running]} { set queue_running {} }
     runneeded-ensure-polling
     runneeded-ensure-will 2
 }
