@@ -238,7 +238,7 @@ proc cmd/book-resources {chan desc bytes} {
 }
 proc do-book-resources {chan desc data} {
     check-we-are-thinking $chan
-    set info [chan-get-info $chan {"job $val(job)"} $desc]
+    set info [chan-get-info $chan {"job $info(job)"} $desc]
     exec ./ms-planner book-resources $info << $data
     puts-chan $chan "OK book-resources"
 }
