@@ -39,7 +39,7 @@ proc check {} {
                                      WHERE r.flight = $flight
                                        AND r.job = j.job
                                        AND r.name LIKE '%job')
-                        OR d.flight || '.' || d.job IN
+                        OR (d.flight || '.' || d.job) IN
                                      (SELECT val FROM runvars r
                                      WHERE r.flight = $flight
                                        AND r.job = j.job
