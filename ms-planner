@@ -473,14 +473,13 @@ sub cmd_show_html () {
 	    my ($ni) = @_;
 	    if ($incol[-1]{Time} == $ni->{Time}) {
 		my $previous= pop @incol;
-		$ni->{Show}= "$previous->{Show};\n$ni->{Show}";
-		$ni->{Show} =~ s/(?:;\n$|^;\n)//;
+                $ni->{Show}= [ @{ $previous->{Show} }, @{ $ni->{Show} } ];
 	    }
 	    $ni->{Rowspan}=1;
 	    push @incol, $ni;
 	};
 
-	push @incol, { Show=>"", Rowspan=>1, Time=>$earliest };
+	push @incol, { Show=>[], Rowspan=>1, Avail=>1, Time=>$earliest };
 
 	my $shares;
 	foreach my $evt (@{ $plan->{Events}{$reso} }) {
@@ -499,7 +498,7 @@ sub cmd_show_html () {
 				 $share->{Wear});
 		$show =~ s/^ //;
 	    }
-	    $dopush->({ %$evt, Show => $show });
+	    $dopush->({ %$evt, Show => [ $show ] });
 	}
 	push @incol, { Time=>1e100 };
 
@@ -555,21 +554,29 @@ sub cmd_show_html () {
     print "</tr>\n";
 
     foreach my $event (@rows) {
-	printf "<tr><th>%s</th>", show_rel_time($event->{Start});
+	printf "<tr><th valign=top>%s</th>", show_rel_time($event->{Start});
 	foreach my $col (@newoutcols) {
 	    my $cell= shift @$col;
 	    my $content= $cell->{Content};
 	    if (!$content->{Printed}) {
-		my $show= $content->{Show};
+		my $show= join "<br>",
+                    map { encode_entities($_) } @{ $content->{Show} };
 		$show= 'Idle' if !length $show;
-		printf "<td rowspan=%d>%s %s</td>",
-		    $content->{Rowspan}, encode_entities($show);
+                my $colour=
+                    !$content->{Avail} ?
+                    ($content->{Allocated} ? "#ff8888" : "#ffff88") :
+                    $content->{Share} ? "#8888ff" :
+                    "#ffffff";
+		printf "<td valign=top rowspan=%d bgcolor=\"%s\">%s %s</td>",
+		    $content->{Rowspan}, $colour, $show;
 		$content->{Printed}= 1;
 	    }
 	}
 	printf "</tr>\n";
     }
     printf "</table>\n";
+    die $! if STDOUT->error;
+    die $! unless STDOUT->flush;
 }
 
 die unless @ARGV;
