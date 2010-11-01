@@ -267,13 +267,13 @@ END
 	    Time => $alloc->{Start},
 	    Info => $alloc->{Info},
 	    Type => Start,
-	    ($share ? (Share => $share) : ()),
+	    ($share ? (Share => { %$share }) : ()),
 	    Allocated => { Shareix => $shareix },
 	}, {
 	    Time => $end_exptd,
 	    Info => $alloc->{Info},
 	    Type => End,
-	    ($share ? (Share => $share) : ()),
+	    ($share ? (Share => { %$share }) : ()),
 	    Allocated => { Shareix => $shareix },
 	};
     }
