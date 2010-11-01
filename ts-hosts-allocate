@@ -460,7 +460,13 @@ sub hid_recurse ($$) {
 	    !defined($duration) ||
 	    defined($cand->{Duration}) && $cand->{Duration} >= $duration;
     }
-    $duration= 10000 if !defined $duration;
+    my $duration_rightaway_adjust= 0;
+    
+    if (!defined $duration) {
+        # if we can start now then don't penalise unknown hosts so much
+        $duration= 5000;
+        $duration_rightaway_adjust= 1000 - $duration;
+    }
     $duration += 10;
 
     print DEBUG "$dbg EVAL DURATION $duration va=$variation_age\n";
@@ -529,7 +535,12 @@ sub hid_recurse ($$) {
 	$hidix %= @hids;
 	last if $confirmedok==@hids;
     }
-    my $cost= $try_time + $duration - ($variation_age / 30);
+    $duration_rightaway_adjust=0 if $try_time;
+
+    my $cost= $try_time + $duration +
+        $duration_rightaway_adjust
+        - ($variation_age / 30);
+    
     print DEBUG "$dbg FINAL try=$try_time va=$variation_age cost=$cost\n";
 
     if (!defined $best || $cost < $best->{Cost}) {
