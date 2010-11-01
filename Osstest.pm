@@ -999,6 +999,7 @@ sub alloc_resources {
     };
 
     while ($ok==0 || $ok==2) {
+        my $bookinglist;
         if (!eval {
             if (!defined $qserv) {
                 $qserv= tcpconnect($c{ControlDaemonHost}, $c{QueueDaemonPort});
@@ -1043,7 +1044,7 @@ sub alloc_resources {
 
             opendb_tests();
 
-            my ($plan,$bookinglist);
+            my ($plan);
 
 	    db_retry($flight,'running', $dbh_tests, \@all_lock_tables,
 		     [ sub {
@@ -1067,6 +1068,7 @@ sub alloc_resources {
 
 	    if ($bookinglist && $ok!=-1) {
 		my $jbookings= to_json($bookinglist);
+                logm("resource allocation: booking $jbookings\n");
 
 		printf $qserv "book-resources %d\n", length $jbookings
 		    or die $!;
@@ -1074,6 +1076,8 @@ sub alloc_resources {
 
 		print $qserv $jbookings or die $!;
 		$_= <$qserv>; defined && m/^OK book-resources\s/ or die "$_ ?";
+
+                $bookinglist= undef; # no need to undo these then
 
 		logm("resource allocation: we are in the plan.");
 	    }
@@ -1094,7 +1098,32 @@ sub alloc_resources {
             $retries++;
             die "trouble $@" if $retries > 60;
             chomp $@;
-            logm("resource allocation: queue-server trouble, sleeping ($@)");
+            logm("resource allocation: queue-server trouble ($@)");
+            if ($bookinglist) {
+                # If we have allocated things but not managed to book them
+                # then we need to free them, or we won't reallocate them
+                # when we retry.
+                db_retry($flight,'running',$dbh_tests,\@all_lock_tables, sub {
+                    my $freetask= findtask();
+                    foreach my $book (@{ $bookinglist->{Bookings} }) {
+                        my $alloc= $book->{Allocated};
+                        next unless $alloc;
+                        my @reskey= ((split / /, $book->{Reso}, 2),
+                                     $alloc->{Shareix});
+                        $reskey[0]= "share-$reskey[0]" if $reskey[2];
+                        logm("resource allocation: unwinding @reskey");
+                        my $undone= $dbh_tests->do(<<END,{},$freetask,@reskey);
+                            UPDATE resources
+                               SET owntaskid=(SELECT taskid FROM tasks
+                                        WHERE type='magic' AND refkey='idle')
+                             WHERE owntaskid=?
+                               AND restype=? AND resname=? AND shareix=?
+END
+                        die "$freetask @reskey $undone" unless $undone;
+                    }
+                });
+            }
+            logm("resource allocation: will retry in $c{QueueDaemonRetry}s");
             sleep $c{QueueDaemonRetry};
             undef $qserv;
             $ok= 0;

@@ -85,7 +85,7 @@ END
 END
 
     $recentflights_q= $dbh_tests->prepare(<<END);
-            SELECT f.flight AS flight
+            SELECT f.flight AS flight,
 		   f.started AS started
 		     FROM flights f
                      JOIN jobs j USING (flight)
@@ -97,17 +97,24 @@ END
                       AND  f.branch=?
                       AND  j.job=?
                       AND  r.val=?
-		      AND  (j.status=='pass' OR j.status=='fail')
+		      AND  (j.status='pass' OR j.status='fail')
                  ORDER BY f.started DESC
                     LIMIT 1
 END
 
+    $elapsed_finish_q= $dbh_tests->prepare(<<END);
+            SELECT finished AS t FROM steps
+		          WHERE flight=? AND job=?
+		          ORDER BY finished DESC
+			  LIMIT 1
+END
+
     $latest_finish_q= $dbh_tests->prepare(<<END);
-            SELECT s.started AS t, f.flight AS flight
+            SELECT s.finished AS t, f.flight AS flight
 		      FROM steps s JOIN flights f
-		        ON s.flight=r.flight
+		        ON s.flight=f.flight
 		     WHERE s.job=? AND f.blessing=? AND f.branch=?
-                     ORDER BY started ASC
+                     ORDER BY s.finished DESC
 		     LIMIT 1
 END
 
@@ -115,13 +122,6 @@ END
             SELECT started AS t FROM steps
 		          WHERE flight=? AND job=?
 		          ORDER BY started ASC
-			  LIMIT 1
-END
-
-    $elapsed_finish_q= $dbh_tests->prepare(<<END);
-            SELECT finished AS t FROM steps
-		          WHERE flight=? AND job=?
-		          ORDER BY finished DESC
 			  LIMIT 1
 END
 
@@ -339,9 +339,12 @@ END
 	}
 
 	my $refflight= $candrow->{MostRecent}{flight};
-	$elapsed_finish_q->execute($refflight, $job);
-	my ($finish) = $elapsed_finish_q->fetchrow_array();
-	$elapsed_finish_q->finish();
+        my $finish;
+        if (defined $refflight) {
+            $elapsed_finish_q->execute($refflight, $job);
+            ($finish) = $elapsed_finish_q->fetchrow_array();
+            $elapsed_finish_q->finish();
+        }
 	if (!defined $finish) {
 	    print DEBUG "$dbg GOOD DURATION NONE-EXACT\n";
 	    $latest_finish_q->execute($job, $fi->{intended}, $fi->{branch});
@@ -373,7 +376,7 @@ END
         }
     }
 
-    $hid->{Candidates} = @candidates;
+    $hid->{Candidates} = \@candidates;
 }
 
 #---------- constructing a plan ----------
@@ -435,14 +438,16 @@ sub hid_recurse ($$) {
 
     # hah, got to the end, see when we could do it and calculate the cost
 
-    print DEBUG "$dbg EVAL\n";
+    print DEBUG "$dbg EVAL "
+        .(join '; ', map { $_->{Selected}{Reso} } @hids)."\n";
 
     my $variation_age= 0;
     my $duration= undef;
     foreach my $hid (@hids) {
 	my $cand= $hid->{Selected};
 	my $recent= $cand->{MostRecent};
-	$variation_age += $recent ? time - $recent->{started} : 90*86400;
+	$variation_age +=
+            defined $recent->{started} ? time - $recent->{started} : 90*86400;
 	$duration= $cand->{Duration} if
 	    !defined($duration) ||
 	    defined($cand->{Duration}) && $cand->{Duration} >= $duration;
@@ -452,12 +457,12 @@ sub hid_recurse ($$) {
 
     print DEBUG "$dbg EVAL DURATION $duration va=$variation_age\n";
 
-    if ($jobinfo->{recipe} !~ m/build/) {
+    if ($jobinfo->{recipe} =~ m/build/) {
         $variation_age= 0;
     }
 
     # when could we do this
-    my $try_hidix= 0;
+    $hidix= 0;
     my $try_time= 0;
     my $confirmedok= 0;
     my $share_wear;
@@ -466,6 +471,7 @@ sub hid_recurse ($$) {
 	my $hid= $hids[$hidix];
 	my $reso= $hid->{Selected}{Reso};
 	my $events= $plan->{Events}{$reso};
+        $events ||= [ ];
 
 	# can we do $try_hid at $try_time ?  If not, when later can we ?
       EVENT:
@@ -476,7 +482,7 @@ sub hid_recurse ($$) {
 
 	    # check the period from $events[$ix] to next event
 	    my $startevt= $events->[$ix];
-	    my $endevt= $ix<@$events ? $events->[$ix+1] : { Time=>1e100 };
+	    my $endevt= $ix+1<@$events ? $events->[$ix+1] : { Time=>1e100 };
 	    next if $endevt->{Time} <= $try_time; # quite after this
 	    last if $try_time + $duration <= $startevt->{Time};
 
@@ -520,10 +526,10 @@ sub hid_recurse ($$) {
 
     if (!defined $best || $cost < $best->{Cost}) {
         print DEBUG "$dbg FINAL BEST: ".
-	    (join ' ', map { $_->{Selected}{Reso} } @hids);
+	    (join '; ', map { $_->{Selected}{Reso} } @hids). "\n";
 	$best= {
 	    Cost => $cost,
-	    Selections => (map { $_->{Selected} } @hids),
+	    Selections => [ map { $_->{Selected} } @hids ],
 	    Start => $try_time,
 	    Duration => $duration,
 	};
@@ -535,6 +541,12 @@ sub hid_recurse ($$) {
 sub alloc_hosts () {
     alloc_resources(WaitStart => $fi->{started},
 		    \&attempt_allocation);
+
+    foreach my $hid (@hids) {
+        my $sel= $hid->{Selected};
+        die $hid->{Ident} unless defined $sel->{resname};
+        store_runvar($hid->{Ident}.time, $sel->{resname});
+    }
 }
 
 sub attempt_allocation {
@@ -547,7 +559,7 @@ sub attempt_allocation {
 
     foreach my $hid (@hids) {
 	delete $hid->{Allocated};
-	hid_find_possibilites($hid);
+	hid_find_possibilities($hid);
     }
     optimally_order_hids();
 
@@ -586,6 +598,8 @@ sub attempt_allocation {
     }
 
     my $booklist= compute_booking_list();
+
+print STDERR Dumper($booklist);
     return ($retval, $booklist);
 }
 
@@ -628,6 +642,7 @@ sub actual_allocation ($) {
 
     my $shared;
     my $shrestype= 'share-'.$sel->{restype};
+
     if ($cand->{owntaskid} == $magictaskid{shared}) {
 	$alloc_shared_q->execute
                 ($shrestype, $sel->{resname},
@@ -670,7 +685,7 @@ sub actual_allocation ($) {
 	    } else {
 		print DEBUG "$dbg ALLOC SHARED AVAIL SLOTFREE".
 		    " $slot->{shareix}\n";
-		$allocatable= 1;
+		$allocatable= 2;
 		$cand= $slot;
 	    }
 	} else {
@@ -697,9 +712,9 @@ sub actual_allocation ($) {
 
     my $bookalloc= { };
 
-    if ($cand != $sel) {
+    if ($allocatable==2) {
 	# sharing reuse
-        print DEBUG "HID $hid->{Ident} GO @reskey SHARING REUSE\n";
+        print DEBUG "HID $hid->{Ident} GO @reskey SHARING REUSE $shrestype\n";
 
         $claim_share_reuse_q->execute($sel->{restype}, $cand->{resname});
         $claim_share_reuse_q->finish();
