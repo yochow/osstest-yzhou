@@ -68,7 +68,7 @@ END
 # all users of these must ->finish them afterwards, to avoid db deadlock
 
 our ($flagscheckq, $equivflagscheckq, $recentflights_q,
-     $latest_finish_q, $elapsed_start_q, $elapsed_finish_q,
+     $duration_anyref_q, $duration_duration_q,
      $alloc_findres_q, $alloc_shared_q, $alloc_sharing_slot_q,
      $claim_share_reuse_q, $claim_maxshare_q, $claim_rmshares_q,
      $claim_noshares_q, $claim_rmshare_q, $claim_setres_q,
@@ -104,15 +104,8 @@ END
                     LIMIT 1
 END
 
-    $elapsed_finish_q= $dbh_tests->prepare(<<END);
-            SELECT finished AS t FROM steps
-		          WHERE flight=? AND job=?
-		          ORDER BY finished DESC
-			  LIMIT 1
-END
-
-    $latest_finish_q= $dbh_tests->prepare(<<END);
-            SELECT s.finished AS t, f.flight AS flight
+    $duration_anyref_q= $dbh_tests->prepare(<<END);
+            SELECT f.flight AS flight
 		      FROM steps s JOIN flights f
 		        ON s.flight=f.flight
 		     WHERE s.job=? AND f.blessing=? AND f.branch=?
@@ -120,11 +113,10 @@ END
 		     LIMIT 1
 END
 
-    $elapsed_start_q= $dbh_tests->prepare(<<END);
-            SELECT started AS t FROM steps
+    $duration_duration_q= $dbh_tests->prepare(<<END);
+            SELECT sum(finished-started) AS duration FROM steps
 		          WHERE flight=? AND job=?
-		          ORDER BY started ASC
-			  LIMIT 1
+                            AND step != 'ts-hosts-allocate'
 END
 
     # for allocation
@@ -329,41 +321,7 @@ END
 
         print DEBUG "$dbg GOOD\n";
 
-	$recentflights_q->execute($fi->{intended},
-				  $fi->{branch},
-				  $job,
-				  $candrow->{hostname});
-	my $mostrecent=$recentflights_q->fetchrow_hashref();
-	$recentflights_q->finish();
-	if ($mostrecent) {
-	    $candrow->{MostRecent}= $mostrecent;
-	    print DEBUG "$dbg GOOD MOST-RECENT $mostrecent->{flight}\n";
-	}
-
-	my $refflight= $candrow->{MostRecent}{flight};
-        my $finish;
-        if (defined $refflight) {
-            $elapsed_finish_q->execute($refflight, $job);
-            ($finish) = $elapsed_finish_q->fetchrow_array();
-            $elapsed_finish_q->finish();
-        }
-	if (!defined $finish) {
-	    print DEBUG "$dbg GOOD DURATION NONE-EXACT\n";
-	    $latest_finish_q->execute($job, $fi->{intended}, $fi->{branch});
-	    ($finish,$refflight) = $latest_finish_q->fetchrow_array();
-	    $latest_finish_q->finish();
-	}
-	my $start;
-	if (defined $finish) {
-	    print DEBUG "$dbg GOOD DURATION REF $refflight\n";
-	    $elapsed_start_q->execute($refflight, $job);
-	    ($start) = $elapsed_start_q->fetchrow_array();
-	    $elapsed_start_q->finish();
-	}
-	if (defined $start) {
-	    $candrow->{Duration}= $finish - $start;
-	    print DEBUG "$dbg GOOD DURATION $candrow->{Duration}\n";
-	}
+        find_recent_duration($dbg,$candrow);
 
 	push @candidates, $candrow;
 	print DEBUG "$dbg CANDIDATE.\n";
@@ -380,6 +338,47 @@ END
 
     $hid->{Candidates} = \@candidates;
 }
+
+sub find_recent_duration ($$) {
+    my ($dbg, $candrow) = @_;
+    
+    $recentflights_q->execute($fi->{intended},
+                              $fi->{branch},
+                              $job,
+                              $candrow->{hostname});
+    my $mostrecent= $recentflights_q->fetchrow_hashref();
+    $recentflights_q->finish();
+
+    $candrow->{MostRecent}= $mostrecent;
+    my $refflight= $mostrecent->{Flight};
+
+    if (defined $refflight) {
+        print DEBUG "$dbg GOOD DURATION SAME-HOST FLIGHT $refflight\n";
+    } else {
+        print DEBUG "$dbg GOOD DURATION SAME-HOST NONE\n";
+        $duration_anyref_q->execute($job, $fi->{intended}, $fi->{branch});
+        ($refflight) = $duration_anyref_q->fetchrow_array();
+        $duration_anyref_q->finish();
+        if (!defined $refflight) {
+            print DEBUG "$dbg GOOD DURATION ANY-HOST NONE\n";
+            return;
+        }
+        print DEBUG "$dbg GOOD DURATION ANY-HOST FLIGHT $refflight\n";
+    }
+
+    $duration_duration_q->execute($refflight, $job);
+    my ($duration) = $duration_duration_q->fetchrow_array();
+    $duration_duration_q->finish();
+
+    if (!defined $duration) {
+        print DEBUG "$dbg GOOD DURATION UNKNOWN NO STEPS?\n";
+        return;
+    }
+
+    print DEBUG "$dbg GOOD DURATION $candrow->{Duration}\n";
+    $candrow->{Duration}= $duration;
+}
+
 
 #---------- constructing a plan ----------
 
