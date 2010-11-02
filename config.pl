@@ -13,6 +13,8 @@ $c{WebspaceUrl}= "http://woking.$c{Domain}/~osstest/";
 $c{WebspaceCommon}= 'osstest/';
 $c{WebspaceLog}= '/var/log/apache2/access.log';
 
+$c{Repos}= "$ENV{HOME}/repos";
+
 $c{GitCache}='teravault-1.cam.xci-test.com:/export/home/xc_osstest/git-cache/';
 $c{GitCacheLocal}= '/home/xc_osstest/git-cache/';
 

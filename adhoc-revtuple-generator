@@ -5,9 +5,13 @@ use IO::File;
 use IO::Handle;
 no warnings qw(recursion);
 use Data::Dumper;
+use POSIX;
+use Osstest;
 
 our $num= 1000;
 our $doupdate= 1;
+
+my @org_argv= @ARGV;
 
 open DEBUG, ">/dev/null" or die $!;
 
@@ -30,6 +34,16 @@ while (@ARGV && $ARGV[0] =~ m/^-/) {
             die "unknown option \`$_'";
         }
     }
+}
+
+readconfigonly();
+
+my $repos_lock= "$c{Repos}/lock";
+my $repos_locked= $ENV{OSSTEST_REPOS_LOCK_LOCKED};
+unless (defined $repos_locked && $repos_locked eq $repos_lock) {
+    $ENV{OSSTEST_REPOS_LOCK_LOCKED}= $repos_lock;
+    exec "with-lock-ex","-w",$repos_lock, $0,@org_argv;
+    die $!;
 }
 
 sub max {
@@ -58,13 +72,13 @@ sub git_generator ($) {
     my $treename= $tree->{Treename};
     my $upcmd= <<END;
         set -e; exec >&2
-        rm -rf repos/$treename
-        CACHEING_GIT_CACHE=repos/git-cache ./cacheing-git \\
-            clone --bare $tree->{Url} repos/$treename
+        rm -rf $c{Repos}/$treename
+        CACHEING_GIT_CACHE=$c{Repos}/git-cache ./cacheing-git \\
+            clone --bare $tree->{Url} $c{Repos}/$treename
 END
     print DEBUG "GIT-GEN UPCMD\n$upcmd\n";
     shellcmd($upcmd) if $doupdate;
-    my $cmd= "cd repos/$treename &&".
+    my $cmd= "cd $c{Repos}/$treename &&".
         " git-log --pretty=raw --date-order $tree->{Latest}";
     print DEBUG "GIT-GEN CMD $cmd\n";
     my $fh= new IO::File;
@@ -107,9 +121,9 @@ sub hg_generator ($) {
     local $_;
     print DEBUG "HG-GEN ".pmap($tree).".\n";
     my $treename= $tree->{Treename};
-    shellcmd("set -e; exec >&2; cd repos/$treename && hg pull -u")
+    shellcmd("set -e; exec >&2; cd $c{Repos}/$treename && hg pull -u")
         if $doupdate;
-    my $cmd= "cd repos/$treename && hg log --template '".
+    my $cmd= "cd $c{Repos}/$treename && hg log --template '".
 	"{node|short}\n".
 	"{node|short} {date}\n".
 	"{files}\n".
@@ -213,7 +227,7 @@ sub xu_withtag_generator ($) {
 	if ($targetqemu eq 'unknown') {
 	    my $nodeonly= $xenrev->{Commit};
 	    $nodeonly =~ s/^\d+\://;
-	    open CMK, "cd repos/$xentree &&
+	    open CMK, "cd $c{Repos}/$xentree &&
                        hg cat -r $nodeonly Config.mk |"
 			 or die $!;
 	    while (<CMK>) {
@@ -224,7 +238,7 @@ sub xu_withtag_generator ($) {
 		die if $targetqemu =~ m/[^-+._0-9a-zA-Z]/;
 		die unless $targetqemu =~ m/^[^-]/;
 		$!=0; $?=0;
-		$targetqemu= `cd repos/$qemutree &&
+		$targetqemu= `cd $c{Repos}/$qemutree &&
                               git-rev-parse '$targetqemu'`;
 		die "$! $?" if (!defined $targetqemu) or $?;
 		chomp $targetqemu;
