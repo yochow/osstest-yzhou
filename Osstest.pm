@@ -59,7 +59,7 @@ BEGIN {
                       alloc_resources alloc_resources_rollback_begin_work
                       resource_check_allocated resource_shared_mark_ready
                       built_stash flight_otherjob
-                      csreadconfig ts_get_host_guest
+                      csreadconfig readconfigonly ts_get_host_guest
                       readconfig opendb_state selecthost get_hostflags
                       need_runvars
                       get_filecontents ensuredir postfork
@@ -112,13 +112,17 @@ sub opendb_tests () {
     $dbh_tests ||= opendb('osstestdb');
 }
 
-sub csreadconfig () {
+sub readconfigonly () {
     require 'config.pl';
     foreach my $v (keys %c) {
 	my $e= $ENV{"OSSTEST_C_$v"};
 	next unless defined $e;
 	$c{$v}= $e;
     }
+}
+
+sub csreadconfig () {
+    readconfigonly();
     opendb_tests();
 }
 
