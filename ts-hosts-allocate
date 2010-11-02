@@ -93,7 +93,7 @@ END
                      JOIN jobs j USING (flight)
                      JOIN runvars r
                              ON  f.flight=r.flight
-                            AND  r.name='host'
+                            AND  r.name=?
                     WHERE  j.job=r.job
                       AND  f.blessing=?
                       AND  f.branch=?
@@ -321,7 +321,7 @@ END
 
         print DEBUG "$dbg GOOD\n";
 
-        find_recent_duration($dbg,$candrow);
+        find_recent_duration($dbg,$hid,$candrow);
 
 	push @candidates, $candrow;
 	print DEBUG "$dbg CANDIDATE.\n";
@@ -340,9 +340,10 @@ END
 }
 
 sub find_recent_duration ($$) {
-    my ($dbg, $candrow) = @_;
+    my ($dbg, $hid, $candrow) = @_;
     
-    $recentflights_q->execute($fi->{intended},
+    $recentflights_q->execute($hid->{Ident},
+                              $fi->{intended},
                               $fi->{branch},
                               $job,
                               $candrow->{hostname});
@@ -350,7 +351,7 @@ sub find_recent_duration ($$) {
     $recentflights_q->finish();
 
     $candrow->{MostRecent}= $mostrecent;
-    my $refflight= $mostrecent->{Flight};
+    my $refflight= $mostrecent->{flight};
 
     if (defined $refflight) {
         print DEBUG "$dbg GOOD DURATION SAME-HOST FLIGHT $refflight\n";
@@ -375,8 +376,8 @@ sub find_recent_duration ($$) {
         return;
     }
 
-    print DEBUG "$dbg GOOD DURATION $candrow->{Duration}\n";
     $candrow->{Duration}= $duration;
+    print DEBUG "$dbg GOOD DURATION $duration\n";
 }
 
 
