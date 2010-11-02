@@ -637,7 +637,12 @@ sub compute_booking_list () {
     foreach my $hid (@hids) {
 	my $sel= $hid->{Selected};
 	my $alloc= $hid->{Allocated};
-	my $book= $alloc || { };
+	my $book= $alloc || {
+	    (defined $hid->{Shared} ? (Share => {
+		Type => $hid->{Shared},
+		Shares => $hid->{SharedMaxTasks},
+	    }) : ()),
+	};
 	$book->{Reso}= "$sel->{restype} $sel->{resname}";
 	$book->{Xinfo}= $hid->{Ident};
 	$book->{Start}= $best->{Start},
