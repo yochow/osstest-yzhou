@@ -595,10 +595,14 @@ sub cmd_show_html () {
 		$show= 'Idle' if !length $show &&
                     $event->{Start} >= $plan->{Start};
                 my $colour=
-                    !$content->{Avail} ?
-                    ($content->{Allocated} ? "#ff8888" : "#ffff88") :
-                    $content->{Share} ? "#8888ff" :
-                    "#ffffff";
+                    $content->{Avail} ?
+                    ($content->{Share} ? "#ccccff" : "#ffffff") :
+                    $content->{Type} eq Overrun ?
+                    ($content->{Share} ? "#883388" : "#884444") :
+                    $content->{Allocated} ?
+                    ($content->{Share} ? "#ff44ff" : "#ff8888")
+                    :
+                    ($content->{Share} ? "#00eeee" : "#88ff88");
 		printf "<td valign=top rowspan=%d bgcolor=\"%s\">%s %s</td>",
 		    $content->{Rowspan}, $colour, $show;
 		$content->{Printed}= 1;
