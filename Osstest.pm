@@ -658,7 +658,7 @@ sub system_checked ($) {
 
 sub tcmd { # $tcmd will be put between '' but not escaped
     my ($stdout,$user,$ho,$tcmd,$timeout) = @_;
-    $timeout=10 if !defined $timeout;
+    $timeout=30 if !defined $timeout;
     tcmdex($timeout,$stdout,
            'ssh', sshopts(),
            sshuho($user,$ho), $tcmd);
@@ -1476,7 +1476,7 @@ END
     store_runvar("$gho->{Guest}_cfgpath", "$cfgpath");
     $gho->{CfgPath}= $cfgpath;
 
-    target_putfilecontents_root_stash($ho,10,$xencfg, $cfgpath);
+    target_putfilecontents_root_stash($ho,30,$xencfg, $cfgpath);
 
     target_cmd_root($ho, <<END);
         (echo $passwd; echo $passwd) | vncpasswd $gho->{Guest}.vncpw
