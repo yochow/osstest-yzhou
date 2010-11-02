@@ -480,6 +480,7 @@ sub hid_recurse ($$) {
     my $try_time= 0;
     my $confirmedok= 0;
     my $share_wear;
+    my $share_reuse= 0;
 
     for (;;) {
 	my $hid= $hids[$hidix];
@@ -525,21 +526,25 @@ sub hid_recurse ($$) {
 	    $try_time= $endevt->{Time};
 	    $confirmedok= 0;
 	    undef $share_wear;
+	    $share_reuse= 0;
 	}
 	print DEBUG "$dbg PLAN NEXT hids[$hidix]=$hids[$hidix]{Ident}".
 	    " try=$try_time confirmed=$confirmedok".
 	    (defined($share_wear) ? " wear=$share_wear" : "")."\n";
 
 	$confirmedok++;
+	$share_reuse++ if defined $share_wear;
 	$hidix++;
 	$hidix %= @hids;
 	last if $confirmedok==@hids;
     }
     $duration_rightaway_adjust=0 if $try_time;
 
-    my $cost= $try_time + $duration +
-        $duration_rightaway_adjust
-        - ($variation_age / 30);
+    my $cost= $try_time
+	+ $duration
+	+ $duration_rightaway_adjust
+        - ($variation_age / 30)
+	- $share_reuse * 2000;
     
     print DEBUG "$dbg FINAL try=$try_time va=$variation_age cost=$cost\n";
 
