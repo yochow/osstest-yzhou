@@ -492,7 +492,7 @@ sub hid_recurse ($$) {
       EVENT:
 	foreach (my $ix=0; $ix<@$events; $ix++) {
 	    print DEBUG "$dbg PLAN LOOP hids[$hidix]=$hids[$hidix]{Ident}".
-		" try=$try_time confirmed=$confirmedok".
+		" evtix=$ix try=$try_time confirmed=$confirmedok".
 		(defined($share_wear) ? " wear=$share_wear" : "")."\n";
 
 	    # check the period from $events[$ix] to next event
@@ -504,9 +504,11 @@ sub hid_recurse ($$) {
 	    # this period overlaps
 	  CHECK:
 	    {
+		print DEBUG "$dbg PLAN LOOP   OVERLAP\n";
 		last CHECK unless $startevt->{Avail};
 		my $eshare= $startevt->{Share};
 		if ($eshare) {
+		    print DEBUG "$dbg PLAN LOOP   OVERLAP ESHARE\n";
 		    last CHECK unless defined $hid->{Shared};
 		    last CHECK unless $hid->{Shared} eq $eshare->{Type};
 		    if (defined $share_wear) {
@@ -519,6 +521,7 @@ sub hid_recurse ($$) {
 			$hid->{SharedMaxTasks};
 		}
 		# it fits here
+		print DEBUG "$dbg PLAN LOOP   OVERLAP AVAIL OK\n";
 		next EVENT;
 	    };
 		
@@ -527,6 +530,7 @@ sub hid_recurse ($$) {
 	    $confirmedok= 0;
 	    undef $share_wear;
 	    $share_reuse= 0;
+	    print DEBUG "$dbg PLAN LOOP   OVERLAP BAD $try_time\n";
 	}
 	print DEBUG "$dbg PLAN NEXT hids[$hidix]=$hids[$hidix]{Ident}".
 	    " try=$try_time confirmed=$confirmedok".

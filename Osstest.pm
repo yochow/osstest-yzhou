@@ -1054,6 +1054,9 @@ sub alloc_resources {
 		my $jplanlen= $1;
 		my $jplan;
 		read($qserv, $jplan, $jplanlen) == $jplanlen or die $!;
+		my $jplanprint= $jplan;
+		chomp $jplanprint;
+		logm("resource allocation: base plan $jplanprint");
 		$plan= from_json($jplan);
 	    }, sub {
 		if (!eval {
