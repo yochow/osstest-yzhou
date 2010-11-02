@@ -12,47 +12,63 @@ export LOGFILE
 BRANCHES='xen-4.0-testing xen-unstable linux'
 export BRANCHES
 
-export LOCK_ACQUIRE_START=`date +%s`
+with-lock-ex -w data-tree-lock bash -ec '
+	git-pull . incoming:master ||:
+	git-checkout HEAD
+'
 
-with-lock-ex $wlem global-lock bash -ec '
-        savelog -n 500 $LOGFILE >/dev/null
-        exec >>$LOGFILE
+export OSSTEST_TEST_PULLFROM=`pwd`
 
-        log () {
-                d=`date +"%Y-%m-%d %H:%M:%S %Z"`
-                printf "[%s $$] %s%s\n" "$d" "$m" "$1"
-        }
+scriptoptions="$1"; shift
+for branch in $BRANCHES; do
+ (
+	set -e
+	cd ../branches/for-$branch.git
 
-	lock_acquire_done=`date +%s`
-	lock_acquire_delay=$(( $lock_acquire_done - $LOCK_ACQUIRE_START ))
-	lock_acquire_max=28800
-	if [ $lock_acquire_delay -gt $lock_acquire_max ]; then
-		log "$script $lock_acquire_delay > $lock_acquire_max, shedding"
-		exit 1
-	fi
+	export LOCK_ACQU_START=`date +%s`
 
-        script=$1; shift
-        for branch in $BRANCHES; do
-                if ! git-pull . incoming:master; then
-                        git-checkout HEAD
-                fi
+	with-lock-ex $WLEM data-tree-lock bash -ec '
+		m="$*"
 
-                m="$script $branch $*"
-                log ...
-                set +e
-                $script $branch "$@" 2>&1
-                rc=$?
-                set -e
-                log " status=$rc"
-                if [ $rc != 0 ]; then
+		mkdir -p tmp
+
+		savelog -n 500 $LOGFILE >/dev/null
+		exec >>$LOGFILE
+
+		log () {
+			d=`date +"%Y-%m-%d %H:%M:%S %Z"`
+			printf "[%s $$] %s%s\n" "$d" "$m" "$1"
+		}
+
+		lock_acquire_done=`date +%s`
+		lock_acquire_delay=$(( $lock_acquire_done - $LOCK_ACQU_START ))
+		lock_acquire_max=86400
+		if [ $lock_acquire_delay -gt $lock_acquire_max ]; then
+			log "$lock_acquire_delay > $lock_acquire_max, shedding"
+			exit 1
+		fi
+
+		log ...
+
+		git-pull $OSSTEST_TEST_PULLFROM master:master ||:
+		git-pull . incoming:master ||:
+		git-checkout HEAD
+
+		set +e
+		"$@" 2>&1
+		rc=$?
+		set -e
+		log "status=$rc"
+		if [ $rc != 0 ]; then
                         cat >&2 <<END
 FAILURE $$
 $m
 see $LOGFILE
 
 END
-                        cat >&2 $LOGFILE
-                        exit $rc
+			cat >&2 $LOGFILE
+			exit $rc
                 fi
-        done
-' x "$@"
+	' x $scriptoptions $branch "$@"
+ ) &
+done
