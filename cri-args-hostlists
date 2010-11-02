@@ -39,10 +39,6 @@ elif [ "x$1" = "x--like-real" ]; then
 fi	
 : ${OSSTEST_BLESSING:=play}
 
-if [ x"$OSSTEST_BLESSING" = xreal ]; then
-	cd ${OSSTEST_DIR:=/export/home/osstest/testing.git}
-fi
-
 : ${OSSTEST_EMAIL_HEADER:=daily-cron-email-$OSSTEST_BLESSING}
 
 . ${OSSTEST_CRON_SETTINGS:-$dcs-$OSSTEST_BLESSING}
