@@ -489,7 +489,7 @@ sub hid_recurse ($$) {
         $events ||= [ ];
 
 	# can we do $try_hid at $try_time ?  If not, when later can we ?
-      EVENT:
+      PERIOD:
 	foreach (my $ix=0; $ix<@$events; $ix++) {
 	    print DEBUG "$dbg PLAN LOOP hids[$hidix]=$hids[$hidix]{Ident}".
 		" evtix=$ix try=$try_time confirmed=$confirmedok".
@@ -498,10 +498,15 @@ sub hid_recurse ($$) {
 	    # check the period from $events[$ix] to next event
 	    my $startevt= $events->[$ix];
 	    my $endevt= $ix+1<@$events ? $events->[$ix+1] : { Time=>1e100 };
-	    next if $endevt->{Time} <= $try_time; # quite after this
-	    last EVENT if $try_time + $duration <= $startevt->{Time};
 
-	    # this period overlaps
+	    last PERIOD if $startevt->{Time} >= $try_time + $duration;
+            # this period is entirely after the proposed slot;
+            # so no need to check this or any later periods
+
+	    next PERIOD if $endevt->{Time} <= $try_time;
+            # this period is entirely before the proposed slot;
+            # it doesn't overlap, but most check subsequent periods
+
 	  CHECK:
 	    {
 		print DEBUG "$dbg PLAN LOOP   OVERLAP\n";
@@ -520,9 +525,9 @@ sub hid_recurse ($$) {
 		    last CHECK if $eshare->{Shares} !=
 			$hid->{SharedMaxTasks};
 		}
-		# it fits here
+		# We have suitable availability for this period
 		print DEBUG "$dbg PLAN LOOP   OVERLAP AVAIL OK\n";
-		last EVENT;
+		next PERIOD;
 	    };
 		
 	    # nope
