@@ -72,6 +72,6 @@ END
 	' x $scriptoptions $branch "$@"
  ) &
 
-$OSSTEST_FOR_BRANCHES_WAIT
+${OSSTEST_FOR_BRANCHES_WAIT-sleep 100}
 
 done
