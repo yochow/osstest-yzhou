@@ -12,7 +12,7 @@ branch=$1
 case "$branch" in
 xen*)
 	./sg-hg-heads sh -ec '
-		cd $repos/"'"$branch.hg"'"
+		cd "'"$repos/$branch.hg"'"
 	        hg pull -u >&2
 	        eval "$1"
 	' x

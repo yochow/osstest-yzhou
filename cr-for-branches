@@ -2,9 +2,10 @@
 # usage: cr-for-branches WLEM "SCRIPT OPTIONS" ARGS...
 # will run   with-lock-ex WLEM SCRIPT OPTIONS BRANCH ARGS...
 
-set -e
+set -ex
 
 wlem=$1; shift
+scriptoptions="$1"; shift
 
 LOGFILE=tmp/cr-for-branches.log
 export LOGFILE
@@ -19,7 +20,6 @@ with-lock-ex -w data-tree-lock bash -ec '
 
 export OSSTEST_TEST_PULLFROM=`pwd`
 
-scriptoptions="$1"; shift
 for branch in $BRANCHES; do
  (
 	set -e
@@ -27,7 +27,7 @@ for branch in $BRANCHES; do
 
 	export LOCK_ACQU_START=`date +%s`
 
-	with-lock-ex $WLEM data-tree-lock bash -ec '
+	with-lock-ex $wlem data-tree-lock bash -xec '
 		m="$*"
 
 		mkdir -p tmp
@@ -37,7 +37,7 @@ for branch in $BRANCHES; do
 
 		log () {
 			d=`date +"%Y-%m-%d %H:%M:%S %Z"`
-			printf "[%s $$] %s%s\n" "$d" "$m" "$1"
+			printf "[%s $$] %s %s\n" "$d" "$m" "$1"
 		}
 
 		lock_acquire_done=`date +%s`
@@ -71,4 +71,7 @@ END
                 fi
 	' x $scriptoptions $branch "$@"
  ) &
+
+$OSSTEST_FOR_BRANCHES_WAIT
+
 done
