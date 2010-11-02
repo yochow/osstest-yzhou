@@ -13,3 +13,4 @@ bisecting-sticky-branch
 [tu]
 data-plan.pl
 data-plan.pl.new
+data-plan-debug-*.txt

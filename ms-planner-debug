@@ -1,0 +1,36 @@
+#!/usr/bin/perl -w
+
+use strict qw(vars refs);
+use JSON;
+use Data::Dumper;
+use DBI;
+use Osstest;
+
+csreadconfig();
+
+my $f= sprintf "data-plan-debug-%s.txt", time;
+
+printf "%s\n", $f;
+
+open STDOUT, ">$f" or die $!;
+
+print "==========ARGS==========\n";
+foreach my $arg (@ARGV) {
+    print "==========\n", $arg, "\n----------\n";
+    my $jobj= eval { from_json($arg) };
+    if ($jobj) {
+	print Dumper($jobj);
+    } else {
+	print $@,"\n";
+    }
+}
+
+print "==========data-plan.pl==========\n";
+
+system 'cat data-plan.pl 2>&1';
+
+print "==========resources==========\n";
+
+system "psql -d osstestdb -c \"select * from resource_sharing s full outer join resources r on r.restype = 'share-' || s.restype and r.resname = s.resname full outer join tasks t on r.owntaskid=t.taskid order by live, r.resname, shareix, r.restype, taskid\" 2>&1";
+
+print "==========\n";
