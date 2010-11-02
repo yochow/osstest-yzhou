@@ -302,15 +302,20 @@ proc transaction {tables script} {
         pg_execute dbh BEGIN
         pg_execute dbh "SET TRANSACTION ISOLATION LEVEL SERIALIZABLE"
         lock-tables $tables
-        uplevel 1 $script
-        if {[catch {
-            pg_execute dbh COMMIT
-        } emsg]} {
-            puts "commit failed: $emsg; retrying ..."
-            after 500
-        } else {
-            return
-        }
+	set rc [catch { uplevel 1 $script } result]
+	if {!$rc} {
+	    if {[catch {
+		pg_execute dbh COMMIT
+	    } emsg]} {
+		puts "commit failed: $emsg; retrying ..."
+		pg_execute dbh ROLLBACK
+		after 500
+		continue
+	    }
+	} else {
+	    pg_execute dbh ROLLBACK
+	}
+	return -code $rc $result
     }
 }
 
