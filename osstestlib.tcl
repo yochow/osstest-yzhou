@@ -319,7 +319,7 @@ proc become-task {comment} {
     if {[info exists env(OSSTEST_TASK)]} return
 
     set ownerqueue [socket $c(ControlDaemonHost) $c(OwnerDaemonPort)]
-    fconfigure $ownerqueue -buffering line
+    fconfigure $ownerqueue -buffering line -translation lf
     must-gets $ownerqueue {^OK ms-ownerdaemon\M}
     puts $ownerqueue create-task
     must-gets $ownerqueue {^OK created-task (\d+) (\w+ [\[\]:.0-9a-f]+)$} \
