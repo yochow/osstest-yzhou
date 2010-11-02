@@ -4,17 +4,19 @@ set -ex
 branch=$1
 revision=$2
 
+. cri-lock-repos
+
 : ${XENBITS:=xen@xenbits.xensource.com}
 : ${TREE_LINUX:=$XENBITS:git/linux-pvops}
 : ${TAG_LINUX:=master}
 
 case "$branch" in
 xen*)
-	cd repos/$branch.hg
+	cd $repos/$branch.hg
 	hg push -r "$revision" ssh://$XENBITS/HG/$branch.hg
 	;;
 linux)
-	cd repos/xen
+	cd $repos/xen
 	git push $TREE_LINUX $revision:$TAG_LINUX
 	;;
 *)

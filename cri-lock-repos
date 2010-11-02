@@ -1,0 +1,13 @@
+# -*- bash -*-
+
+repos=`perl -e 'use Osstest; readconfigonly(); print $c{Repos} or die $!'`
+
+repos_lock="$repos/lock"
+
+if [ "x$OSSTEST_REPOS_LOCK_LOCKED" != "x$repos_lock" ]; then
+	OSSTEST_REPOS_LOCK_LOCKED="$repos_lock" \
+	exec with-lock-ex -w "$repos_lock" \
+	"$0" "$@"
+	echo >&2 "arrgh, exec with-lock-ex failed $?"
+	exit 1
+fi

@@ -3,6 +3,8 @@ set -e
 
 branch=$1
 
+. cri-lock-repos
+
 : ${TREE_LINUX:=git://git.kernel.org/pub/scm/linux/kernel/git/jeremy/xen.git}
 : ${TAG_LINUX:=xen/next-2.6.32}
 : ${LOCALREV_LINUX:=daily-cron.$branch}
@@ -10,13 +12,13 @@ branch=$1
 case "$branch" in
 xen*)
 	./sg-hg-heads sh -ec '
-		cd repos/"'"$branch.hg"'"
+		cd $repos/"'"$branch.hg"'"
 	        hg pull -u >&2
 	        eval "$1"
 	' x
 	;;
 linux)
-	cd repos/xen
+	cd $repos/xen
 	git fetch -f $TREE_LINUX $TAG_LINUX:$LOCALREV_LINUX
 	git-rev-parse $LOCALREV_LINUX
 	;;
