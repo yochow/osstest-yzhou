@@ -499,7 +499,7 @@ sub hid_recurse ($$) {
 	    my $startevt= $events->[$ix];
 	    my $endevt= $ix+1<@$events ? $events->[$ix+1] : { Time=>1e100 };
 	    next if $endevt->{Time} <= $try_time; # quite after this
-	    last if $try_time + $duration <= $startevt->{Time};
+	    last EVENT if $try_time + $duration <= $startevt->{Time};
 
 	    # this period overlaps
 	  CHECK:
