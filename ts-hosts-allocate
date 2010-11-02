@@ -522,7 +522,7 @@ sub hid_recurse ($$) {
 		}
 		# it fits here
 		print DEBUG "$dbg PLAN LOOP   OVERLAP AVAIL OK\n";
-		next EVENT;
+		last EVENT;
 	    };
 		
 	    # nope
