@@ -233,13 +233,17 @@ proc setstatus {st} {
     job-set-status $flight $jobinfo(job) $st
 }
 
-proc job-set-status {flight job st} {
-    transaction flights {
-        pg_execute dbh "
+proc job-set-status-unlocked {flight job st} {
+    pg_execute dbh "
             UPDATE jobs SET status='$st'
                 WHERE flight=$flight AND job='$job'
                   AND status<>'aborted' AND status<>'broken'
-        "
+    "
+}
+
+proc job-set-status {flight job st} {
+    transaction flights {
+        job-set-status-unlocked $flight $job $st
     }
 }
 
