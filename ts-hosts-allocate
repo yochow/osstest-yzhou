@@ -538,7 +538,7 @@ sub hid_recurse ($$) {
 	    print DEBUG "$dbg PLAN LOOP   OVERLAP BAD $try_time\n";
 	}
 	print DEBUG "$dbg PLAN NEXT hids[$hidix]=$hids[$hidix]{Ident}".
-	    " try=$try_time confirmed=$confirmedok".
+	    " try=$try_time confirmed=$confirmedok reuse=$share_reuse".
 	    (defined($share_wear) ? " wear=$share_wear" : "")."\n";
 
 	$confirmedok++;
