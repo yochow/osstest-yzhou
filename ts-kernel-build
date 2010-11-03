@@ -161,7 +161,7 @@ END
 }
 
 sub kinstall () {
-    my $kernfile= 'arch/x86/boot/vmlinux-stripped';
+    my $kernfile= 'arch/x86/boot/bzImage';
     target_cmd_build($ho, 100, $builddir, <<END);
 	mkdir -p dist/boot dist/lib/modules
 	cd linux
