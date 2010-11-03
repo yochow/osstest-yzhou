@@ -464,11 +464,11 @@ sub show_rel_time ($) {
     my $minus= $rel < 0 ? '-' : '';
     $rel= -$rel if $minus;
 
-    my $lt= localtime $abs;
+    my (@lt) = localtime $abs;
     my $abstr=
-        $rel < 86400*2 ? strftime("%a %H:%M", localtime $abs) :
-        $rel < 86400*7 ? strftime("%d %a %Hh", localtime $abs) :
-        strftime("%d %b %a", localtime $abs);
+        $rel < 86400*2 ? strftime("%a %H:%M", @lt) :
+        $rel < 86400*7 ? strftime("%d %a %Hh", @lt) :
+        strftime("%d %b %a", @lt);
         
     my $mins= $rel % 60;   $rel -= $mins;   $rel /= 60;
     my $hours= $rel % 60;  $rel -= $hours;  $rel /= 60;
