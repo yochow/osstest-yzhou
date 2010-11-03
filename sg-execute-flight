@@ -95,6 +95,8 @@ proc main_iteration {} {
         log "unexpected child \[$pid\] $how $st"
         return
     }
+
+    set exitok [expr {![string compare EXIT $how] && $st==0}]
     
     log "flight $flight reaped  $job \[$pid\] $how $st"
     transaction flights {
@@ -104,11 +106,21 @@ proc main_iteration {} {
                       AND job=[pg_quote $job]
         "]
         if {!$found} { error "job not in database $flight $job" }
-        if {[string equal $jobinfo(status) queued]} {
-            if {![string compare EXIT $how] && $st==0} {
-                error "job still queued $flight $job"
-            } else {
-                job-set-status $flight $job broken
+
+        switch -exact -- $jobinfo(status) {
+            pass - fail - broken - blocked {
+            }
+            queued - preparing - running {
+                job-set-status-unlocked $flight $job broken
+                if {$exitok} {
+                    error "job $flight.$job runner exited 0\
+                       but left job status $jobinfo(status)"
+                }
+            }
+            default {
+                error "job $flight.$job runner ($how $st)\
+                       left unexpected job status\
+                       $jobinfo(status)"
             }
         }
     }
