@@ -611,17 +611,20 @@ sub cmd_show_html () {
                     @{ $content->{Show} };
 		$show= 'Idle' if !length $show &&
                     $event->{Start} >= $plan->{Start};
-                my $colour=
+                my $bgcolour=
                     $content->{Avail} ?
                     ($content->{Share} ? "#ccccff" : "#ffffff") :
                     $content->{Type} eq Overrun ?
-                    ($content->{Share} ? "#883388" : "#884444") :
+                    ($content->{Share} ? "#443344" : "#442222") :
                     $content->{Allocated} ?
-                    ($content->{Share} ? "#ff44ff" : "#ff8888")
+                    ($content->{Share} ? "#882288" : "#882222")
                     :
-                    ($content->{Share} ? "#00eeee" : "#88ff88");
-		printf "<td valign=top rowspan=%d bgcolor=\"%s\">%s %s</td>",
-		    $content->{Rowspan}, $colour, $show;
+                    ($content->{Share} ? "#005555" : "#448844");
+                my $fgcolour=
+                    $content->{Avail} ? "#000000" : "#ffffff";
+		printf "<td valign=top rowspan=%d".
+                    " bgcolor=\"%s\"><font color==\"%s\">%s %s</font></td>",
+		    $content->{Rowspan}, $bgcolour, $fgcolour, $show;
 		$content->{Printed}= 1;
 	    }
 	}
