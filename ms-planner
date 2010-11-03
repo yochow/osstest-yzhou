@@ -604,8 +604,11 @@ sub cmd_show_html () {
 	    my $cell= shift @$col;
 	    my $content= $cell->{Content};
 	    if (!$content->{Printed}) {
-		my $show= join "<br>",
-                    map { encode_entities($_) } @{ $content->{Show} };
+		my $show=
+                    join "<br>",
+                    map { encode_entities($_) }
+                    grep { m/\S/ }
+                    @{ $content->{Show} };
 		$show= 'Idle' if !length $show &&
                     $event->{Start} >= $plan->{Start};
                 my $colour=
