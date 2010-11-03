@@ -14,7 +14,9 @@ BRANCHES='xen-4.0-testing xen-unstable linux'
 export BRANCHES
 
 with-lock-ex -w data-tree-lock bash -ec '
-	git-pull . incoming:master ||:
+	exec >>$LOGFILE
+	date
+	git-pull . incoming:master 2>&1 ||:
 	git-checkout HEAD
 '
 
@@ -50,8 +52,8 @@ for branch in $BRANCHES; do
 
 		log ...
 
-		git-pull $OSSTEST_TEST_PULLFROM master:master ||:
-		git-pull . incoming:master ||:
+		git-pull $OSSTEST_TEST_PULLFROM master:master 2>&1 ||:
+		git-pull . incoming:master 2>&1 ||:
 		git-checkout HEAD
 
 		set +e
