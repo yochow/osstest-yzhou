@@ -476,7 +476,7 @@ sub hid_recurse ($$) {
     if ($jobinfo->{recipe} =~ m/build/) {
         $variation_age= 0;
     } elsif ($variation_age > 86400) {
-	$varation_age= 86400;
+	$variation_age= 86400;
     }	
 
     # when could we do this
