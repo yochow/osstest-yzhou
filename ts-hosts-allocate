@@ -48,7 +48,7 @@ sub setup () {
         SELECT * FROM flights
          WHERE flight = ?
 END
-    logm("flight $flight intended $fi->{intended}");
+    logm("flight $flight intended $fi->{intended} branch $fi->{branch}");
 
     $jobinfo= $dbh_tests->selectrow_hashref(<<END, {}, $flight, $job);
         SELECT * FROM jobs
