@@ -467,8 +467,8 @@ sub show_rel_time ($) {
     my $lt= localtime $abs;
     my $abstr=
         $rel < 86400*2 ? strftime("%a %H:%M", localtime $abs) :
-        $rel < 86400*7 ? strftime("%a %d %Hh", localtime $abs) :
-        strftime("%a %d $b", localtime $abs);
+        $rel < 86400*7 ? strftime("%d %a %Hh", localtime $abs) :
+        strftime("%d %b %a", localtime $abs);
         
     my $mins= $rel % 60;   $rel -= $mins;   $rel /= 60;
     my $hours= $rel % 60;  $rel -= $hours;  $rel /= 60;
@@ -488,7 +488,7 @@ sub cmd_show_html () {
 	$reskey =~ m/ (\d+)$/;
 	my ($reso, $shareix) = ($`, $1);
 
-	if ($alloc->{End} < $plan->{Start}) {
+	if (defined $alloc->{End} && $alloc->{End} < $plan->{Start}) {
 	    unshift @{ $plan->{Events}{$reso} }, {
 		Time => $alloc->{End},
 		Info => $alloc->{Info},
