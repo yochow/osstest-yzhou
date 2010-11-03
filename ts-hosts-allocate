@@ -574,6 +574,11 @@ sub hid_recurse ($$) {
 #---------- committing to a plan ----------
 
 sub alloc_hosts () {
+    if (!@hids) {
+        logm("host allocation: no nosts requested!");
+        return;
+    }
+
     alloc_resources(WaitStart => $fi->{started},
 		    \&attempt_allocation);
 
