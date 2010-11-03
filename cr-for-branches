@@ -2,7 +2,7 @@
 # usage: cr-for-branches WLEM "SCRIPT OPTIONS" ARGS...
 # will run   with-lock-ex WLEM SCRIPT OPTIONS BRANCH ARGS...
 
-set -ex
+set -e
 
 wlem=$1; shift
 scriptoptions="$1"; shift
@@ -27,7 +27,7 @@ for branch in $BRANCHES; do
 
 	export LOCK_ACQU_START=`date +%s`
 
-	with-lock-ex $wlem data-tree-lock bash -xec '
+	with-lock-ex $wlem data-tree-lock bash -ec '
 		m="$*"
 
 		mkdir -p tmp
