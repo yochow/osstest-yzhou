@@ -558,6 +558,7 @@ sub cmd_show_html () {
 
     my @rows;
     my (@newoutcols) = map { [] } @outcols;
+    my $last_tick_only= 0;
     for (;;) {
 	#print DEBUG "==========\n", Dumper(\@outcols);
 	    
@@ -572,6 +573,19 @@ sub cmd_show_html () {
 
 	#print DEBUG Dumper($anystart, $firstend);
 
+	my $realfirstend= $firstend;
+	my $tick_only= 0;
+
+	if (defined $anystart) {
+	    my $nexthour= int($anystart/3600 + 1)*3600;
+	    if ($firstend > $nexthour &&
+		$anystart >= $plan->{Start} &&
+		$nexthour <= $plan->{Start} + 3600*12) {
+		$firstend= $nexthour;
+		$tick_only= 1;
+	    }
+	}
+
 	foreach (my $colix=0; $colix<@outcols; $colix++) {
 	    my $col= $outcols[$colix];
 	    my $cell= shift @$col;
@@ -582,9 +596,15 @@ sub cmd_show_html () {
 	    }
 	    push @{ $newoutcols[$colix] }, $cell;
 	}
-	push @rows, { Start => $anystart, End => $firstend };
+	push @rows, {
+	    Start => $anystart,
+	    End => $firstend,
+	    TickOnly => $last_tick_only,
+	};
 
-	last if $firstend == 1e100;
+	$last_tick_only= $tick_only;
+
+	last if $realfirstend == 1e100;
     }
 
     #print DEBUG "==============================\n",
@@ -598,8 +618,14 @@ sub cmd_show_html () {
     print "</tr>\n";
 
     foreach my $event (@rows) {
-	printf "<tr><th valign=top>%s</th><th valign=top>%s</th>",
-            show_rel_time($event->{Start});
+	if ($event->{TickOnly}) {
+	    my (@lt) = localtime $event->{Start};
+	    printf "<tr><th></th><th>%s</th>",
+	        strftime("%H:%M", @lt);
+	} else {
+	    printf "<tr><th valign=top>%s</th><th valign=top>%s</th>",
+                show_rel_time($event->{Start});
+	}
 	foreach my $col (@newoutcols) {
 	    my $cell= shift @$col;
 	    my $content= $cell->{Content};
