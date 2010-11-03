@@ -100,6 +100,7 @@ END
                       AND  j.job=?
                       AND  r.val=?
 		      AND  (j.status='pass' OR j.status='fail')
+                      AND  f.started IS NOT NULL
                  ORDER BY f.started DESC
                     LIMIT 1
 END
@@ -109,6 +110,7 @@ END
 		      FROM steps s JOIN flights f
 		        ON s.flight=f.flight
 		     WHERE s.job=? AND f.blessing=? AND f.branch=?
+                       AND s.finished IS NOT NULL
                      ORDER BY s.finished DESC
 		     LIMIT 1
 END
