@@ -618,12 +618,16 @@ sub cmd_show_html () {
     print "</tr>\n";
 
     foreach my $event (@rows) {
+	my $timecolour= $event->{Start} % 3600
+	    ? '' : ' bgcolor="#888888"';
 	if ($event->{TickOnly}) {
 	    my (@lt) = localtime $event->{Start};
-	    printf "<tr><th></th><th>%s</th>",
+	    printf "<tr><th $timecolour></th>".
+		"<th valign=top $timecolour>%s</th>",
 	        strftime("%H:%M", @lt);
 	} else {
-	    printf "<tr><th valign=top>%s</th><th valign=top>%s</th>",
+	    printf "<tr><th valign=top $timecolour>%s</th>".
+		"<th valign=top $timecolour>%s</th>",
                 show_rel_time($event->{Start});
 	}
 	foreach my $col (@newoutcols) {
