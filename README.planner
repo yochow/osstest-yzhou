@@ -31,7 +31,8 @@ Plan is:
 			Task	owntaskid
 			Info    info string about who this is *
 			Start   abs start time *
-			End	abs planned end time *
+			End	abs planned end time, *
+				 omitted for rogue tasks
 
 	Events
 		map from

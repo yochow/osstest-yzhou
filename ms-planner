@@ -239,25 +239,21 @@ END
 	return if $oldalloc && $oldalloc->{Task}==$arow->{owntaskid};
 
 	# rogue allocation!
-	my $endtime;
 	my $info;
 	if ($arow->{owntaskid} == $magictask{preparing}) {
             my $cs= current_sharing_info($reso);
             die "$reso ?" unless $cs;
             next if $cs->{OnlyPreparing};
 
-	    $endtime= $plan->{Start} + 1000;
 	    $info= "(preparing)";
 	} else {
-	    print DEBUG "rogue $reso $shareix: $arow->{owntaskid} $endtime\n";
-	    $endtime= $plan->{Start} + $c{PlanRogueAllocationDuration};
+	    print DEBUG "rogue $reso $shareix: $arow->{owntaskid}\n";
 	    $info= "rogue task $arow->{subtask}";
 	}
 	$plan->{Allocations}{$reskey}= {
             Task => $arow->{owntaskid},
 	    Info => $info,
 	    Start => $plan->{Start},
-	    End => $endtime,
 	};
     });
 
@@ -278,7 +274,14 @@ END
 
 	# compute new expected end time
 	my $end_exptd= $alloc->{End};
-	if ($end_exptd < $plan->{Start}) {
+
+        if (!defined $end_exptd) {
+            if ($alloc->{Task} == $magictask{preparing}) {
+                $end_exptd= $plan->{Start} + 1000;
+            } else {
+                $end_exptd= $plan->{Start} + $c{PlanRogueAllocationDuration};
+            }
+        } elsif ($end_exptd < $plan->{Start}) {
 	    # overdue
 	    my $started= $alloc->{Start};
 	    my $duration_sofar= $plan->{Start} - $started;

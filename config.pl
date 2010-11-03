@@ -38,7 +38,7 @@ $c{QueueDaemonHoldoff}= 30; # seconds
 $c{QueueThoughtsTimeout}= 30; # seconds
 $c{QueueResourcePollInterval}= 60; # seconds
 
-$c{PlanRogueAllocationDuration}= 86400;
+$c{PlanRogueAllocationDuration}= 86400*7;
 
 $c{SerialLogPattern}= '/root/sympathy/%host%.log*';
 
