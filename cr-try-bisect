@@ -90,6 +90,7 @@ perhaps_bisect_step () {
 #        echo $branch >$sticky.new
 #        mv -f $sticky.new $sticky
 
+	export OSSTEST_RESOURCE_SUBPRIORITY=-100
         execute_flight $flight $OSSTEST_BLESSING-bisect
         flight_executed=true
 
