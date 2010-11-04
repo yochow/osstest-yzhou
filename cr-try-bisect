@@ -101,15 +101,17 @@ perhaps_bisect_step () {
 
         if test -e $anyflagfile; then
                 subpriority=100
+                inhibitqueue=0
         else
                 subpriority=-100
+                inhibitqueue=300
         fi
         export OSSTEST_RESOURCE_SUBPRIORITY=$subpriority
         
         execute_flight $flight $OSSTEST_BLESSING-bisect
         flight_executed=true
 
-	./mg-queue-inhibit 300 "bisected $branch $flight" ||:
+	./mg-queue-inhibit $inhibitqueue "bisected $branch $flight" ||:
 
         compute_state
         send_bisection_email "$flight: tested" -bisectrun
