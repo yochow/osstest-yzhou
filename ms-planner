@@ -460,12 +460,15 @@ sub cmd_book_resources () {
 
 sub show_rel_time ($) {
     my ($abs) = @_;
+
     my $rel= $abs - $plan->{Start};
+    my $realrel= $rel;
     my $minus= $rel < 0 ? '-' : '';
     $rel= -$rel if $minus;
 
     my (@lt) = localtime $abs;
     my $abstr=
+        -4*3600 < $realrel && $realrel < 11*3600 ? strftime("%H:%M", @lt) :
         $rel < 86400*2 ? strftime("%a %H:%M", @lt) :
         $rel < 86400*7 ? strftime("%d %a %Hh", @lt) :
         strftime("%d %b %a", @lt);
