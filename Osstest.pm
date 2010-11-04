@@ -51,7 +51,7 @@ BEGIN {
     @EXPORT      = qw(
                       $tftptail
                       %c %r $dbh_tests $flight $job $stash
-                      dbfl_check
+                      dbfl_check grabrepolock_reexec
                       get_runvar get_runvar_maybe get_runvar_default
                       store_runvar get_stashed
                       unique_incrementing_runvar system_checked
@@ -125,6 +125,17 @@ sub readconfigonly () {
 sub csreadconfig () {
     readconfigonly();
     opendb_tests();
+}
+
+sub grabrepolock_reexec {
+    my (@org_argv) = @_;
+    my $repos_lock= "$c{Repos}/lock";
+    my $repos_locked= $ENV{OSSTEST_REPOS_LOCK_LOCKED};
+    unless (defined $repos_locked && $repos_locked eq $repos_lock) {
+        $ENV{OSSTEST_REPOS_LOCK_LOCKED}= $repos_lock;
+        exec "with-lock-ex","-w",$repos_lock, $0,@org_argv;
+        die $!;
+    }
 }
 
 sub dbfl_check ($$) {

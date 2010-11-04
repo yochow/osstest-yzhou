@@ -38,13 +38,7 @@ while (@ARGV && $ARGV[0] =~ m/^-/) {
 
 readconfigonly();
 
-my $repos_lock= "$c{Repos}/lock";
-my $repos_locked= $ENV{OSSTEST_REPOS_LOCK_LOCKED};
-unless (defined $repos_locked && $repos_locked eq $repos_lock) {
-    $ENV{OSSTEST_REPOS_LOCK_LOCKED}= $repos_lock;
-    exec "with-lock-ex","-w",$repos_lock, $0,@org_argv;
-    die $!;
-}
+grabrepolock_reexec(@org_argv);
 
 sub max {
     my $max;
