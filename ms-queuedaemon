@@ -89,7 +89,10 @@ proc runneeded-perhaps-start {} {
     set needed $need_queue_run
     set need_queue_run 0
 
-    if {![llength $queue]} return
+    if {![llength $queue]} {
+        report-plan
+        return
+    }
 
     transaction resources {
         set nrows [pg_execute dbh {
@@ -165,6 +168,7 @@ proc queuerun-perhaps-step {} {
     if {![llength $queue_running]} {
         unset queue_running
         runneeded-ensure-will 0
+        report-plan
         return
     }
 
@@ -176,6 +180,15 @@ proc queuerun-perhaps-step {} {
                             queue-thoughts-timedout]
     for-chan $thinking {
         puts-chan $thinking "!OK think"
+    }
+}
+
+proc report-plan {} {
+    global c
+    if {[catch {
+        exec ./ms-planner show-html > "$c(WebspaceFile)/resource-plan.html"
+    } emsg]} {
+        log "INTERNAL ERROR showing plan html: $emsg"
     }
 }
 
