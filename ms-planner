@@ -580,7 +580,7 @@ sub cmd_show_html () {
 	if (defined $anystart) {
 	    my $nexthour= int($anystart/3600 + 1)*3600;
 	    if ($firstend > $nexthour &&
-		$nexthour >= $plan->{Start} - 3600 &&
+		$anystart >= $plan->{Start} &&
 		$nexthour <= $plan->{Start} + 3600*12) {
 		$firstend= $nexthour;
 	    }
