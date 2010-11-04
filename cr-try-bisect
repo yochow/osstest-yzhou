@@ -9,6 +9,8 @@ check_stop bisect.
 
 sticky=bisecting-sticky-branch
 
+anyflagfile=tmp/bisected-any.$branch
+
 with-lock-ex -w $mrof.lock bash -xec "
 	if test -e $mrof.in; then
 		if test -e $mrof; then mv $mrof $mrof.old; fi
@@ -22,8 +24,6 @@ if ! test -f $mrof; then
         echo "$branch no mro"
         exit 0
 fi
-
-anyflagfile=tmp/bisected-any.$branch
 
 if grep '^tolerable$' $mrof >/dev/null 2>&1; then
 	# this approach relies on us getting a look-in in between
