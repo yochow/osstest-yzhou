@@ -27,6 +27,14 @@ select_branch () {
 	mrof="$branch.mro"
 }
 
+getconfig () {
+        perl -e '
+                use Osstest;
+                readconfigonly();
+                print $c{'$1'} or die $!;
+        '
+}
+
 dcs=daily-cron-settings
 
 if [ "x$1" = "x--real" ]; then
