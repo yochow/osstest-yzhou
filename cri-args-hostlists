@@ -53,9 +53,9 @@ fi
 
 : ${OSSTEST_PUSH:=false}
 
-: ${OSSTEST_HTMLPUB_DIR:=/home/xc_osstest/logs}
-: ${OSSTEST_HTML_DIR:=/home/xc_osstest/$OSSTEST_HTML_SUBDIR}
-: ${OSSTEST_HTML_URL:=http://teravault-1.cam.xci-test.com/xc_osstest/$OSSTEST_HTML_SUBDIR}
+: ${OSSTEST_HTML_DIR:=`getconfig PubBaseDir`/$OSSTEST_HTML_SUBDIR}
+: ${OSSTEST_HTML_URL:=`getconfig PubBaseUrl`/$OSSTEST_HTML_SUBDIR}
+: ${OSSTEST_HTMLPUB_DIR:=`getconfig Logs`}
 
 execute_flight () {
         case "x$OSSTEST_SIMULATE" in

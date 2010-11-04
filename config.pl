@@ -46,6 +46,7 @@ $c{OverlayLocal}= '/export/home/osstest/overlay-local';
 
 $c{Publish}= 'xensrcts@login.chiark.greenend.org.uk:/home/ian/work/xc_osstest';
 
+$c{PubBaseDir}= '/home/xc_osstest';
 $c{Stash}= '/home/xc_osstest/logs';
 $c{Images}= '/home/xc_osstest/images';
 $c{Logs}= '/home/xc_osstest/logs';
