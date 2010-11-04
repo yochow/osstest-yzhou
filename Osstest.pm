@@ -56,6 +56,7 @@ BEGIN {
                       store_runvar get_stashed
                       unique_incrementing_runvar system_checked
                       tcpconnect findtask @all_lock_tables
+                      tcpconnect_queuedaemon
                       alloc_resources alloc_resources_rollback_begin_work
                       resource_check_allocated resource_shared_mark_ready
                       built_stash flight_otherjob
@@ -976,6 +977,15 @@ sub alloc_resources_rollback_begin_work () {
 
 our $alloc_resources_waitstart;
 
+sub tcpconnect_queuedaemon () {
+    my $qserv= tcpconnect($c{ControlDaemonHost}, $c{QueueDaemonPort});
+    $qserv->autoflush(1);
+
+    $_= <$qserv>;  defined && m/^OK ms-queuedaemon\s/ or die "$_?";
+
+    return $qserv;
+}
+
 sub alloc_resources {
     my ($resourcecall) = pop @_;
     my (%xparams) = @_;
@@ -1007,10 +1017,7 @@ sub alloc_resources {
         my $bookinglist;
         if (!eval {
             if (!defined $qserv) {
-                $qserv= tcpconnect($c{ControlDaemonHost}, $c{QueueDaemonPort});
-                $qserv->autoflush(1);
-
-                $_= <$qserv>;  defined && m/^OK ms-queuedaemon\s/ or die "$_?";
+                $qserv= tcpconnect_queuedaemon();
 
                 my $waitstart= $xparams{WaitStart};
                 if (!$waitstart) {
