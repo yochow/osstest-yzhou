@@ -998,6 +998,7 @@ sub alloc_resources {
     logm("resource allocation: starting...");
 
     my $set_info= sub {
+        return if grep { !defined } @_;
         print $qserv "set-info @_\n";
         $_= <$qserv>;  defined && m/^OK/ or die "$_ ?";
     };
