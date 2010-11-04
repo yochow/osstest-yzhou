@@ -73,7 +73,6 @@ case "$NEW_REVISION/$OLD_REVISION" in
         ;;
 esac
 
-export OSSTEST_RESOURCE_SUBPRIORITY=100
 execute_flight $flight $OSSTEST_BLESSING
 
 exec >tmp/$flight.email
