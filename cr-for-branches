@@ -28,7 +28,7 @@ for branch in $BRANCHES; do
 	set -e
 
 	branchdir=../$branchesdir/for-$branch.git
-	cd ../$branchdir
+	cd $branchdir
 
 	export LOCK_ACQU_START=`date +%s`
 
