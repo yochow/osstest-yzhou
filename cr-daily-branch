@@ -82,7 +82,7 @@ printf 'Subject: [%s test] ' "$branch"
 flight_html_dir=$OSSTEST_HTMLPUB_DIR/
 job_html_dir=$OSSTEST_HTML_DIR/
 
-globallockdir=`perl -e 'use Osstest; readconfigonly(); print $c{GlobalLockDir} or die $!'`
+globallockdir=`getconfig GlobalLockDir`
 
 with-lock-ex -w $globallockdir/report-lock \
   ./sg-report-job-history --html-dir=$job_html_dir --flight=$flight
