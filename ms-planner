@@ -561,7 +561,6 @@ sub cmd_show_html () {
 
     my @rows;
     my (@newoutcols) = map { [] } @outcols;
-    my $last_tick_only= 0;
     for (;;) {
 	#print DEBUG "==========\n", Dumper(\@outcols);
 	    
@@ -577,7 +576,6 @@ sub cmd_show_html () {
 	#print DEBUG Dumper($anystart, $firstend);
 
 	my $realfirstend= $firstend;
-	my $tick_only= 0;
 
 	if (defined $anystart) {
 	    my $nexthour= int($anystart/3600 + 1)*3600;
@@ -585,7 +583,6 @@ sub cmd_show_html () {
 		$anystart >= $plan->{Start} &&
 		$nexthour <= $plan->{Start} + 3600*12) {
 		$firstend= $nexthour;
-		$tick_only= 1;
 	    }
 	}
 
@@ -602,10 +599,7 @@ sub cmd_show_html () {
 	push @rows, {
 	    Start => $anystart,
 	    End => $firstend,
-	    TickOnly => $last_tick_only,
 	};
-
-	$last_tick_only= $tick_only;
 
 	last if $realfirstend == 1e100;
     }
