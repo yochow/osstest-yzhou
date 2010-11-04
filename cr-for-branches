@@ -4,6 +4,8 @@
 
 set -e
 
+export FOR_LOGFILE="$*"
+
 branchesdir=$1; shift
 wlem=$1; shift
 scriptoptions="$1"; shift
@@ -14,7 +16,7 @@ export LOGFILE
 BRANCHES='xen-4.0-testing xen-unstable linux'
 export BRANCHES
 
-FOR_LOGFILE="$*" with-lock-ex -w data-tree-lock bash -ec '
+with-lock-ex -w data-tree-lock bash -ec '
 	exec >>$LOGFILE
 	date
         printf "%s\n" "$FOR_LOGFILE"
