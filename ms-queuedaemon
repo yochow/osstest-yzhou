@@ -304,7 +304,6 @@ proc cmd/wait {chan desc} {
     foreach item $sortq { log "QI $item"; lappend queue [lindex $item 1] }
 
     puts-chan $chan "OK wait"
-    if {[info exists queue_running]} { set queue_running {} }
     runneeded-ensure-polling
     runneeded-ensure-will 2
 }
