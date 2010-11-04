@@ -94,6 +94,8 @@ perhaps_bisect_step () {
         execute_flight $flight $OSSTEST_BLESSING-bisect
         flight_executed=true
 
+	./mg-queue-inhibit 300 "bisected $branch $flight" ||:
+
         compute_state
         send_bisection_email "bisecting tested $flight" -bisectrun
 	exit 0
