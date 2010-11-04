@@ -22,10 +22,12 @@ if ! test -f $mrof; then
         exit 0
 fi
 
+anyflagfile=tmp/bisected-any.$branch
+
 if grep '^tolerable$' $mrof >/dev/null 2>&1; then
 	# this approach relies on us getting a look-in in between
 	# each daily run, which should be OK.
-	rm -f tmp/bisected.$branch.*
+	rm -f tmp/bisected.$branch.* $anyflagfile
 fi
 
 if test -f $sticky; then
@@ -73,6 +75,7 @@ compute_state () {
 
         echo ended $how
         touch $flagfile
+        touch $anyflagfile
         send_bisection_email $how -bisectdone
         rm -f $sticky
         exit 0
@@ -95,7 +98,13 @@ perhaps_bisect_step () {
 #        echo $branch >$sticky.new
 #        mv -f $sticky.new $sticky
 
-	export OSSTEST_RESOURCE_SUBPRIORITY=-100
+        if test -e $anyflagfile; then
+                subpriority=100
+        else
+                subpriority=-100
+        fi
+        OSSTEST_RESOURCE_SUBPRIORITY=$subpriority
+        
         execute_flight $flight $OSSTEST_BLESSING-bisect
         flight_executed=true
 
