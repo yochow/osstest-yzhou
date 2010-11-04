@@ -1,8 +1,8 @@
 # -*- bash -*-
 
-repos=`perl -e 'use Osstest; readconfigonly(); print $c{Repos} or die $!'`
+. cri-common
 
-repos_lock="$repos/lock"
+repos_lock="`getconfig Repos`/lock"
 
 if [ "x$OSSTEST_REPOS_LOCK_LOCKED" != "x$repos_lock" ]; then
 	OSSTEST_REPOS_LOCK_LOCKED="$repos_lock" \
