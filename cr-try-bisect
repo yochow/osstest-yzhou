@@ -12,6 +12,7 @@ sticky=bisecting-sticky-branch
 with-lock-ex -w $mrof.lock bash -xec "
 	if test -e $mrof.in; then
 		if test -e $mrof; then mv $mrof $mrof.old; fi
+                rm -f $anyflagfile
 		mv $mrof.in $mrof
 	fi
 "
@@ -27,7 +28,7 @@ anyflagfile=tmp/bisected-any.$branch
 if grep '^tolerable$' $mrof >/dev/null 2>&1; then
 	# this approach relies on us getting a look-in in between
 	# each daily run, which should be OK.
-	rm -f tmp/bisected.$branch.* $anyflagfile
+	rm -f tmp/bisected.$branch.*
 fi
 
 if test -f $sticky; then
