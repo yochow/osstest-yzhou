@@ -103,7 +103,7 @@ perhaps_bisect_step () {
         else
                 subpriority=-100
         fi
-        OSSTEST_RESOURCE_SUBPRIORITY=$subpriority
+        export OSSTEST_RESOURCE_SUBPRIORITY=$subpriority
         
         execute_flight $flight $OSSTEST_BLESSING-bisect
         flight_executed=true
