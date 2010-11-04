@@ -73,7 +73,7 @@ compute_state () {
 
         echo ended $how
         touch $flagfile
-        send_bisection_email "bisected $how" -bisectdone
+        send_bisection_email $how -bisectdone
         rm -f $sticky
         exit 0
 }
@@ -90,7 +90,7 @@ perhaps_bisect_step () {
         flight_executed=false
 
         compute_state --flight=$flight
-        send_bisection_email "bisecting testing $flight" -bisectrun
+        send_bisection_email "testing $flight" -bisectrun
 
 #        echo $branch >$sticky.new
 #        mv -f $sticky.new $sticky
@@ -102,7 +102,7 @@ perhaps_bisect_step () {
 	./mg-queue-inhibit 300 "bisected $branch $flight" ||:
 
         compute_state
-        send_bisection_email "bisecting tested $flight" -bisectrun
+        send_bisection_email "tested $flight" -bisectrun
 	exit 0
 }
 
@@ -113,7 +113,7 @@ send_bisection_email () {
         exec 3>tmp/$flight.email
         cat >&3 $OSSTEST_EMAIL_HEADER$2
         cat >&3 <<END
-Subject: oss xen test: $1
+Subject: [$branch bisection] $1 $job
 
 branch $xenbranch
 xen branch $xenbranch
