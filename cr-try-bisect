@@ -90,7 +90,7 @@ perhaps_bisect_step () {
         flight_executed=false
 
         compute_state --flight=$flight
-        send_bisection_email "testing $flight" -bisectrun
+        send_bisection_email "$flight: testing" -bisectrun
 
 #        echo $branch >$sticky.new
 #        mv -f $sticky.new $sticky
@@ -102,7 +102,7 @@ perhaps_bisect_step () {
 	./mg-queue-inhibit 300 "bisected $branch $flight" ||:
 
         compute_state
-        send_bisection_email "tested $flight" -bisectrun
+        send_bisection_email "$flight: tested" -bisectrun
 	exit 0
 }
 
