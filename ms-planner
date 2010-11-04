@@ -615,8 +615,9 @@ sub cmd_show_html () {
     print "</tr>\n";
 
     foreach my $event (@rows) {
-	my $timecolour= $event->{Start} % 3600
-	    ? '' : ' bgcolor="#888888"';
+	my $timecolour=
+	    !($event->{Start} % 3600) ? ' bgcolor="#888888"' :
+	    $event->{Start} < $plan->{Start} ? ' bgcolor="#dddddd"' : '';
 	printf "<tr><th valign=top $timecolour>%s</th>".
 	       "<th valign=top $timecolour>%s</th>",
 	    show_rel_time($event->{Start});
