@@ -1,0 +1,11 @@
+# -*- bash -*-
+
+umask 002
+
+getconfig () {
+        perl -e '
+                use Osstest;
+                readconfigonly();
+                print $c{'$1'} or die $!;
+        '
+}

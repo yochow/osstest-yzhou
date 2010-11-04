@@ -13,7 +13,7 @@ check_stop () {
 
 check_stop ''
 
-umask 002
+. cri-common
 
 select_branch () {
 	case "$branch" in
@@ -25,14 +25,6 @@ select_branch () {
 	check_stop $xenbranch.any.
 
 	mrof="$branch.mro"
-}
-
-getconfig () {
-        perl -e '
-                use Osstest;
-                readconfigonly();
-                print $c{'$1'} or die $!;
-        '
 }
 
 dcs=daily-cron-settings
