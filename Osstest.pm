@@ -1025,8 +1025,7 @@ sub alloc_resources {
                 }
 
                 if (defined $waitstart) {
-                    print $qserv "set-info wait-start $waitstart\n";
-                    $_= <$qserv>;  defined && m/^OK/ or die "$_ ?";
+                    $set_info->('wait-start',$waitstart);
                 }
 
                 my $adjust= $xparams{WaitStartAdjust};
