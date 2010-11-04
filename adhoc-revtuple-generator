@@ -406,7 +406,7 @@ sub makegraph_fromgen ($) {
     return gen2_graph(tree_get_gen($tree));
 }
 
-sub main () {
+sub parse_trees () {
     my @trees;
     local $_;
     
@@ -435,6 +435,11 @@ sub main () {
 
         push @trees, $tree;
     }
+    return @trees;
+}
+
+sub main () {
+    my @trees= parse_trees();
 
     print DEBUG "MAIN INIT trees=@trees.\n";
     print DEBUG "MAIN INIT names=".
