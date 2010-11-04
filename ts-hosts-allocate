@@ -579,8 +579,10 @@ sub alloc_hosts () {
         return;
     }
 
-    alloc_resources(WaitStart => $fi->{started},
-		    \&attempt_allocation);
+    alloc_resources
+	(WaitStart => $fi->{started},
+	 WaitStartAdjust => ($jobinfo->{recipe} !~ m/build/ ? 3000 : 0),
+	 \&attempt_allocation);
 
     foreach my $hid (@hids) {
         my $sel= $hid->{Selected};
