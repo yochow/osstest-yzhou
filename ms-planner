@@ -607,7 +607,7 @@ sub cmd_show_html () {
     #print DEBUG "==============================\n",
     #    Dumper(\@rows, \@newoutcols);
 
-    printf "<table rules=all><tr><td>plan age %s</td><td>planned at %s</td>\n",
+    printf "<table rules=all><tr><td>plan age %s</td><td>report at %s</td>\n",
         show_rel_time($now);
     foreach my $ch (@colheads) {
 	printf "<th>%s</th>", encode_entities($ch);
