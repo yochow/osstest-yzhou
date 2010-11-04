@@ -78,11 +78,11 @@ proc runneeded-ensure-will {need} {
 
 proc runneeded-perhaps-start {} {
     log-event runneeded-perhaps-start
-    global queue queue_running thinking need_queue_run startdelay
+    global queue queue_running thinking need_queue_run inhibit
     global runneeded_holdoff_after
     unset runneeded_holdoff_after
 
-    if {[info exists startdelay]} return
+    if {$inhibit} return
     if {[info exists queue_running]} return
     if {!$need_queue_run} return
 
@@ -345,6 +345,22 @@ proc cmd/prod {chan desc} {
     runneeded-ensure-will 2
 }
 
+proc cmd/inhibit {chan desc seconds why} {
+    set seconds [expr {int($seconds)}]
+    if {$seconds > 1000} { set seconds 1000 }
+    add-inhibit "$desc $why" $seconds
+    puts-chan $chan "OK inhibit $seconds"
+}
+
+proc cmd/uninhibit {chan desc} {
+    global inhibit
+    set was $inhibit
+    set inhibit 0
+    log "inhibition admin cancel!"
+    runneeded-ensure-will 2
+    puts-chan $chan "OK uninhibit $was"
+}
+
 proc cmd/uptime {chan desc seconds} {
     set before [expr {[clock seconds] - $seconds}]
     set descpat "[regsub {\:\d+$} $desc {:%}]"
@@ -396,22 +412,33 @@ proc await-endings-notified {} {
     }
 }
 
-proc startdelay-over {} {
-    global startdelay
-    unset startdelay
-    log "startdelay over"
-    runneeded-ensure-will 2
+proc end-inhibit {why} {
+    global inhibit
+    incr inhibit -1
+    log "inhibition $why: over, now $inhibit"
+    if {$inhibit<=0} {
+        set inhibit 0
+        runneeded-ensure-will 2
+    }
+}    
+
+proc add-inhibit {why seconds} {
+    global inhibit
+    after [expr {$seconds * 1000}] [list end-inhibit $why]
+    incr inhibit
+    log "inhibition $why: starts, ${seconds}s, now $inhibit"
 }
 
 main-daemon $c(QueueDaemonPort) {
-    global owndchan chandesc startdelay plan
+    global owndchan chandesc inhibit plan
     
     db-open
 
     set plan {}
     set queue {}
     set need_queue_run 0
-    set startdelay 1
+    set inhibit 0
+
     log-state main-daemon
     # 1: run queue only if new resources available
     # 2: definitely run queue
@@ -427,5 +454,5 @@ main-daemon $c(QueueDaemonPort) {
     fconfigure $owndchan -blocking false
     fileevent $owndchan readable await-endings-notified
 
-    after [expr {$c(QueueDaemonRetry) * 2000}] startdelay-over
+    add-inhibit startdelay [expr {$c(QueueDaemonRetry) * 2}]
 }
