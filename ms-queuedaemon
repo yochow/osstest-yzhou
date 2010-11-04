@@ -334,7 +334,10 @@ proc chan-order-key {chan} {
     incr waitstart [chan-get-info $chan {int($info(wait-start-adjust))} 0]
 
     #puts stderr "priority $chan $priority $emsg"
-    return [format "%-010d.%-010d.%-010d" $priority $subpriority $waitstart]
+    return [format "%011d.%011d.%011d" \
+                [expr {$priority+1000000000}] \
+                [expr {$subpriority+1000000000}] \
+                $waitstart]
 }
 
 proc cmd/prod {chan desc} {
