@@ -53,6 +53,8 @@ $c{Results}= '/home/xc_osstest/results';
 $c{LogsMinSpaceMby}= 10*1e3;
 $c{LogsMinExpireAge}= 86400*28;
 
+$c{GlobalLockDir}= "/export/home/osstest/testing.git";
+
 $c{LogsPublish}= "$c{Publish}/logs";
 $c{ResultsPublish}= "$c{Publish}/results";
 
