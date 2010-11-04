@@ -6,7 +6,7 @@ use Osstest;
 
 our %c;
 
-require 'config.pl';
+readconfigonly();
 
 die "usage: ./cr-publish-flight-logs <flight>" unless @ARGV==1;
 
