@@ -2,7 +2,8 @@
 
 . cri-common
 
-repos_lock="`getconfig Repos`/lock"
+repos=`getconfig Repos`
+repos_lock="$repos/lock"
 
 if [ "x$OSSTEST_REPOS_LOCK_LOCKED" != "x$repos_lock" ]; then
 	OSSTEST_REPOS_LOCK_LOCKED="$repos_lock" \
