@@ -1,0 +1,19 @@
+#!/usr/bin/perl -w
+
+use strict qw(refs vars);
+
+use Osstest;
+
+readconfigonly();
+
+die unless @ARGV==2;
+my ($seconds, $desc) = @ARGV;
+die unless $seconds =~ m/^\d+$/;
+$desc =~ s/[\"\\]/\\$&/g;
+
+my $qserv= tcpconnect_queuedaemon();
+
+print $qserv "inhibit $seconds \"$desc\"\n";
+$_= <$qserv>;  defined && m/^OK/ or die "$_ ?";
+
+exit 0;
