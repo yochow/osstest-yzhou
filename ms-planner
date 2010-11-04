@@ -661,6 +661,8 @@ sub cmd_show_html () {
 	printf "</tr>\n";
     }
     printf "</table>\n";
+    printf "Report generated %s.\n",
+        strftime("%Y-%b-%d %a %H:%M:%S", localtime $now);
     die $! if STDOUT->error;
     die $! unless STDOUT->flush;
 }
