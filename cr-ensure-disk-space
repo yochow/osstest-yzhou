@@ -22,7 +22,7 @@ die if @ARGV;
 
 csreadconfig();
 
-open LOCK, "> publish-lock" or die $!;
+open LOCK, "> $c{GlobalLockDir}/publish-lock" or die $!;
 flock LOCK, LOCK_EX or die $!;
 
 chdir $c{Logs} or die $c{Logs};

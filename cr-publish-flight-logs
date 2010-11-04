@@ -13,7 +13,7 @@ die "usage: ./cr-publish-flight-logs <flight>" unless @ARGV==1;
 my $flight= shift @ARGV;
 die unless $flight =~ m/^\d+$/;
 
-open LOCK, "> publish-lock" or die $!;
+open LOCK, "> $c{GlobalLockDir}/publish-lock" or die $!;
 flock LOCK, LOCK_EX or die $!;
 
 my $githost= $c{HarnessPublishGitUserHost};
