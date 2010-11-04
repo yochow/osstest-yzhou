@@ -10,6 +10,7 @@ use Osstest;
 
 our $num= 1000;
 our $doupdate= 1;
+our $showrev= 0;
 
 my @org_argv= @ARGV;
 
@@ -26,6 +27,8 @@ while (@ARGV && $ARGV[0] =~ m/^-/) {
             last;
         } elsif (s/^-N/-/) {
             $doupdate= 0;
+        } elsif (s/^-S/-/) {
+            $showrev= 1;
         } elsif (s/^-D/-/) {
             open DEBUG, ">&2" or die $!;
             STDOUT->autoflush(1);
@@ -58,6 +61,14 @@ sub shellcmd ($) {
     print DEBUG "SHELLCMD $cmd\n";
     my $r= system($cmd);
     die "$cmd $r $? $!" if $r;
+}
+
+sub git_revshower ($) {
+    my ($tree) = @_;
+    my $treedir= "$c{Repos}/$tree->{Treename}";
+    chdir $treedir or die $treedir;
+    exec qw(git log -n1), $tree->{Latest};
+    die $!;
 }
 
 sub git_generator ($) {
@@ -108,6 +119,24 @@ END
 	    Date => $date
 	};
     };
+}
+
+sub hg_revshower ($) {
+    my ($tree) = @_;
+
+    my $treedir= "$c{Repos}/$tree->{Treename}";
+    chdir $treedir or die $treedir;
+    $!=0; my $output= `hg log -vr$tree->{Latest}`; die "$? $!" if $?;
+    $output =~ m/^description:\s+/m or die "$output ?";
+    my ($head,$desc) = ($`,$');
+
+    $head =~ s/^files:.*\n//im;
+    $head =~ s/\s+$//s;
+    $desc =~ s/^\s+//s;
+    $desc =~ s/\s+$//s;
+    $desc =~ s/^/    /mg;
+    print $head,"\n\n",$desc,"\n" or die $!;
+    exit 0;
 }
 
 sub hg_generator ($) {
@@ -425,9 +454,11 @@ sub parse_trees () {
         $tree->{Url}= $_;
         if (m,/(\w[^/]+)\.git$,) {
             $tree->{Gen}= \&git_generator;
+            $tree->{Show}= \&git_revshower;
             $tree->{Treename}= $1;
 	} elsif (m,/(\w[^/]+?(?:\.pq)?\.hg)$,) {
             $tree->{Gen}= \&hg_generator;
+            $tree->{Show}= \&hg_revshower;
             $tree->{Treename}= $1;
         } else {
             die "unknown tree format $_ ?";
@@ -587,4 +618,15 @@ sub main () {
     print ".\n" or die $!;
 }
 
-main();
+sub showrev () {
+    my @trees= parse_trees();
+    die unless @trees == 1;
+    my ($tree) = @trees;
+    $tree->{Show}($tree);
+}
+
+if ($showrev) {
+    showrev();
+} else {
+    main();
+}

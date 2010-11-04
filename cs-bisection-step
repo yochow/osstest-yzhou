@@ -38,6 +38,8 @@ END { $?= $estatus; }
 open DEBUG, ">/dev/null" or die $!;
 open SUMMARY, ">/dev/null" or die $!;
 
+our @org_argv= @ARGV;
+
 while (@ARGV && $ARGV[0] =~ m/^\-/) {
     $_= shift @ARGV;
     last if $_ eq '--';
@@ -666,17 +668,28 @@ sub search () {
 Found and reproduced problem changeset
 END
             my @failrev= split / /, $fail->{Rtuple};
+            my @revs_to_show;
 
             for (my $i=0; $i<@trees; $i++) {
                 foreach my $pass (@passparents) {
                     my @passrev= split / /, $pass->{Rtuple};
                     next if $passrev[$i] eq $failrev[$i];
 
+                    push @revs_to_show, "$trees[$i]#$passrev[$i]-$failrev[$i]";
+
                     summary_report("",<<END, -1);
 Bug is in tree:  $trees[$i]
 Bug introduced:  $failrev[$i]
 Bug not present: $passrev[$i]
 END
+                }
+            }
+
+            foreach my $rts (@revs_to_show) {
+                my $revinfo=
+                    `./adhoc-revtuple-generator -S @revtuplegenargs $rts`;
+                if (!$?) {
+                    summary_report("",$revinfo,-1);
                 }
             }
         }
@@ -992,6 +1005,7 @@ sub compute_exitstatus () {
 }
 
 csreadconfig();
+grabrepolock_reexec(@org_argv);
 findbasics();
 digraph_whole();
 digraph_relevant();
