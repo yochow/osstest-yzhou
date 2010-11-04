@@ -4,7 +4,11 @@ bisection.ps
 bisection.dot
 repos
 *.mro
+*.mro.new
 *.mro.old
+*.mro.in
+*.mro.in.new
+*.mro.lock
 report-lock
 publish-lock
 bisecting-sticky-branch
@@ -14,3 +18,4 @@ data-plan.pl
 data-plan.pl.new
 data-plan-debug-*.txt
 data-tree-lock
+tree-bisect

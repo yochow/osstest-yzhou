@@ -1,9 +1,10 @@
 #!/bin/bash
-# usage: cr-for-branches WLEM "SCRIPT OPTIONS" ARGS...
-# will run   with-lock-ex WLEM SCRIPT OPTIONS BRANCH ARGS...
+# usage: cr-for-branches BRANCHESDIR WLEM "SCRIPT OPTIONS" ARGS...
+# will run   with-lock-ex BRANCHESDIR WLEM SCRIPT OPTIONS BRANCH ARGS...
 
 set -e
 
+branchesdir=$1; shift
 wlem=$1; shift
 scriptoptions="$1"; shift
 
@@ -25,7 +26,9 @@ export OSSTEST_TEST_PULLFROM=`pwd`
 for branch in $BRANCHES; do
  (
 	set -e
-	cd ../branches/for-$branch.git
+
+	branchdir=../$branchesdir/for-$branch.git
+	cd ../$branchdir
 
 	export LOCK_ACQU_START=`date +%s`
 

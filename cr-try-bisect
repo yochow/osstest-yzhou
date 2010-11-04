@@ -9,6 +9,14 @@ check_stop bisect.
 
 sticky=bisecting-sticky-branch
 
+with-lock-ex -w $mrof.lock bash -xec "
+	if test -e $mrof.in; then
+		rm -f tmp/bisected.$branch.*
+		if test -e $mrof; then mv $mrof $mrof.old; fi
+		mv $mrof.in $mrof
+	fi
+"
+
 if ! test -f $mrof; then
         rm -f $sticky
         echo "$branch no mro"

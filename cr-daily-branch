@@ -5,6 +5,8 @@ set -ex
 branch=$1; shift
 select_branch
 
+tree_bisect=tree-bisect
+
 check_stop daily.
 
 fetch_version () {
@@ -53,10 +55,6 @@ if [ "x$NEW_REVISION" = "x$OLD_REVISION" ]; then
         fi
 fi
 
-if test -e $mrof; then mv $mrof $mrof.old; fi
-touch $mrof; rm $mrof
-rm -f tmp/bisected.$branch.*
-
 flight=`./make-flight $branch $xenbranch $OSSTEST_BLESSING "$@"`
 
 case "$NEW_REVISION/$OLD_REVISION" in
@@ -95,6 +93,15 @@ push=false
 if grep '^tolerable$' $mrof >/dev/null 2>&1; then push=$wantpush; fi
 if test -f $branch.force; then push=$OSSTEST_PUSH; fi
 if test -f $branch.block; then push=false; fi
+
+if test -e $mrof && test -e $tree_bisect; then
+	with-lock-ex -w $tree_bisect/$mrof.lock bash -xec "
+		rm -f $tree_bisect/$mrof.in.new
+		cp $mrof $tree_bisect/$mrof.in.new
+		cd $tree_bisect
+		mv -f $mrof.in.new $mrof.in
+	"
+fi
 
 if ! $wantpush; then
         echo
