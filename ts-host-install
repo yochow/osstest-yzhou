@@ -8,6 +8,13 @@ use POSIX;
 readconfig();
 opendb_state();
 
+my $debconf_priority;
+
+if (@ARGV && $ARGV[0] =~ m/^--priority(?:=(.*))?$/) {
+    $debconf_priority= defined($1) ? $1 : 'low';
+    shift @ARGV;
+}
+
 our ($whhost) = @ARGV;
 $whhost ||= 'host';
 our $ho= selecthost($whhost);
@@ -114,6 +121,9 @@ sub setup_pxeboot_firstboot($) {
                            "netcfg/dhcp_timeout=150",
 			   "netcfg/choose_interface=auto"
                            );
+
+    push @installcmdline, "debconf/priority=$debconf_priority"
+        if defined $debconf_priority;
 
     push @installcmdline, qw(DEBCONF_DEBUG=5 DEBIAN_FRONTEND=text --);
     push @installcmdline, "console=ttyS0,$c{Baud}n8";
