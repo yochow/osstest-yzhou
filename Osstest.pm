@@ -1446,6 +1446,11 @@ END
     }
     $flagsq->finish();
 
+    $ho->{Properties}= $dbh_tests->selectall_hashref(<<END, 'name', {}, $name);
+        SELECT * FROM resource_properties
+            WHERE restype='host' AND resname=?
+END
+
     $ho->{Shared}= resource_check_allocated('host', $name);
     $ho->{SharedReady}=
         $ho->{Shared} &&
