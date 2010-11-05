@@ -142,12 +142,31 @@ default overwrite
 END
 }
 
+my %preseed_cmds;
+# $preseed_cmds{$di_key}[]= $cmd
+
 sub preseed_hook_command ($$$) {
     my ($ho, $di_key, $text) = @_;
-    my $url= create_webfile($ho, $di_key, $text);
-    my $file= "/tmp/$di_key";
+    my $ix= $#{ $preseed_cmds{$di_key} } + 1;
+    my $url= create_webfile($ho, "$di_key-$ix", $text);
+    my $file= "/tmp/$di_key-$ix";
     my $cmd_cmd= "wget -O $file '$url' && chmod +x $file && $file";
-    return "d-i preseed/$di_key string $cmd_cmd\n";
+    push @{ $preseed_cmds{$di_key} }, $cmd_cmd;
+}
+
+sub preseed_hook_command_installscript ($$$$$) {
+    my ($ho, $di_key, $installer_dir, $installer_leaf, $data) = @_;
+    my $installer_pathname= "$installer_dir/$installer_leaf";
+    my $urlfile= $installer_pathname;
+    $urlfile =~ s/[^-_0-9a-z]/ sprintf "X%02x", ord($&) /ge;
+    my $url= create_webfile($ho, $urlfile, $data);
+    preseed_hook_command($ho, 'early_command', <<END);
+#!/bin/sh
+set -ex
+mkdir -p '$installer_dir'
+wget -O '$installer_pathname' '$url'
+chmod +x '$installer_pathname'
+END
 }
 
 sub create_preseed ($) {
@@ -227,15 +246,22 @@ END
     $create_overlay->('overlay',        'overlay.tar');
     $create_overlay->($c{OverlayLocal}, 'overlay-local.tar');
 
-    my $hook_commands='';
-
-    $hook_commands.= preseed_hook_command($ho, 'early_command', <<'END');
+    preseed_hook_command_installscript($ho, 'early_command',
+          '/lib/partman/init.d', '000override-parted-devices', <<END);
 #!/bin/sh
 set -ex
-dir=/lib/partman/init.d
-script=$dir/25erase-other-disks
-mkdir -p $dir
-cat <<'END2' >$script
+cd /bin
+if test -f parted_devices.real; then exit 0; fi
+mv parted_devices parted_devices.real
+cat <<END2 >parted_devices
+#!/bin/sh
+/bin/parted_devices.real | grep -v '	0	'
+END2
+chmod +x parted_devices
+END
+
+    preseed_hook_command_installscript($ho, 'early_command',
+          '/lib/partman/init.d', '25erase-other-disks', <<'END');
 #!/bin/sh
 set -ex
 stamp=/var/erase-other-disks.stamp
@@ -259,11 +285,9 @@ echo ===
 set +e
 ls -l /dev/sd*
 true
-END2
-chmod +x $script
 END
 
-    $hook_commands.= preseed_hook_command($ho, 'late_command', <<END);
+    preseed_hook_command($ho, 'late_command', <<END);
 #!/bin/sh
 set -ex
 
@@ -286,7 +310,7 @@ $overlays
 echo latecmd done.
 END
 
-    return create_webfile($ho, 'preseed', <<END);
+    my $preseed_file= (<<END);
 d-i mirror/suite string $c{Suite}
 
 d-i debian-installer/locale string en_GB
@@ -371,13 +395,24 @@ d-i finish-install/keep-consoles boolean true
 d-i finish-install/reboot_in_progress note
 d-i cdrom-detect/eject boolean false
 
-$hook_commands
-
 d-i mirror/http/hostname string $c{DebianMirrorHost}
 d-i mirror/http/directory string /$c{DebianMirrorSubpath}
 
-$c{Preseed}
 END
+
+    foreach my $di_key (keys %preseed_cmds) {
+        $preseed_file .= "d-i preseed/$di_key string ".
+            (join ' && ', @{ $preseed_cmds{$di_key} }). "\n";
+    }
+
+    $preseed_file .= "$c{Preseed}\n";
+
+    foreach my $prop (values %{ $ho->{Properties} }) {
+        next unless $prop->{name} =~ m/^preseed $c{Suite} /;
+        $preseed_file .= "$' $prop->{val}\n";
+    }
+
+    return create_webfile($ho, 'preseed', $preseed_file);
 }
 
 install();
