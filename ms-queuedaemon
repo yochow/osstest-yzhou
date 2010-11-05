@@ -189,6 +189,8 @@ proc report-plan {} {
         exec ./ms-planner show-html > "$c(WebspaceFile)/resource-plan.html"
     } emsg]} {
         log "INTERNAL ERROR showing plan html: $emsg"
+    } else {
+        log "report-plan OK"
     }
 }
 
