@@ -119,7 +119,7 @@ sub setupboot () {
 
     my $xenhopt= "com1=$c{Baud},8n1 console=com1,vga gdb=com1 conswitch=x";
     if (toolstack()->{Dom0MemFixed}) {
-        $xenhopt .= " dom0_mem=300M";
+        $xenhopt .= " dom0_mem=512M";
     }
 
     my $console= $r{console};

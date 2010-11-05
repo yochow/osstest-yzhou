@@ -13,7 +13,7 @@ $gn ||= 'debian';
 
 our $ho= selecthost($whhost);
 
-our $ram_mb=    300;
+our $ram_mb=    512;
 our $swap_mb=  1000;
 our $disk_mb= 10000;
 
