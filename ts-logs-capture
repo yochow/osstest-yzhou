@@ -228,6 +228,8 @@ sub fetch_logs_host_guests () {
 
     foreach my $cmd
         (
+         'xl info',
+         'cat /proc/cpuinfo',
          'xl list',
          'xm list',
          'xm list --long',
