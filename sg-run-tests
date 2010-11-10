@@ -130,6 +130,12 @@ proc run-job/test-win {} {
     test-guest win
 }
 
+proc need-hosts/test-rhelhvm {} { return host }
+proc run-job/test-rhelhvm {} {
+    run-ts . = ts-redhat-install
+    test-guest redhat
+}
+
 proc need-hosts/test-pair {} { return {src_host dst_host} }
 proc run-job/test-pair {} {
     run-ts . =              ts-debian-install      dst_host
