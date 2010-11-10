@@ -120,5 +120,5 @@ sub start () {
 prep();
 start();
 
-guest_await_dhcp_tcp($gho,22);
+guest_await_dhcp_tcp($gho,3000);
 guest_check_up($gho);
