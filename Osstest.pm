@@ -1877,10 +1877,12 @@ sub guest_find_domid ($$) {
     return if defined $gho->{Domid};
     my $list= target_cmd_output_root($ho,
                 toolstack()->{Command}." list $gho->{Name}");
-    $list =~ m/^(?!Name\s)(\S+)\s+(\d+).*$/m
+    $list =~ m/^(?!Name\s)(\S+)\s+(\d+)\s+(\d+)+(\d+)\s.*$/m
         or die "domain list: $list";
     $1 eq $gho->{Name} or die "domain list name $1 expected $gho->{Name}";
-    $gho->{Domid}= $2;
+    $gho->{MemUsed}= $3;
+    $gho->{Vcpus}= $4;
+    return $gho->{Domid}= $2;
 }
 
 sub guest_vncsnapshot_begin ($$) {
