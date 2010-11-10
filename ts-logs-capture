@@ -272,6 +272,12 @@ sub fetch_logs_guest ($) {
     try_cmd_output_save("sleep 1 | $consolecmd | cat",
                         "guest-$gho->{Name}-console");
 
+    if (defined $gho->{Vcpus}) {
+        foreach (my $vcpu=0; $vcpu < $gho->{Vcpus}; $vcpu++) {
+            try_cmd_output_save("/usr/lib/xen/bin/xenctx $gho->{Domid} $vcpu");
+        }
+    }
+
     if (!eval {
         my $vnc= guest_vncsnapshot_begin($ho,$gho);
         guest_vncsnapshot_stash($ho,$gho,$vnc, "$gho->{Name}--vnc.jpeg");
