@@ -122,6 +122,9 @@ setopt CONFIG_SCSI_PMCRAID m
 setopt CONFIG_SCSI_SRP m
 setopt CONFIG_SCSI_BFA_FC m
 
+setopt CONFIG_E1000 m
+setopt CONFIG_E1000E m
+
 END
 
 sub stash_config_edscript ($) {
