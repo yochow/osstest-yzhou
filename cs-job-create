@@ -14,6 +14,8 @@ my ($flight,$job,$recipe,@runvars) = @ARGV;
 
 #-f "$c{TestingLib}/rc-${recipe}" or die $!;
 
+exit 0 if grep { $_ eq 'disable' } @runvars;
+
 $dbh_tests->
     selectrow_arrayref("SELECT * FROM flights where flight= $flight")
     or die "$flight ?";
