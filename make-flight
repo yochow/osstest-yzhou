@@ -25,7 +25,7 @@ if [ x$buildflight = x ]; then
 		arch=$arch						     \
 	tree_qemu=git://mariner.uk.xensource.com/qemu-$xenbranch.git	     \
 	tree_xen=http://hg.uk.xensource.com/$xenbranch.hg		     \
-		$RUNVARS $BUILD_RUNVARS $arch_runvars			     \
+		$RUNVARS $BUILD_RUNVARS $BUILD_XEN_RUNVARS $arch_runvars     \
 		host_hostflags=share-build-$arch,arch-$arch,build	     \
 		revision_xen=$REVISION_XEN				     \
 		revision_qemu=$REVISION_QEMU
@@ -46,7 +46,8 @@ if [ x$buildflight = x ]; then
 		arch=$arch						\
 	tree_qemu=git://mariner.uk.xensource.com/qemu-$xenbranch.git	\
 	tree_xen=http://hg.uk.xensource.com/$xenbranch.hg		\
-		$RUNVARS $BUILD_RUNVARS $arch_runvars			\
+		$RUNVARS $BUILD_RUNVARS $BUILD_LINUX_OLD_RUNVARS	\
+		$arch_runvars						\
 		host_hostflags=share-build-$arch,arch-$arch,build	\
 		xen_kernels=linux-2.6-xen				\
 		revision_xen=$REVISION_XEN				\
@@ -60,7 +61,8 @@ if [ x$buildflight = x ]; then
       # XCP dom0 kernel is 32-bit only
 
       ./cs-job-create $flight build-$arch-xcpkern build-kern		      \
-		$RUNVARS $BUILD_RUNVARS $arch_runvars			      \
+		$RUNVARS $BUILD_RUNVARS $BUILD_LINUX_XCP_RUNVARS	      \
+		$arch_runvars						      \
 		arch=$arch						      \
 		host_hostflags=share-build-$arch,arch-$arch,build	      \
 		tree_xen=http://hg.uk.xensource.com/$xenbranch.hg	      \
@@ -121,25 +123,25 @@ for xenarch in ${TEST_ARCHES- i386 amd64 } ; do
 		"
 
       ./cs-job-create $flight test-$xenarch$kern-$dom0arch-pv test-debian \
-		$RUNVARS $TEST_RUNVARS $most_runvars			  \
+		$RUNVARS $TEST_RUNVARS $most_runvars $TEST_PV_RUNVARS	  \
 		debian_kernkind=$kernkind				  \
 		debian_arch=$dom0arch   				  \
 		all_hostflags=$most_hostflags
 
       ./cs-job-create $flight test-$xenarch$kern-$dom0arch-xl test-debian \
-		$RUNVARS $TEST_RUNVARS $most_runvars			  \
+		$RUNVARS $TEST_RUNVARS $most_runvars $TEST_XL_RUNVARS	  \
 		toolstack=xl						  \
 		debian_kernkind=$kernkind				  \
 		debian_arch=$dom0arch   				  \
 		all_hostflags=$most_hostflags
 
       ./cs-job-create $flight test-$xenarch$kern-$dom0arch-win test-win	\
-		$RUNVARS $TEST_RUNVARS $most_runvars			\
+		$RUNVARS $TEST_RUNVARS $most_runvars $TEST_WIN_RUNVARS	\
 		win_image=winxpsp2.iso   				\
 		all_hostflags=$most_hostflags,hvm
 
       ./cs-job-create $flight test-$xenarch$kern-$dom0arch-pair test-pair \
-                !host $PAIR_RUNVARS $RUNVARS $TEST_RUNVARS $most_runvars  \
+                !host $RUNVARS $TEST_RUNVARS $most_runvars $TEST_PAIR_RUNVARS \
 		debian_kernkind=$kernkind				  \
 		debian_arch=$dom0arch   				  \
 		all_hostflags=$most_hostflags,equiv-1
