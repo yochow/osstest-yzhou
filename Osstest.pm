@@ -521,6 +521,8 @@ sub sshopts () {
     return [ qw(-o UserKnownHostsFile=/dev/null
                 -o StrictHostKeyChecking=no
                 -o BatchMode=yes
+                -o ConnectTimeout=100
+                -o ServerAliveInterval=100
                 -o PasswordAuthentication=no
                 -o ChallengeResponseAuthentication=no) ];
 }
