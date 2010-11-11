@@ -13,7 +13,9 @@ flight=`./cs-flight-create $blessing $branch`
 
 if [ x$buildflight = x ]; then
 
-  for arch in i386 amd64; do
+  for arch in ${BUILD_ARCHES- i386 amd64 }; do
+
+    if [ "x$arch" = xdisable ]; then continue; fi
 
     eval "
 	arch_runvars=\"\$ARCH_RUNVARS_$arch\"
@@ -78,7 +80,9 @@ else
 
 fi
 
-for xenarch in i386 amd64; do
+for xenarch in ${TEST_ARCHES- i386 amd64 } ; do
+
+  if [ "x$xenarch" = xdisable ]; then continue; fi
 
   for kern in '' -xcpkern; do
 
