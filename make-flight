@@ -88,8 +88,8 @@ for xenarch in i386 amd64; do
 		kernkind=pvops
 		;;
     -xcpkern)
+                kernbuild=xcpkern
 		kernkind=2627
-                kernkind=xcpkern
 		if [ "x$REVISION_LINUX_XCP" = xdisable ]; then continue; fi
 		;;
     *)		echo >&2 "kernkind ?  $kern"; exit 1 ;;
