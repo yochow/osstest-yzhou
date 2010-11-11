@@ -31,7 +31,7 @@ if [ x$buildflight = x ]; then
 		revision_qemu=$REVISION_QEMU
 
     ./cs-job-create $flight build-$arch-pvops build-kern		     \
-		arch=$arch						     \
+		arch=$arch kconfighow=xen-enable-xen-config		     \
 	tree_xen=http://hg.uk.xensource.com/$xenbranch.hg		     \
 		$RUNVARS $BUILD_RUNVARS $BUILD_LINUX_RUNVARS $arch_runvars   \
 		host_hostflags=share-build-$arch,arch-$arch,build	     \
@@ -63,7 +63,7 @@ if [ x$buildflight = x ]; then
       ./cs-job-create $flight build-$arch-xcpkern build-kern		      \
 		$RUNVARS $BUILD_RUNVARS $BUILD_LINUX_XCP_RUNVARS	      \
 		$arch_runvars						      \
-		arch=$arch						      \
+		arch=$arch kconfighow=intree-buildconfigs		      \
 		host_hostflags=share-build-$arch,arch-$arch,build	      \
 		tree_xen=http://hg.uk.xensource.com/$xenbranch.hg	      \
 		revision_xen=$REVISION_XEN				      \

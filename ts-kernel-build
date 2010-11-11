@@ -30,27 +30,10 @@ END
     }
 }
 
-sub config () {
-    my $edscript= "$builddir/enable-xen-config.ed";
-    target_putfilecontents_stash($ho,1000,<<'END',$edscript);
-$
-?^exit 0
-i
-
-setopt CONFIG_HIGHMEM64G y
-
-setopt CONFIG_AGP n
-setopt CONFIG_DRM n
-#setopt CONFIG_FB n
-setopt CONFIG_VIDEO n
-#setopt CONFIG_FRAMEBUFFER n
-setopt CONFIG_BOOTSPLASH n
-
-setopt CONFIG_DEBUG_INFO y
+our $config_hardware= <<END;
 setopt CONFIG_BLK_DEV_NBD m
 
 setopt CONFIG_ATA_GENERIC y
-setopt CONFIG_XEN_KBDDEV_FRONTEND y
 
 setopt CONFIG_SATA_SIL24 m
 setopt CONFIG_SATA_SVW m
@@ -139,10 +122,44 @@ setopt CONFIG_SCSI_PMCRAID m
 setopt CONFIG_SCSI_SRP m
 setopt CONFIG_SCSI_BFA_FC m
 
+END
+
+sub stash_config_edscript ($) {
+    my ($settings) = @_;
+    my $edscript= "$builddir/change-settings.ed";
+    target_putfilecontents_stash($ho,1000,<<'END'.$settings.<<'END',$edscript);
+$
+?^exit 0
+i
+
+END
+
 .
 w
 q
 END
+    return $edscript;
+}
+
+sub config_xen_enable_xen_config () {
+    my $edscript= stash_config_edscript(<<END);
+
+setopt CONFIG_HIGHMEM64G y
+
+setopt CONFIG_AGP n
+setopt CONFIG_DRM n
+#setopt CONFIG_FB n
+setopt CONFIG_VIDEO n
+#setopt CONFIG_FRAMEBUFFER n
+setopt CONFIG_BOOTSPLASH n
+
+setopt CONFIG_DEBUG_INFO y
+
+setopt CONFIG_XEN_KBDDEV_FRONTEND y
+
+$config_hardware
+END
+
     target_cmd_build($ho, 1000, $builddir, <<END);
         cp xen-unstable/buildconfigs/enable-xen-config .
         ed <$edscript enable-xen-config
@@ -152,6 +169,26 @@ END
         ../enable-xen-config .config
         yes '' | make oldconfig
 END
+}
+
+sub config_intree_buildconfigs () {
+    my $edscript= stash_config_edscript($config_hardware);
+    
+    target_cmd_build($ho, 1000, $builddir, <<END);
+        sed 's/setopt CONFIG/true &/' xen-unstable/buildconfigs/enable-xen-config >enable-device-configs
+        ed <$edscript enable-device-configs
+        chmod +x enable-device-configs
+	cd linux
+	make -f buildconfigs/Rules.mk defconfig </dev/null
+        ../enable-device-configs .config
+        yes '' | make oldconfig
+END
+}
+
+sub config () {
+    my $confighow= $r{kconfighow};
+    $confighow =~ s/\W/_/g;
+    &{ "config_$confighow" }();
 }
 
 sub build () {
