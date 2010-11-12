@@ -7,7 +7,7 @@ source osstestlib.tcl
 readconfig
 
 proc check {} {
-    global flight jobinfo running blessing
+    global flight jobinfo running blessing killing
 
     set nqueued [pg_execute dbh "
         SELECT job FROM jobs j
@@ -21,6 +21,8 @@ proc check {} {
 
     if {!$nqueued && !$nrunning} {
         log "flight $flight ending."
+        while {$killing} { vwait killing }
+        log "flight $flight ended."
         exec ./cs-flight-bless $flight $blessing running 2>@ stderr
         exit 0
     }
@@ -50,7 +52,7 @@ proc check {} {
 }
 
 proc maybe-spawn-job {} {
-    global flight jobinfo running
+    global flight jobinfo running forever
 
     foreach entry $running {
         lassign $entry pid job
@@ -67,18 +69,38 @@ proc maybe-spawn-job {} {
     flush stdout
     flush stderr
     set pid [fork]
+    pipe waiter_sentinel_r waiter_sentinel_w
     if {!$pid} {
+        id process group set
+        if {![fork]} {
+            # this process exists to ensure the process group
+            # survives, and therefore that the pid is not reused,
+            # until sg-execute-flight sends the group SIGKILL
+            signal ignore SIGTERM
+            close $waiter_sentinel_w
+            fileevent $waiter_sentinel_r readable { exit 0 }
+            vwait forever
+            exit 0
+        }
+        close $waiter_sentinel_r
+        close $waiter_sentinel_w
         execl ./$runner [list $flight --jobs=$jobinfo(job)]
         error "execl returned success ?!"
     }
+    close $waiter_sentinel_r
+    # we leak $waiter_sentinel_w at job exit, but we don't really care
     lappend running [list $pid $jobinfo(job)]
     log "flight $flight spawned  $jobinfo(job) \[$pid\]"
 }
 
 proc main_iteration {} {
-    global flight running nqueued jobinfo
+    global flight running nqueued jobinfo killing
+
+    update
 
     check
+
+    update
 
     if {![llength running]} {
         error "nothing running, but queued not ready"
@@ -99,6 +121,11 @@ proc main_iteration {} {
     set exitok [expr {![string compare EXIT $how] && $st==0}]
     
     log "flight $flight reaped  $job \[$pid\] $how $st"
+
+    kill -pgroup SIGTERM $pid
+    incr killing
+    after 45000 [list kill-kill $job $pid]
+
     transaction flights {
         set found [pg_execute -array jobinfo dbh "
             SELECT * FROM jobs
@@ -128,6 +155,13 @@ proc main_iteration {} {
     lvarpop running $ix
 }
 
+proc kill-kill {job pid} {
+    global killing flight
+    incr killing -1
+    log "flight $flight killing $job \[$pid\]"
+    kill -pgroup SIGKILL $pid
+}
+
 proc parse-args {} {
     global argv blessing
     set-flight
@@ -136,7 +170,8 @@ proc parse-args {} {
 }
 
 proc main {} {
-    global running flight
+    global running flight killing
+    set killing 0
     set running {}
     while 1 main_iteration
 }
