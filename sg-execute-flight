@@ -20,9 +20,7 @@ proc check {} {
     log "flight $flight nqueued=$nqueued nrunning=$nrunning"
 
     if {!$nqueued && !$nrunning} {
-        log "flight $flight ending."
-        while {$killing} { vwait killing }
-        log "flight $flight ended."
+        prequit finished
         exec ./cs-flight-bless $flight $blessing running 2>@ stderr
         exit 0
     }
@@ -51,6 +49,13 @@ proc check {} {
     " maybe-spawn-job
 }
 
+proc prequit {why} {
+    global killing flight blessing
+    log "flight $flight ending $why."
+    while {$killing} { vwait killing }
+    log "flight $flight ended $why."
+}
+
 proc maybe-spawn-job {} {
     global flight jobinfo running forever
 
@@ -66,24 +71,24 @@ proc maybe-spawn-job {} {
     }
     log "flight $flight spawning $jobinfo(job) $jobinfo(recipe) $runner"
 
+    pipe waiter_sentinel_r waiter_sentinel_w
+    fcntl $waiter_sentinel_r CLOEXEC 1
+    fcntl $waiter_sentinel_w CLOEXEC 1
+
     flush stdout
     flush stderr
     set pid [fork]
-    pipe waiter_sentinel_r waiter_sentinel_w
+
     if {!$pid} {
         id process group set
         if {![fork]} {
             # this process exists to ensure the process group
             # survives, and therefore that the pid is not reused,
             # until sg-execute-flight sends the group SIGKILL
-            signal ignore SIGTERM
-            close $waiter_sentinel_w
-            fileevent $waiter_sentinel_r readable { exit 0 }
-            vwait forever
-            exit 0
+            dup $waiter_sentinel_r stdin
+            execl sh {-c {trap '' TERM; read dummy}}
+            error "execl sh returned success ?!"
         }
-        close $waiter_sentinel_r
-        close $waiter_sentinel_w
         execl ./$runner [list $flight --jobs=$jobinfo(job)]
         error "execl returned success ?!"
     }
@@ -93,8 +98,27 @@ proc maybe-spawn-job {} {
     log "flight $flight spawned  $jobinfo(job) \[$pid\]"
 }
 
+proc kill-term {job pid} {
+    global killing
+    kill -pgroup SIGTERM $pid
+    incr killing
+    after 45000 [list kill-kill $job $pid]
+}
+
+proc shutdown {why} {
+    global running
+    signal default {SIGTERM SIGINT SIGHUP}
+    log "shutdown $why"
+    foreach entry $running {
+        lassign $entry pid job
+        kill-term $job $pid
+    }
+    prequit "shutdown $why"
+    exit 0
+}
+
 proc main_iteration {} {
-    global flight running nqueued jobinfo killing
+    global flight running nqueued jobinfo
 
     update
 
@@ -104,6 +128,13 @@ proc main_iteration {} {
 
     if {![llength running]} {
         error "nothing running, but queued not ready"
+    }
+    while 1 {
+        set w [wait -nohang]
+        if {[llength $w]} break
+        update
+        after 1000
+        update
     }
     lassign [wait] gotpid how st
 
@@ -122,9 +153,7 @@ proc main_iteration {} {
     
     log "flight $flight reaped  $job \[$pid\] $how $st"
 
-    kill -pgroup SIGTERM $pid
-    incr killing
-    after 45000 [list kill-kill $job $pid]
+    kill-term $job $pid
 
     transaction flights {
         set found [pg_execute -array jobinfo dbh "
@@ -173,6 +202,7 @@ proc main {} {
     global running flight killing
     set killing 0
     set running {}
+    signal trap {SIGTERM SIGINT SIGHUP} {shutdown {%S}}
     while 1 main_iteration
 }
 
