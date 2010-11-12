@@ -9,6 +9,7 @@ buildflight=$4
 flight=`./cs-flight-create $blessing $branch`
 
 : ${TREE_LINUX:=git://git.kernel.org/pub/scm/linux/kernel/git/jeremy/xen.git}
+: ${TREEBASE_LINUX_XCP:=http://hg.uk.xensource.com/carbon/trunk/linux-2.6.32}
 
 if [ x$buildflight = x ]; then
 
@@ -53,8 +54,8 @@ if [ x$buildflight = x ]; then
 		$RUNVARS $BUILD_RUNVARS $arch_runvars			      \
 		arch=$arch						      \
 		host_hostflags=share-build-$arch,arch-$arch,build	      \
-	tree_linux=http://hg.uk.xensource.com/carbon/trunk/linux-2.6.32.hg    \
-     tree_pq_linux=http://hg.uk.xensource.com/carbon/trunk/linux-2.6.32.pq.hg \
+	tree_linux=$TREEBASE_LINUX_XCP.hg    \
+     tree_pq_linux=$TREEBASE_LINUX_XCP.pq.hg \
         revision_linux=$REVISION_LINUX_XCP				      \
         revision_pq_linux=$REVISION_PQ_LINUX_XCP
 
