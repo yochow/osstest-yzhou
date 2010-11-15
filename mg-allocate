@@ -33,7 +33,7 @@ sub parse_1res ($) {
         or die "bad resource $res ?";
     my $allocate= !$1;
     my $restype= defined($2) ? $2 : 'host';
-    $restype= 'shared-host' if $restype eq 'S';
+    $restype= 'share-host' if $restype eq 'S';
     my $resname= $3;
     my $shareix= defined($4) ? $4+0 : '*';
     my $shareixcond = $shareix eq '*' ? '' : "AND shareix = $shareix";
