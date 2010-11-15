@@ -14,7 +14,7 @@ my $leaf= "build.$flight.$job";
 my $builddir= "/home/osstest/$leaf";
 
 sub checkout () {
-    target_cmd($ho, "rm -rf $builddir && mkdir $builddir", 60);
+    target_cmd($ho, "rm -rf $builddir && mkdir $builddir", 600);
 
     build_clone($ho, 'linux', $builddir, 'linux');
     
