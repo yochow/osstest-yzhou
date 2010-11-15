@@ -63,7 +63,8 @@ if [ x$buildflight = x ]; then
       ./cs-job-create $flight build-$arch-xcpkern build-kern		      \
 		$RUNVARS $BUILD_RUNVARS $BUILD_LINUX_XCP_RUNVARS	      \
 		$arch_runvars						      \
-		arch=$arch kconfighow=intree-buildconfigs		      \
+		arch=$arch						\
+	kconfighow=intree-buildconfigs kimagefile=arch/x86/boot/vmlinuz \
 		host_hostflags=share-build-$arch,arch-$arch,build	      \
 		tree_xen=http://hg.uk.xensource.com/$xenbranch.hg	      \
 		revision_xen=$REVISION_XEN				      \
