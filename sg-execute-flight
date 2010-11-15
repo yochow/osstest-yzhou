@@ -136,7 +136,7 @@ proc main_iteration {} {
         after 1000
         update
     }
-    lassign [wait] gotpid how st
+    lassign $w gotpid how st
 
     set ix 0
     foreach entry $running {
