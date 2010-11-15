@@ -26,9 +26,9 @@ END
     }
 }
 
-sub alloc_1res ($) {
+sub parse_1res ($) {
     my ($res) = @_;
-    
+
     $res =~ m,^(\!?) (?: ([^/]+)/ )? ([^/]+) (?: /(\d+|\*) )?$,x
         or die "bad resource $res ?";
     my $allocate= !$1;
@@ -38,6 +38,15 @@ sub alloc_1res ($) {
     my $shareix= defined($4) ? $4+0 : '*';
     my $shareixcond = $shareix eq '*' ? '' : "AND shareix = $shareix";
 
+    return ($allocate, $restype, $resname, $shareix, $shareixcond);
+}
+
+sub alloc_1res ($) {
+    my ($res) = @_;
+
+    my ($allocate, $restype, $resname, $shareix, $shareixcond) =
+        parse_1res($res);
+    
     my $resq= $dbh_tests->prepare(<<END);
                 SELECT * FROM resources r
                          JOIN tasks t
