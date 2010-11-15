@@ -1124,6 +1124,7 @@ sub alloc_resources {
         my $maxpriority= -10;
         if (!defined $priority) {
             logm("resource allocation: on tty, priority=$maxpriority");
+            $priority= $maxpriority;
         } elsif ($priority > $maxpriority) {
             logm("resource allocation: on tty, priority increased".
                  " from $priority to $maxpriority");
