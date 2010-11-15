@@ -17,8 +17,9 @@ check_stop ''
 
 select_branch () {
 	case "$branch" in
-	xen*)	tree=xen;	xenbranch=$branch ;;
-	linux)	tree=linux;	xenbranch=xen-unstable ;;
+	xen*)		tree=xen;	xenbranch=$branch ;;
+	linux)		tree=linux;	xenbranch=xen-unstable ;;
+	osstest)	tree=osstest;	xenbranch=xen-unstable ;;
 	esac
 
 	check_stop $branch.
@@ -48,6 +49,10 @@ fi
 : ${OSSTEST_HTML_DIR:=`getconfig PubBaseDir`/$OSSTEST_HTML_SUBDIR}
 : ${OSSTEST_HTML_URL:=`getconfig PubBaseUrl`/$OSSTEST_HTML_SUBDIR}
 : ${OSSTEST_HTMLPUB_DIR:=`getconfig Logs`}
+
+if test -f branch-settings.$branch; then
+	. branch-settings.$branch
+fi
 
 execute_flight () {
         case "x$OSSTEST_SIMULATE" in

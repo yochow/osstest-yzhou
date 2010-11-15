@@ -19,6 +19,9 @@ linux)
 	cd $repos/xen
 	git push $TREE_LINUX $revision:$TAG_LINUX
 	;;
+osstest)
+	git push $HOME/testing.git $revision:incoming
+	;;
 *)
 	echo >&2 "branch $branch ?"
 	exit 1

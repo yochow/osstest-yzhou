@@ -22,6 +22,10 @@ linux)
 	git fetch -f $OLD_TREE_LINUX $OLD_TAG_LINUX:$OLD_LOCALREV_LINUX
 	git-rev-parse $OLD_LOCALREV_LINUX
 	;;
+osstest)
+        cd $HOME/testing.git
+        git-rev-parse incoming
+        ;;
 *)
 	echo >&2 "branch $branch ?"
 	exit 1

@@ -41,6 +41,10 @@ linux)
 	export REVISION_LINUX_XCP=disable
 	export REVISION_LINUX_OLD=disable
 	;;
+osstest)
+	git-reset --hard incoming
+	NEW_REVISION=`git-rev-parse HEAD`
+	;;
 *)
 	NEW_REVISION=''
 	wantpush=false
