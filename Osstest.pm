@@ -1026,6 +1026,18 @@ sub alloc_resources {
         $_= <$qserv>;  defined && m/^OK/ or die "$_ ?";
     };
 
+    my $priority= $ENV{OSSTEST_RESOURCE_PRIORITY};
+    if (-t STDERR) {
+        my $maxpriority= -10;
+        if (!defined $priority) {
+            logm("resource allocation: on tty, priority=$maxpriority");
+        } elsif ($priority > $maxpriority) {
+            logm("resource allocation: on tty, priority increased".
+                 " from $priority to $maxpriority");
+            $priority= $maxpriority;
+        }
+    }
+
     while ($ok==0 || $ok==2) {
         my $bookinglist;
         if (!eval {
@@ -1044,7 +1056,7 @@ sub alloc_resources {
                     }
                 }
 
-                $set_info->('priority',$ENV{OSSTEST_RESOURCE_PRIORITY});
+                $set_info->('priority', $priority);
                 $set_info->('sub-priority',$ENV{OSSTEST_RESOURCE_SUBPRIORITY});
 
                 if (defined $waitstart) {
