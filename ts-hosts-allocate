@@ -479,87 +479,31 @@ sub hid_recurse ($$) {
 	$variation_age= 86400;
     }	
 
-    # when could we do this
-    $hidix= 0;
-    my $try_time= 0;
-    my $confirmedok= 0;
-    my $share_wear;
-    my $share_reuse= 0;
-
-    for (;;) {
-	my $hid= $hids[$hidix];
-	my $reso= $hid->{Selected}{Reso};
-	my $events= $plan->{Events}{$reso};
-        $events ||= [ ];
-
-	# can we do $try_hid at $try_time ?  If not, when later can we ?
-      PERIOD:
-	foreach (my $ix=0; $ix<@$events; $ix++) {
-	    print DEBUG "$dbg PLAN LOOP hids[$hidix]=$hids[$hidix]{Ident}".
-		" evtix=$ix try=$try_time confirmed=$confirmedok".
-		(defined($share_wear) ? " wear=$share_wear" : "")."\n";
-
-	    # check the period from $events[$ix] to next event
-	    my $startevt= $events->[$ix];
-	    my $endevt= $ix+1<@$events ? $events->[$ix+1] : { Time=>1e100 };
-
-	    last PERIOD if $startevt->{Time} >= $try_time + $duration;
-            # this period is entirely after the proposed slot;
-            # so no need to check this or any later periods
-
-	    next PERIOD if $endevt->{Time} <= $try_time;
-            # this period is entirely before the proposed slot;
-            # it doesn't overlap, but most check subsequent periods
-
-	  CHECK:
-	    {
-		print DEBUG "$dbg PLAN LOOP   OVERLAP\n";
-		last CHECK unless $startevt->{Avail};
-		my $eshare= $startevt->{Share};
-		if ($eshare) {
-		    print DEBUG "$dbg PLAN LOOP   OVERLAP ESHARE\n";
-		    last CHECK unless defined $hid->{Shared};
-		    last CHECK unless $hid->{Shared} eq $eshare->{Type};
-		    if (defined $share_wear) {
-			$share_wear++ if $startevt->{Type} eq 'Start';
-		    } else {
-			$share_wear= $eshare->{Wear}+1;
-		    }
-		    last CHECK if $share_wear > $hid->{SharedMaxWear};
-		    last CHECK if $eshare->{Shares} !=
-			$hid->{SharedMaxTasks};
-		}
-		# We have suitable availability for this period
-		print DEBUG "$dbg PLAN LOOP   OVERLAP AVAIL OK\n";
-		next PERIOD;
-	    };
-		
-	    # nope
-	    $try_time= $endevt->{Time};
-	    $confirmedok= 0;
-	    undef $share_wear;
-	    $share_reuse= 0;
-	    print DEBUG "$dbg PLAN LOOP   OVERLAP BAD $try_time\n";
-	}
-	print DEBUG "$dbg PLAN NEXT hids[$hidix]=$hids[$hidix]{Ident}".
-	    " try=$try_time confirmed=$confirmedok reuse=$share_reuse".
-	    (defined($share_wear) ? " wear=$share_wear" : "")."\n";
-
-	$confirmedok++;
-	$share_reuse++ if defined $share_wear;
-	$hidix++;
-	$hidix %= @hids;
-	last if $confirmedok==@hids;
+    my @requestlist;
+    foreach my $hid (@hids) {
+        my $req= {
+            Reso => $hid->{Selected}{Reso},
+            Ident => $hid->{Ident},
+            Shared => $hid->{Shared},
+            SharedMaxWear => $hid->{SharedMaxWear},
+            SharedMaxTasks => $hid->{SharedMaxTasks},
+        };
+        push @requestlist, $req;
     }
-    $duration_rightaway_adjust=0 if $try_time;
+    my $dbgprint= sub { print DEBUG "$dbg @_\n"; };
+    my $planned= plan_search($plan, $dbgprint, $duration, \@requestlist);
+    my $start_time= $planned->{Start};
+    my $share_reuse= $planned->{ShareReuse};
 
-    my $cost= $try_time
+    $duration_rightaway_adjust=0 if $start_time;
+
+    my $cost= $start_time
 	+ $duration
 	+ $duration_rightaway_adjust
         - ($variation_age / 30)
 	- $share_reuse * 2000;
     
-    print DEBUG "$dbg FINAL try=$try_time va=$variation_age cost=$cost\n";
+    print DEBUG "$dbg FINAL start=$start_time va=$variation_age cost=$cost\n";
 
     if (!defined $best || $cost < $best->{Cost}) {
         print DEBUG "$dbg FINAL BEST: ".
@@ -567,7 +511,7 @@ sub hid_recurse ($$) {
 	$best= {
 	    Cost => $cost,
 	    Selections => [ map { $_->{Selected} } @hids ],
-	    Start => $try_time,
+	    Start => $start_time,
 	    Duration => $duration,
 	};
     }

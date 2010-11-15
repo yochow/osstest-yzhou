@@ -56,7 +56,7 @@ BEGIN {
                       store_runvar get_stashed
                       unique_incrementing_runvar system_checked
                       tcpconnect findtask @all_lock_tables
-                      tcpconnect_queuedaemon
+                      tcpconnect_queuedaemon plan_search
                       alloc_resources alloc_resources_rollback_begin_work
                       resource_check_allocated resource_shared_mark_ready
                       built_stash flight_otherjob
@@ -997,6 +997,99 @@ sub tcpconnect_queuedaemon () {
     $_= <$qserv>;  defined && m/^OK ms-queuedaemon\s/ or die "$_?";
 
     return $qserv;
+}
+
+sub plan_search ($$$$) {
+    my ($plan, $dbgprint, $duration, $requestlist) = @_;
+    #
+    # Finds first place where $requestlist can be made to fit in $oldplan
+    # returns {
+    #     Start =>        start time from now in seconds,
+    #     ShareReuse =>   no of allocations which are a share reuse
+    #   }
+    #
+    #  $requestlist->[]{Reso}
+    #  $requestlist->[]{Ident}
+    #  $requestlist->[]{Shared}          may be undef
+    #  $requestlist->[]{SharedMaxWear}   undef iff Shared is undef
+    #  $requestlist->[]{SharedMaxTasks}  undef iff Shared is undef
+
+    my $reqix= 0;
+    my $try_time= 0;
+    my $confirmedok= 0;
+    my $share_wear;
+    my $share_reuse= 0;
+
+    for (;;) {
+	my $req= $requestlist->[$reqix];
+        my $reso= $req->{Reso};
+	my $events= $plan->{Events}{$reso};
+
+        $events ||= [ ];
+
+	# can we do $req at $try_time ?  If not, when later can we ?
+      PERIOD:
+	foreach (my $ix=0; $ix<@$events; $ix++) {
+	    $dbgprint->("PLAN LOOP reqs[$reqix]=$req->{Ident}".
+		" evtix=$ix try=$try_time confirmed=$confirmedok".
+		(defined($share_wear) ? " wear=$share_wear" : ""));
+
+	    # check the period from $events[$ix] to next event
+	    my $startevt= $events->[$ix];
+	    my $endevt= $ix+1<@$events ? $events->[$ix+1] : { Time=>1e100 };
+
+	    last PERIOD if $startevt->{Time} >= $try_time + $duration;
+            # this period is entirely after the proposed slot;
+            # so no need to check this or any later periods
+
+	    next PERIOD if $endevt->{Time} <= $try_time;
+            # this period is entirely before the proposed slot;
+            # it doesn't overlap, but most check subsequent periods
+
+	  CHECK:
+	    {
+		$dbgprint->("PLAN LOOP   OVERLAP");
+		last CHECK unless $startevt->{Avail};
+		my $eshare= $startevt->{Share};
+		if ($eshare) {
+		    $dbgprint->("PLAN LOOP   OVERLAP ESHARE");
+		    last CHECK unless defined $req->{Shared};
+		    last CHECK unless $req->{Shared} eq $eshare->{Type};
+		    if (defined $share_wear) {
+			$share_wear++ if $startevt->{Type} eq 'Start';
+		    } else {
+			$share_wear= $eshare->{Wear}+1;
+		    }
+		    last CHECK if $share_wear > $req->{SharedMaxWear};
+		    last CHECK if $eshare->{Shares} != $req->{SharedMaxTasks};
+		}
+		# We have suitable availability for this period
+		$dbgprint->("PLAN LOOP   OVERLAP AVAIL OK");
+		next PERIOD;
+	    };
+		
+	    # nope
+	    $try_time= $endevt->{Time};
+	    $confirmedok= 0;
+	    undef $share_wear;
+	    $share_reuse= 0;
+	    $dbgprint->("PLAN LOOP   OVERLAP BAD $try_time");
+	}
+	$dbgprint->("PLAN NEXT reqs[$reqix]=$req->{Ident}".
+	    " try=$try_time confirmed=$confirmedok reuse=$share_reuse".
+	    (defined($share_wear) ? " wear=$share_wear" : ""));
+
+	$confirmedok++;
+	$share_reuse++ if defined $share_wear;
+	$reqix++;
+	$reqix %= @$requestlist;
+	last if $confirmedok==@$requestlist;
+    }
+
+    return {
+        Start => $try_time,
+        ShareReuse => $share_reuse,
+    };
 }
 
 sub alloc_resources {
