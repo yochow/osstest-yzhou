@@ -1,6 +1,6 @@
 #!/bin/bash
 # usage: cr-for-branches BRANCHESDIR WLEM "SCRIPT OPTIONS" ARGS...
-# will run   with-lock-ex BRANCHESDIR WLEM SCRIPT OPTIONS BRANCH ARGS...
+# will run   cd BRANCHESDIR && with-lock-ex WLEM SCRIPT OPTIONS BRANCH ARGS...
 
 set -e
 
@@ -13,7 +13,7 @@ scriptoptions="$1"; shift
 LOGFILE=tmp/cr-for-branches.log
 export LOGFILE
 
-BRANCHES='osstest xen-4.0-testing xen-unstable linux'
+: ${BRANCHES:=osstest xen-4.0-testing xen-unstable linux}
 export BRANCHES
 
 with-lock-ex -w data-tree-lock bash -ec '
