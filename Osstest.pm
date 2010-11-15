@@ -1163,7 +1163,7 @@ sub alloc_resources {
                 }
 
                 my $jobinfo= $xparams{JobInfo};
-                if (!defined $jobinfo) {
+                if (!defined $jobinfo and defined $flight and defined $job) {
                     $jobinfo= "$flight.$job";
                 }
                 $set_info->('job', $jobinfo);

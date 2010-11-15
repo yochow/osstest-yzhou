@@ -58,6 +58,7 @@ END
     $resq->execute($restype, $resname);
 
     my $ok= 0;
+    my $got_shareix;
     while (my $candrow= $resq->fetchrow_hashref()) {
         my $desc= "$candrow->{restype}/$candrow->{resname}".
             "/$candrow->{shareix}";
@@ -125,6 +126,7 @@ END
         if ($allocate) {
             if ($candrow->{owntaskid} == $tid) {
                 logm("$desc: already allocated to $tid");
+                $got_shareix= $candrow->{shareix};
                 $ok=1; last;
             }
             if ($isshared) {
@@ -158,10 +160,11 @@ END
 			      WHERE restype = ? AND resname = ?
 END
         }
-		
+
+        $got_shareix= $candrow->{shareix};
         $ok=1; last;
     }
-    return $ok;
+    return ($ok, $got_shareix);
 }
 
 sub execute () {
@@ -171,10 +174,12 @@ sub execute () {
 
         my $allok=1;
         foreach my $res (@ARGV) {
-            my $ok= alloc_1res($res);
+            my ($ok, $shareix) = alloc_1res($res);
             if (!$ok) {
                 logm("nothing available for $res, sorry");
                 $allok=0;
+            } else {
+                logm("allocated $res (shareix=$shareix)");
             }
         }
 
@@ -185,4 +190,92 @@ sub execute () {
     logm("done.");
 }
 
-execute();
+our $duration; # seconds, undef means immediate ad-hoc
+
+sub plan () {
+    alloc_resources(JobInfo => "manual", sub {
+        my ($plan) = @_;
+
+        my @reqlist;
+
+        foreach my $res (@ARGV) {
+            my ($allocate, $restype, $resname, $shareix, $shareixcond) =
+                parse_1res($res);
+            die "cannot plan deallocation" unless $allocate;
+            die "cannot plan individual shares" unless $shareix eq '*';
+
+            push @reqlist, {
+                Ident => "$res",
+                Reso => "$restype $resname",
+            };
+        }
+
+        my $planned= plan_search
+            ($plan, sub { print " @_\n"; }, $duration, \@reqlist);
+
+        my $allok=0;
+        if (!$planned->{Start}) {
+            $allok=1;
+
+            alloc_prep();
+
+            foreach my $req (@reqlist) {
+                my ($ok, $shareix) = alloc_1res($req->{Ident});
+                if (!$ok) {
+                    logm("failed to allocated $req->{Ident}!");
+                    $allok=0;
+                } else {
+                    $req->{GotShareix}= $shareix;
+                }
+            }
+        }
+
+        if ($allok) {
+            logm("allocated, notifying...");
+        } else {
+            logm("booking...");
+        }
+
+        my @bookings;
+        foreach my $req (@reqlist) {
+            my $book= {
+                Reso => $req->{Reso},
+                Xinfo => "manual",
+                Start => $planned->{Start},
+                End => $planned->{Start} + $duration,
+            };
+            if ($allok) {
+                $book->{Allocated}= {
+                    Task => $tid,
+                    Shareix => $req->{GotShareix},
+                };
+            }
+            push @bookings, $book;
+        }
+
+        return ($allok, { Bookings => \@bookings });
+    });
+}
+
+while (@ARGV && $ARGV[0] =~ m/^[-0-9]/) {
+    $_= shift @ARGV;
+    last if m/^\-\-?$/;
+    while (!m/^\-$/) {
+        if (s/^(\d+)([dhms]?)$/-/) {
+            $duration= $1 * ($2 eq 'd' ? 86400 :
+                             $2 eq 'h' ?  3600 :
+                             $2 eq 'm' ?    60 :
+                                             1);
+        } elsif (s/^\-U/-/) {
+            $ENV{OSSTEST_RESOURCE_PRIORITY}= -1000000;
+        } else {
+            die "bad option \`$_'";
+        }
+    }
+}
+
+if ($duration) {
+    plan();
+} else {
+    execute();
+}
