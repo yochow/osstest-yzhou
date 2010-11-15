@@ -193,7 +193,7 @@ sub execute () {
 our $duration; # seconds, undef means immediate ad-hoc
 
 sub plan () {
-    alloc_resources(JobInfo => "manual", sub {
+    alloc_resources(sub {
         my ($plan) = @_;
 
         my @reqlist;
