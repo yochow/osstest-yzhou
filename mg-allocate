@@ -12,31 +12,33 @@ use Osstest;
 
 csreadconfig();
 
-sub execute () {
-    my $tid= findtask();
-    
-    db_retry($dbh_tests, \@all_lock_tables, sub {
+our $tid;
+our %magictask;
 
-	my %magictask;
-	foreach my $rk (qw(idle shared preparing allocatable)) {
-	    my $row= $dbh_tests->selectrow_hashref(<<END,{}, $rk);
+sub alloc_prep () {
+    $tid= findtask();
+    
+    foreach my $rk (qw(idle shared preparing allocatable)) {
+        my $row= $dbh_tests->selectrow_hashref(<<END,{}, $rk);
                 SELECT * FROM tasks WHERE type='magic' AND refkey=?
 END
-            $magictask{$rk}= $row->{taskid};
-        }
+        $magictask{$rk}= $row->{taskid};
+    }
+}
 
-        my $allok=1;
-        foreach my $res (@ARGV) {
-            $res =~ m,^(\!?) (?: ([^/]+)/ )? ([^/]+) (?: /(\d+|\*) )?$,x
-                or die "bad resource $res ?";
-            my $allocate= !$1;
-            my $restype= defined($2) ? $2 : 'host';
-            $restype= 'shared-host' if $restype eq 'S';
-            my $resname= $3;
-            my $shareix= defined($4) ? $4+0 : '*';
-            my $shareixcond = $shareix eq '*' ? '' : "AND shareix = $shareix";
+sub alloc_1res ($) {
+    my ($res) = @_;
+    
+    $res =~ m,^(\!?) (?: ([^/]+)/ )? ([^/]+) (?: /(\d+|\*) )?$,x
+        or die "bad resource $res ?";
+    my $allocate= !$1;
+    my $restype= defined($2) ? $2 : 'host';
+    $restype= 'shared-host' if $restype eq 'S';
+    my $resname= $3;
+    my $shareix= defined($4) ? $4+0 : '*';
+    my $shareixcond = $shareix eq '*' ? '' : "AND shareix = $shareix";
 
-            my $resq= $dbh_tests->prepare(<<END);
+    my $resq= $dbh_tests->prepare(<<END);
                 SELECT * FROM resources r
                          JOIN tasks t
                            ON r.owntaskid=t.taskid
@@ -44,16 +46,16 @@ END
                      ORDER BY (t.type='magic') DESC,
                               t.live ASC
 END
-            $resq->execute($restype, $resname);
+    $resq->execute($restype, $resname);
 
-            my $ok= 0;
-            while (my $candrow= $resq->fetchrow_hashref()) {
-                my $desc= "$candrow->{restype}/$candrow->{resname}".
-                    "/$candrow->{shareix}";
+    my $ok= 0;
+    while (my $candrow= $resq->fetchrow_hashref()) {
+        my $desc= "$candrow->{restype}/$candrow->{resname}".
+            "/$candrow->{shareix}";
 
-                my $setres= sub {
-                    my ($newtid) = @_;
-                    my $ndone= $dbh_tests->do(<<END,{},
+        my $setres= sub {
+            my ($newtid) = @_;
+            my $ndone= $dbh_tests->do(<<END,{},
                         UPDATE resources
                            SET owntaskid=?, subtask=?
                          WHERE restype=? AND resname=? AND shareix=?
@@ -61,35 +63,35 @@ END
                            $newtid, "manual ".$res,
                            $restype,$resname,$candrow->{shareix});
                     $ndone==1 or die "$restype $resname $newtid $desc";
-                };
+        };
 
-		my $isallocatable= sub {
-		    my ($joinedrow) = @_;
-		    return
-			!$joinedrow->{live} ||
-			$joinedrow->{taskid}==$magictask{allocatable} ||
-			$joinedrow->{taskid}==$magictask{idle};
-		};
-		my $findowner= sub {
-		    my ($joinedrow) = @_;
-		    my $owner= "$joinedrow->{owntaskid} $joinedrow->{type}".
-			" $joinedrow->{refkey}";
-		    foreach my $k (qw(username comment refinfo)) {
-                        my $v= $joinedrow->{$k};
-                        next unless defined $v;
-			next unless length $v;
-                        ($v =~ s/[\"\\]/\\$&/g, $v="\"$v\"")
-                            if $v =~ m/[^-+\@_.,0-9a-z]/;
-                        $owner.= " $k=$v";
-                    }
-		    return $owner;
-		};
+        my $isallocatable= sub {
+            my ($joinedrow) = @_;
+            return
+                !$joinedrow->{live} ||
+                $joinedrow->{taskid}==$magictask{allocatable} ||
+                $joinedrow->{taskid}==$magictask{idle};
+        };
+        my $findowner= sub {
+            my ($joinedrow) = @_;
+            my $owner= "$joinedrow->{owntaskid} $joinedrow->{type}".
+                       " $joinedrow->{refkey}";
+            foreach my $k (qw(username comment refinfo)) {
+                my $v= $joinedrow->{$k};
+                next unless defined $v;
+                next unless length $v;
+                ($v =~ s/[\"\\]/\\$&/g, $v="\"$v\"")
+                    if $v =~ m/[^-+\@_.,0-9a-z]/;
+                $owner.= " $k=$v";
+            }
+            return $owner;
+        };
 
-		my $isshared=
-		    $candrow->{owntaskid} == $magictask{shared};
+        my $isshared=
+            $candrow->{owntaskid} == $magictask{shared};
 
-		if ($isshared) {
-		    my $shresq= $dbh_tests->prepare(<<END);
+        if ($isshared) {
+            my $shresq= $dbh_tests->prepare(<<END);
 			SELECT * FROM resources r
 				 JOIN tasks t
 				   ON r.owntaskid=t.taskid
@@ -97,63 +99,74 @@ END
 			     ORDER BY (t.type='magic') DESC,
 				      t.live ASC
 END
-                    $shresq->execute("share-$restype", $resname);
-		    my $allshareok= 1;
-		    while (my $sharerow= $shresq->fetchrow_hashref()) {
-			next if $isallocatable->($sharerow);
-			next if $sharerow->{taskid} == $tid;
-			next if $sharerow->{taskid} == $magictask{preparing};
-			logm("$desc: shared, $sharerow->{shareix} locked by ".
-			     $findowner->($sharerow));
-			$allshareok= 0;
-		    }
-		    $shresq->finish();
-		    next unless $allshareok;
-		}
+            $shresq->execute("share-$restype", $resname);
+            my $allshareok= 1;
+            while (my $sharerow= $shresq->fetchrow_hashref()) {
+                next if $isallocatable->($sharerow);
+                next if $sharerow->{taskid} == $tid;
+                next if $sharerow->{taskid} == $magictask{preparing};
+                logm("$desc: shared, $sharerow->{shareix} locked by ".
+                     $findowner->($sharerow));
+                $allshareok= 0;
+            }
+            $shresq->finish();
+            next unless $allshareok;
+        }
 
-                if ($allocate) {
-                    if ($candrow->{owntaskid} == $tid) {
-                        logm("$desc: already allocated to $tid");
-                        $ok=1; last;
-                    }
-		    if ($isshared) {
-			logm("$desc: available, unsharing");
-		    } elsif ($isallocatable->($candrow)) {
-                        logm("$desc: allocating (was $candrow->{refkey})");
-                    } else {
-                        logm("$desc: locked by ".$findowner->($candrow));
-                        next;
-                    }
-                    $setres->($tid);
-                } else {
-		    if ($isshared) {
-			logm("$desc: unsharing, freeing");
-		    } elsif ($candrow->{owntaskid} != $tid) {
-                        logm("$desc: locked by ".$findowner->($candrow));
-                        next;
-                    } else {
-			logm("$desc: freeing");
-		    }
-                    $setres->($magictask{idle});
-                }
+        if ($allocate) {
+            if ($candrow->{owntaskid} == $tid) {
+                logm("$desc: already allocated to $tid");
+                $ok=1; last;
+            }
+            if ($isshared) {
+                logm("$desc: available, unsharing");
+            } elsif ($isallocatable->($candrow)) {
+                logm("$desc: allocating (was $candrow->{refkey})");
+            } else {
+                logm("$desc: locked by ".$findowner->($candrow));
+                next;
+            }
+            $setres->($tid);
+        } else {
+            if ($isshared) {
+                logm("$desc: unsharing, freeing");
+            } elsif ($candrow->{owntaskid} != $tid) {
+                logm("$desc: locked by ".$findowner->($candrow));
+                next;
+            } else {
+                logm("$desc: freeing");
+            }
+            $setres->($magictask{idle});
+        }
 
-		if ($isshared) {
-		    $dbh_tests->do(<<END, {}, $restype,$resname);
+        if ($isshared) {
+            $dbh_tests->do(<<END, {}, $restype,$resname);
 		        DELETE FROM resource_sharing
 			      WHERE restype = ? AND resname = ?
 END
-                    $dbh_tests->do(<<END, {}, "share-$restype",$resname);
+            $dbh_tests->do(<<END, {}, "share-$restype",$resname);
 		        DELETE FROM resources
 			      WHERE restype = ? AND resname = ?
 END
-		}
+        }
 		
-		$ok=1; last;
-            }
+        $ok=1; last;
+    }
+    return $ok;
+}
+
+sub execute () {
+    db_retry($dbh_tests, \@all_lock_tables, sub {
+
+        alloc_prep();
+
+        my $allok=1;
+        foreach my $res (@ARGV) {
+            my $ok= alloc_1res($res);
             if (!$ok) {
-               logm("nothing available for $res, sorry");
-               $allok=0;
-           }
+                logm("nothing available for $res, sorry");
+                $allok=0;
+            }
         }
 
         if (!$allok) {
