@@ -179,7 +179,7 @@ sub execute () {
                 logm("nothing available for $res, sorry");
                 $allok=0;
             } else {
-                logm("allocated $res (shareix=$shareix)");
+                logm("processed $res (shareix=$shareix)");
             }
         }
 
