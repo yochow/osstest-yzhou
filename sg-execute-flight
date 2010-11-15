@@ -7,7 +7,9 @@ source osstestlib.tcl
 readconfig
 
 proc check {} {
-    global flight jobinfo running blessing killing
+    global flight jobinfo running blessing killing stopping
+
+    if {$stopping} return
 
     set nqueued [pg_execute dbh "
         SELECT job FROM jobs j
@@ -106,7 +108,8 @@ proc kill-term {job pid} {
 }
 
 proc shutdown {why} {
-    global running
+    global running stopping
+    set stopping 1
     signal default {SIGTERM SIGINT SIGHUP}
     log "shutdown $why"
     foreach entry $running {
@@ -199,8 +202,9 @@ proc parse-args {} {
 }
 
 proc main {} {
-    global running flight killing
+    global running flight killing stopping
     set killing 0
+    set stopping 0
     set running {}
     signal trap {SIGTERM SIGINT SIGHUP} {shutdown {%S}}
     while 1 main_iteration
