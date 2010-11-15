@@ -1162,7 +1162,11 @@ sub alloc_resources {
                     $set_info->('wait-start-adjust',$adjust);
                 }
 
-                $set_info->('job', "$flight.$job");
+                my $jobinfo= $xparams{JobInfo};
+                if (!defined $jobinfo) {
+                    $jobinfo= "$flight.$job";
+                }
+                $set_info->('job', $jobinfo);
 
                 print $qserv "wait\n" or die $!;
                 $_= <$qserv>;  defined && m/^OK wait\s/ or die "$_ ?";
