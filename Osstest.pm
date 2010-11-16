@@ -1171,6 +1171,7 @@ sub alloc_resources {
 
                 $set_info->('priority', $priority);
                 $set_info->('sub-priority',$ENV{OSSTEST_RESOURCE_SUBPRIORITY});
+                $set_info->('preinfo',     $ENV{OSSTEST_RESOURCE_PREINFO});
 
                 if (defined $waitstart) {
                     $set_info->('wait-start',$waitstart);
