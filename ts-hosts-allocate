@@ -537,6 +537,8 @@ sub alloc_hosts () {
     foreach my $hid (@hids) {
         my $sel= $hid->{Selected};
         die $hid->{Ident} unless defined $sel->{resname};
+        my $use= $r{ $hid->{Ident} };
+        next if defined $use;
         store_runvar($hid->{Ident}, $sel->{resname});
     }
 
