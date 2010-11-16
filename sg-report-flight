@@ -328,7 +328,7 @@ sub printout ($) {
     print <<END or die $!;
 $r->{Flight}: $r->{OutcomeSummary}
 
-flight $r->{Flight} $branch $r->{FlightInfo}{blessing}
+flight $r->{Flight} $branch $r->{FlightInfo}{blessing} [$r->{FlightInfo}{intended}]
 $c{ReportHtmlPubBaseUrl}/$r->{Flight}/
 END
     if (defined $r->{Overall}) {
