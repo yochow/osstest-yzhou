@@ -36,6 +36,9 @@ firewall --disabled
 authconfig --enableshadow --passalgo=sha512 --enablefingerprint
 selinux --disable
 
+sshpw --username=root xenroot --plaintext
+sshpw --username=iwj xenroot --plaintext
+
 timezone --utc Europe/London
 bootloader --location=mbr --driveorder=sda --append="crashkernel=auto rhgb quiet"
 
@@ -94,7 +97,7 @@ END
         target_editfile_root($ho, "$newiso/isolinux/isolinux.cfg", sub {
             while (<EI>) {
                 if (m/^\s+append/) {
-                    s,$, ks=cdrom:/ks.cfg,;
+                    s,$, sshd ks=cdrom:/ks.cfg,;
                     s/\baskmethod\b\S*/ /;
                 }
                 s/^timeout.*/timeout 10/;
