@@ -180,7 +180,8 @@ sub setupboot () {
         }
     }
     die "$def $ix" unless defined $kern;
-    system "tar zvtf $distpath{kern} boot/$kern"; $? and die $?;
+    system "tar zvtf $distpath{kern} boot/$kern";
+    $? and die "$distpath{kern} boot/$kern $?";
 
     my $kernver= $kern;
     $kernver =~ s,^/?(?:boot/)?(?:vmlinu[xz]-)?,, or die "$kernver ?";
