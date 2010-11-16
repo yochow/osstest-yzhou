@@ -54,7 +54,7 @@ proc cmd/create-task {chan desc} {
         set nrows [pg_execute -array av dbh "
             SELECT taskid
               FROM tasks
-             WHERE refkey = [pg_quote $taskdesc]
+             WHERE live AND refkey = [pg_quote $taskdesc]
         "]
         if {$nrows != 1} { error "multiple $taskdesc!" }
         set task $av(taskid)
