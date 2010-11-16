@@ -42,7 +42,8 @@ linux)
 	export REVISION_LINUX_OLD=disable
 	;;
 osstest)
-	git-reset --hard incoming
+	git fetch $HOME/testing.git pretest:incoming
+	git reset --hard incoming
 	NEW_REVISION=`git-rev-parse HEAD`
 	;;
 *)
