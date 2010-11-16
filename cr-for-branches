@@ -58,8 +58,8 @@ for branch in $BRANCHES; do
 
 		log ...
 
-		git-pull $OSSTEST_TEST_PULLFROM master:master 2>&1 ||:
-		git-pull . incoming:master 2>&1 ||:
+		git-fetch $OSSTEST_TEST_PULLFROM master:incoming 2>&1 ||:
+		git-pull --no-commit . incoming:master 2>&1 ||:
 		git-checkout HEAD
 
 		set +e
