@@ -70,7 +70,7 @@ proc chan-read {chan} {
                         continue
                     }
                 }
-                eval $basel $rhs
+                eval $basel [lreplace $rhs -1 -1]
             }
             if {![info exists desc]} return
         }
