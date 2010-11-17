@@ -62,6 +62,8 @@ compute_state () {
         rc=$?
         set -e
 
+        bisgraph=true
+
         case $rc in
         0)      echo work to do; return ;;
         4)      how=complete ;;
@@ -135,11 +137,13 @@ test $testid
 
 END
         cat >&3 $summaryfile
-        cat >&3 <<END
+        if $bisgraph; then cat >&3 <<END; fi
 
 For bisection revision-tuple graph see:
    $OSSTEST_HTML_URL/$bisleaf.html
 Revision IDs in each graph node refer, respectively, to the Trees above.
+END
+        cat >&3 <<END
 
 ----------------------------------------
 END
