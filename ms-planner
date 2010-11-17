@@ -111,6 +111,8 @@ END
     if ($nonprep->{prep} == $shares->{shares}) {
         return {
             OnlyPreparing => 1,
+            Shares => $shares->{shares},
+            Type => $sharing->{sharetype},
         };
     }
 
