@@ -32,7 +32,7 @@ for branch in $BRANCHES; do
 
 	branchdir=../$branchesdir/for-$branch.git
 	if ! test -e $branchdir; then
-		echo "no $branchdir, skipping"
+		#echo "no $branchdir, skipping"
 		exit 0
 	fi
 	cd $branchdir
