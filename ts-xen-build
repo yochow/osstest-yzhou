@@ -138,7 +138,7 @@ END
         print STDERR "version mismatch! $tree requested=$reqd built=$built\n";
         $mismatches++;
     }
-    die "version mismatches ($mismatches)" if $mismatches;
+    broken("version mismatches ($mismatches)") if $mismatches;
     $chk->finish();
 }
 
