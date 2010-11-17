@@ -120,7 +120,8 @@ proc runneeded-perhaps-start {} {
         }]
     }
     log "runneeded-perhaps-start starting cleaned=$cleaned"
-    
+
+    runneeded-2-requeue
     queuerun-start
 }
 
@@ -141,6 +142,22 @@ proc runneeded-poll-now {} {
     unset polling_after
     runneeded-ensure-will 1
     runneeded-ensure-polling
+}
+
+proc runneeded-2-poll {} {
+    log-event runneeded-2-poll
+    global polling2_after
+    unset polling2_after
+    runneeded-ensure-will 2
+    runneeded-2-requeue
+}
+proc runneeded-2-requeue {} {
+    # (re)schedules forced queue run to QueuePlanUpdateInterval from now
+    log-event runneeded-2-queue
+    global c polling2_after
+    catch { after cancel $polling2_after }
+    set polling2_after [after [expr {$c(QueuePlanUpdateInterval)*1000}] \
+                            runneeded-2-poll]
 }
 
 #---------- machinery for running the queue ----------
@@ -463,4 +480,6 @@ main-daemon $c(QueueDaemonPort) {
     fileevent $owndchan readable await-endings-notified
 
     add-inhibit startdelay [expr {$c(QueueDaemonRetry) * 2}]
+
+    runneeded-2-requeue
 }
