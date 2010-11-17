@@ -90,6 +90,7 @@ proc runneeded-perhaps-start {} {
     set need_queue_run 0
 
     if {![llength $queue]} {
+        plan-reset
         report-plan
         return
     }
@@ -150,10 +151,14 @@ proc runneeded-poll-now {} {
 #    thinking          chan currently asking
 #    thinking_after    timeout
 
+proc plan-reset {} {
+    exec ./ms-planner reset < /dev/null
+}
+
 proc queuerun-start {} {
     log-event queuerun-start
     global queue_running queue
-    exec ./ms-planner reset < /dev/null
+    plan-reset
     set queue_running $queue
     after idle queuerun-perhaps-step
 }
