@@ -250,19 +250,21 @@ sub findbasics () {
 
     my $row= $dbh_tests->selectrow_hashref
         (<<END,{}, $job,$testid,$blessings[0],$branch);
-            SELECT * FROM flights JOIN steps USING (flight)
+            SELECT flights.flight, steps.status,
+                   $flight_is_not_broken AS notbroken
+                FROM flights JOIN steps USING (flight)
                WHERE job = ?
                  AND testid = ?
                  AND blessing = ?
                  AND (status = 'fail' OR status = 'pass')
                  AND branch = ?
                  AND $flight_cond{fail}
-                 AND $flight_is_not_broken
-               ORDER BY flights.started DESC
+               ORDER BY notbroken DESC, flights.started DESC
                LIMIT 1
 END
 
     die "no failure found" unless $row;
+    die "flight $row->{flight} has broken steps" unless $row->{notbroken};
     die "supposed failure flight not a failure $row->{flight} $row->{status}"
         unless $row->{'status'} eq 'fail';
 
