@@ -129,10 +129,14 @@ sub launder_check_plan () {
 	my $cshare=undef;
         my $evt;
 
+        print DEBUG "CHECK PLAN RESO $reso\n";
+
 	foreach my $evt (sort {
 	    $a->{Time} <=> $b->{Time} ||
 		!!($a->{Type} eq Start) <=> !!($b->{Type} eq Start);
 	} @{ $plan->{Events}{$reso} }) {
+            print DEBUG "CHECK PLAN  $evt->{Time} $evt->{Type}\n";
+
             my $bad= sub {
                 my ($msg) = @_;
                 die "BAD PLAN $msg\n".Dumper($reso, $used, $evt, $cshare)." ";
@@ -157,6 +161,7 @@ sub launder_check_plan () {
 	    if ($type eq Start) {
 		$used++;
 		if ($eshare) {
+                    print DEBUG "CHECK PLAN   ESHARE $eshare->{Type}\n";
 		    $cshare= { %$eshare, Wear=>0 } if !$cshare;
 		    foreach my $wh (qw(Type Shares)) {
 			$bad->("share mismatch $wh")
@@ -165,6 +170,7 @@ sub launder_check_plan () {
 		    $eshare->{Wear}= ++$cshare->{Wear};
 		    $evt->{Avail}= $cshare->{Shares} - $used;
 		} else {
+                    print DEBUG "CHECK PLAN   NO-SHARE\n";
 		    $bad->("stealth unshare") if $cshare;
 		    $evt->{Avail}= 1 - $used;
 		}
