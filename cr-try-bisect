@@ -71,6 +71,7 @@ compute_state () {
         8)      how=inconclusive ;;
         12)     how=inconsistent ;;
         16)     how=unreproducible ;;
+        32)     how=doubtful; bisgraph=false ;;
 
         *)      echo >&2 "FAILED $branch $job $testid $rc $* "
                 cat >&2 $reportfile
