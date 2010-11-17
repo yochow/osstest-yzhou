@@ -53,7 +53,7 @@ BEGIN {
                       %c %r $dbh_tests $flight $job $stash
                       dbfl_check grabrepolock_reexec
                       get_runvar get_runvar_maybe get_runvar_default
-                      store_runvar get_stashed
+                      store_runvar get_stashed broken
                       unique_incrementing_runvar system_checked
                       tcpconnect findtask @all_lock_tables
                       tcpconnect_queuedaemon plan_search
