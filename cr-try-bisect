@@ -63,10 +63,11 @@ compute_state () {
         set -e
 
         bisgraph=true
+        emailsuffix=-bisectdone
 
         case $rc in
         0)      echo work to do; return ;;
-        4)      how=complete ;;
+        4)      how=complete; emailsuffix=-bisectcomplete ;;
         8)      how=inconclusive ;;
         12)     how=inconsistent ;;
         16)     how=unreproducible ;;
@@ -80,7 +81,7 @@ compute_state () {
         echo ended $how
         touch $flagfile
         touch $anyflagfile
-        send_bisection_email $how -bisectdone
+        send_bisection_email $how $emailsuffix
         rm -f $sticky
         exit 0
 }
