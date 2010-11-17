@@ -33,6 +33,7 @@ END { $?= $estatus; }
 #   8    bisection finished and inconclusive
 #  12    bisection finished, but inconsistent test results cast doubt
 #  16    fatally inconsistent test results
+#  32    failure seems to occur only in broken flights, etc. (no report etc.)
 # 255    doom and disaster
 
 open DEBUG, ">/dev/null" or die $!;
@@ -86,6 +87,12 @@ sub psummary ($) {
     my ($s) = @_;
     print STDERR $s or die $!;
     print SUMMARY $s or die $!;
+}
+
+sub doubtful ($) {
+    my ($msg) = @_;
+    psummary("\n$msg\n\nSorry, bisection not possible.\n\n");
+    exit 32;
 }
 
 sub summary_report ($$$) {
@@ -263,9 +270,12 @@ sub findbasics () {
                LIMIT 1
 END
 
-    die "no failure found" unless $row;
-    die "flight $row->{flight} has broken steps" unless $row->{notbroken};
-    die "supposed failure flight not a failure $row->{flight} $row->{status}"
+    doubtful("No applicable failure found.") unless $row;
+    doubtful("No non-broken failures found; ".
+             "flight $row->{flight} contained broken steps.")
+        unless $row->{notbroken};
+    doubtful("Supposed failure flight $row->{flight} step".
+             " was not a failure - it had status $row->{status}.")
         unless $row->{'status'} eq 'fail';
 
     $latest_flight= $row->{flight};
@@ -297,7 +307,7 @@ END
     $sth->finish();
 
     if (!$basispass_flight) {
-	die "\nNo applicable basis pass, sorry!\n";
+	doubtful("No applicable basis pass.");
     }
     print STDERR ".\n";
 }
