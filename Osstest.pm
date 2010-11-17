@@ -1134,6 +1134,12 @@ sub alloc_resources {
 
     my $set_info= sub {
         return if grep { !defined } @_;
+        foreach (@_) {
+            next if m#^[-+_.,/0-9a-z]+$#;
+            s/[\\\"]/\\$&/g;
+            s/^/\"/;
+            s/$/\"/;
+        }
         print $qserv "set-info @_\n";
         $_= <$qserv>;  defined && m/^OK/ or die "$_ ?";
     };
