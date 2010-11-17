@@ -43,6 +43,7 @@ compute_state () {
         reportfile=tmp/$flight.bisection-report
         summaryfile=tmp/$flight.bisection-summary
         bisleaf=bisect.$branch.$job.$laundered_testid
+        bisfile=$OSSTEST_HTML_DIR/$bisleaf
 
         echo "computing $branch $job $testid $*"
 
@@ -53,7 +54,7 @@ compute_state () {
 	fi
 
         set +e
-        ./cs-bisection-step --graph-out=$OSSTEST_HTML_DIR/$bisleaf \
+        ./cs-bisection-step --graph-out=$bisfile \
                 --summary-out=$summaryfile \
 		$basisflight_arg $failflight_arg \
                 --blessings=$OSSTEST_BLESSING,$OSSTEST_BLESSING-bisect \
