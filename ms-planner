@@ -288,7 +288,9 @@ END
 	# compute new expected end time
 	my $end_exptd= $alloc->{End};
 
-        if (!defined $end_exptd) {
+        if (!$alloc->{Live}) {
+            $end_exptd= $plan->{Start};
+        } elsif (!defined $end_exptd) {
             if ($alloc->{Task} == $magictask{preparing}) {
                 $end_exptd= $plan->{Start} + 1000;
             } else {
