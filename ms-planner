@@ -245,7 +245,10 @@ END
 
 	$current{$reskey}= 1;
         my $oldalloc= $plan->{Allocations}{$reskey};
-	return if $oldalloc && $oldalloc->{Task}==$arow->{owntaskid};
+        if ($oldalloc && $oldalloc->{Task}==$arow->{owntaskid}) {
+            $oldalloc->{Live}= $arow->{live};
+            return;
+        }
 
 	# rogue allocation!
 	my $info;
@@ -263,6 +266,7 @@ END
             Task => $arow->{owntaskid},
 	    Info => $info,
 	    Start => $plan->{Start},
+            Live => $arow->{Live},
 	};
     });
 
@@ -310,6 +314,7 @@ END
         my @ealloc= (
                      Task => $alloc->{Task},
                      Shareix => $shareix,
+                     Live => $alloc->{Live},
                     );
         
 	push @{ $plan->{Events}{$reso} }, {
@@ -442,6 +447,7 @@ sub cmd_book_resources () {
                 Info => $info,
                 Start => $starttime,
                 End => $endtime,
+                Live => 1,
             };
 	}
 

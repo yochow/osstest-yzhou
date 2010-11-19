@@ -33,6 +33,7 @@ Plan is:
 			Start   abs start time *
 			End	abs planned end time, *
 				 omitted for rogue tasks
+			Live	boolean, for reporting purposes only
 
 	Events
 		map from
@@ -50,6 +51,7 @@ Plan is:
 					  struct containing
 						Shareix
 						Task
+						Live
 
 	* = internal to plan
 	** = computed by launder_check_plan
