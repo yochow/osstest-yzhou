@@ -512,7 +512,7 @@ sub cmd_show_html () {
 	    unshift @{ $plan->{Events}{$reso} }, {
 		Time => $alloc->{End},
 		Info => $alloc->{Info},
-		Type => Overrun,
+		Type => $alloc->{Live} ? Overrun : After,
 	    };
 	}
     }
@@ -548,10 +548,11 @@ sub cmd_show_html () {
 	    my $type= $evt->{Type};
 	    my $show=
 		$type eq End ? ($evt->{Share} ? "End $evt->{Info}" : "") :
-		($type eq Overrun || $type eq Unshare)
+		($type eq Overrun || $type eq Unshare || $type eq After)
 		? ("$type $evt->{Info}") :
-		($evt->{Allocated} ? "Allocation $evt->{Allocated}{Task}"
-                 : Booking)." ".$evt->{Info};
+		(!$evt->{Allocated} ? Booking :
+                 ($evt->{Allocated}{Live} ? Allocation : Completed).
+                 " $evt->{Allocated}{Task}")." ".$evt->{Info};
 	    my $share= $evt->{Share};
 	    if ($share) {
 		$show .= sprintf(" [%s %d/%d %d]",
@@ -649,8 +650,12 @@ sub cmd_show_html () {
                     @{ $content->{Show} };
 		$show= 'Idle' if !length $show &&
                     $event->{Start} >= $plan->{Start};
+                my $avail=
+                    $content->{Avail} ||
+                    $content->{Type} eq After ||
+                    ($content->{Allocated} && !$content->{Allocated}{Live});
                 my $bgcolour=
-                    $content->{Avail} ?
+                    $avail ?
                     ($content->{Share} ? "#ccccff" : "#ffffff") :
                     $content->{Type} eq Overrun ?
                     ($content->{Share} ? "#443344" : "#442222") :
@@ -659,7 +664,7 @@ sub cmd_show_html () {
                     :
                     ($content->{Share} ? "#005555" : "#448844");
                 my $fgcolour=
-                    $content->{Avail} ? "#000000" : "#ffffff";
+                    $avail ? "#000000" : "#ffffff";
 		printf "<td valign=top rowspan=%d".
                     " bgcolor=\"%s\"><font color==\"%s\">%s %s</font></td>",
 		    $content->{Rowspan}, $bgcolour, $fgcolour, $show;
