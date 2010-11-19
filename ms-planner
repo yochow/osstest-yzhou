@@ -37,10 +37,10 @@ sub allocations ($$) {
 	$init->();
 	
 	our $resources_q ||= $dbh_tests->prepare(<<END);
-	    SELECT * FROM resources
-		    WHERE owntaskid !=
-			 (SELECT taskid FROM tasks
-			   WHERE type='magic' AND refkey='allocatable')
+	    SELECT * FROM resources JOIN tasks
+                       ON owntaskid = taskid
+		    WHERE NOT (tasks.type='magic' AND
+                               tasks.refkey='allocatable')
 END
         $resources_q->execute();
 	while (my $row= $resources_q->fetchrow_hashref()) {
