@@ -46,6 +46,7 @@ END
 	while (my $row= $resources_q->fetchrow_hashref()) {
 	    my $reso= join " ", map { $row->{$_} } qw(restype resname);
 	    die unless !!$row->{shareix} == !!($reso =~ s/^share-//);
+            print DEBUG "ALLOCATION $reso $row->{shareix}\n";
 	    $each->($reso, $row, $row->{shareix});
 	}
 	$resources_q->finish();
