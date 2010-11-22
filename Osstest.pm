@@ -49,7 +49,7 @@ BEGIN {
     $VERSION     = 1.00;
     @ISA         = qw(Exporter);
     @EXPORT      = qw(
-                      $tftptail
+                      $tftptail $logm_handle
                       %c %r $dbh_tests $flight $job $stash
                       dbfl_check grabrepolock_reexec
                       get_runvar get_runvar_maybe get_runvar_default
@@ -107,6 +107,8 @@ our $dbh_tests;
 our %timeout= qw(RebootDown   100
                  RebootUp     400
                  HardRebootUp 600);
+
+our $logm_handle= new IO::File ">& STDERR" or die $!;
 
 #---------- configuration reader etc. ----------
 
@@ -746,11 +748,11 @@ sub poll_loop ($$$&) {
 sub logm ($) {
     my ($m) = @_;
     my @t = gmtime;
-    printf STDERR "%04d-%02d-%02d %02d:%02d:%02d Z %s\n",
+    printf $logm_handle "%04d-%02d-%02d %02d:%02d:%02d Z %s\n",
         $t[5]+1900,$t[4]+1,$t[3], $t[2],$t[1],$t[0],
         $m
     or die $!;
-    STDERR->flush or die $!;
+    $logm_handle->flush or die $!;
 }
 
 sub get_filecontents ($;$) {
