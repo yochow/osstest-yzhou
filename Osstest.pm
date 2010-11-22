@@ -6,6 +6,7 @@ use warnings;
 
 use POSIX;
 use IO::File;
+use File::Copy;
 use DBI;
 use Socket;
 use IPC::Open2;
@@ -736,20 +737,34 @@ sub poll_loop ($$$&) {
     my $start= time;  die $! unless defined $start;
     my $wantwaited= 0;
     my $waited= 0;
+    my $bad;
     my $reported= '';
+    my $logmtmpfile;
+
     for (;;) {
-        my $bad= $code->();
+        $logmtmpfile= IO::File::new_tmpfile or die $!;
+        local ($Osstest::logm_handle) = ($logmtmpfile);
+
+        $bad= $code->();
         my $now= time;  die $! unless defined $now;
         $waited= $now - $start;
         last if !defined $bad;
+
 	if ($reported ne $bad) {
 	    logm("$what: $bad (waiting) ...");
 	    $reported= $bad;
 	}
-        $waited <= $maxwait or die "$what: wait timed out: $bad.\n";
+        last unless $waited <= $maxwait;
+
         $wantwaited += $interval;
         my $needwait= $wantwaited - $waited;
         sleep($needwait) if $needwait > 0;
+    }
+    if (defined $bad) {
+        seek $logmtmpfile,0,0;
+        print $logm_handle "...\n";
+        File::Copy::copy($logmtmpfile, $logm_handle);
+        fail("$what: wait timed out: $bad.");
     }
     logm("$what: ok. (${waited}s)");
 }
