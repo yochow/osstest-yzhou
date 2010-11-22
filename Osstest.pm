@@ -231,6 +231,9 @@ END
     $stash= "$c{Stash}/$flight/$job";
     ensuredir("$c{Stash}/$flight");
     ensuredir($stash);
+    ensuredir('tmp');
+    system_checked("find tmp -mtime +30 -name t.\\* -print0".
+                   " | xargs -0r rm --");
 }
 
 sub ts_get_host_guest { # pass this @ARGV
