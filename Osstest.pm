@@ -53,7 +53,7 @@ BEGIN {
                       %c %r $dbh_tests $flight $job $stash
                       dbfl_check grabrepolock_reexec
                       get_runvar get_runvar_maybe get_runvar_default
-                      store_runvar get_stashed broken
+                      store_runvar get_stashed broken fail
                       unique_incrementing_runvar system_checked
                       tcpconnect findtask @all_lock_tables
                       tcpconnect_queuedaemon plan_search
@@ -385,6 +385,12 @@ END
 END
     });
     $r{$param}= get_runvar($param, "$flight.$job");
+}
+
+sub fail ($) {
+    my ($m) = @_;
+    logm("FAILURE: $m");
+    die "failure: $m\n";
 }
 
 sub broken ($;$) {
