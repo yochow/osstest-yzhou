@@ -87,6 +87,7 @@ BEGIN {
                       guest_umount_lv guest_await guest_await_dhcp_tcp
                       guest_checkrunning guest_check_ip guest_find_ether
                       guest_find_domid guest_check_up guest_check_up_quick
+                      guest_get_state
                       guest_vncsnapshot_begin guest_vncsnapshot_stash
 		      guest_check_remus_ok
                       dir_identify_vcs build_clone
