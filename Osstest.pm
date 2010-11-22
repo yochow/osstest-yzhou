@@ -525,13 +525,14 @@ sub remote_perl_script_done ($) {
 sub sshuho ($$) { my ($user,$ho)= @_; return "$user\@$ho->{Ip}"; }
 
 sub sshopts () {
-    return [ qw(-o UserKnownHostsFile=/dev/null
-                -o StrictHostKeyChecking=no
+    return [ qw(-o StrictHostKeyChecking=no
                 -o BatchMode=yes
                 -o ConnectTimeout=100
                 -o ServerAliveInterval=100
                 -o PasswordAuthentication=no
-                -o ChallengeResponseAuthentication=no) ];
+                -o ChallengeResponseAuthentication=no),
+             '-o', "UserKnownHostsFile=tmp/t.known_hosts_$flight.$job"
+             ];
 }
 
 sub tcmdex {
