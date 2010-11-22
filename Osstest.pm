@@ -741,11 +741,25 @@ sub poll_loop ($$$&) {
     my $reported= '';
     my $logmtmpfile;
 
+    my $org_logm_handle= $logm_handle;
+    my $undivertlogm= sub {
+        print $org_logm_handle "...\n";
+        seek $logmtmpfile,0,0;
+        File::Copy::copy($logmtmpfile, $org_logm_handle);
+    };
+
     for (;;) {
         $logmtmpfile= IO::File::new_tmpfile or die $!;
         local ($Osstest::logm_handle) = ($logmtmpfile);
 
-        $bad= $code->();
+        if (!eval {
+            $bad= $code->();
+            1;
+        }) {
+            $undivertlogm->();
+            die "$@";
+        }
+
         my $now= time;  die $! unless defined $now;
         $waited= $now - $start;
         last if !defined $bad;
@@ -761,9 +775,7 @@ sub poll_loop ($$$&) {
         sleep($needwait) if $needwait > 0;
     }
     if (defined $bad) {
-        seek $logmtmpfile,0,0;
-        print $logm_handle "...\n";
-        File::Copy::copy($logmtmpfile, $logm_handle);
+        $undivertlogm->();
         fail("$what: wait timed out: $bad.");
     }
     logm("$what: ok. (${waited}s)");
