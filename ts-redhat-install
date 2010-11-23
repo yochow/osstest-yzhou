@@ -19,6 +19,9 @@ our $disk_mb= 50000;
 our $guesthost= "$gn.guest.osstest";
 our $gho;
 
+our $xl= toolstack()->{Command};
+
+
 sub kickstart () {
     my $cryptpw= '$6$anjRJmBbJcrNJGWN$rqvGUhu8ITjvErdIA5C//w2R6b/6wAjHbaF7XF8u3lZg1XI3StthPIE6UII08scOFwASMOepCGpgtsYeCpjqb.';
     return <<"END";
@@ -118,7 +121,7 @@ END
 }
 
 sub start () {
-    target_cmd_root($ho, "xl create $gho->{CfgPath}", 100);
+    target_cmd_root($ho, "$xl create $gho->{CfgPath}", 100);
 }
 
 prep();
