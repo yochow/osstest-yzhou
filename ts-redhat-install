@@ -84,7 +84,8 @@ sub prep () {
 
     my $newiso= '/root/newiso';
 
-    more_prepareguest_hvm($ho,$gho, $ram_mb, $disk_mb, sub {
+    more_prepareguest_hvm($ho,$gho, $ram_mb, $disk_mb,
+                          PostImageHook => sub {
         target_cmd_root($ho, <<END, $isotimeout);
             set -x
             umount /mnt ||:
