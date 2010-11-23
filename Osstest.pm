@@ -90,7 +90,7 @@ BEGIN {
                       guest_find_domid guest_check_up guest_check_up_quick
                       guest_get_state
                       guest_vncsnapshot_begin guest_vncsnapshot_stash
-		      guest_check_remus_ok
+		      guest_check_remus_ok guest_editconfig
                       dir_identify_vcs build_clone
                       hg_dir_revision git_dir_revision vcs_dir_revision
                       store_revision store_vcs_revision
@@ -1593,6 +1593,17 @@ sub guest_check_ip ($) {
 		"guest $gho->{Name}: $gho->{Ether} $gho->{Ip}");
 
     return undef;
+}
+
+sub guest_editconfig ($$) {
+    my ($ho, $gho, $code) = @_;
+    target_editfile_root($ho, "$gho->{CfgPath}", sub {
+        while (<EI>) {
+            $code->();
+            print EO or die $!;
+        }
+        die $! if EI->error;
+    });
 }
 
 sub target_choose_vg ($$) {
