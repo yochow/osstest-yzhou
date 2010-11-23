@@ -63,6 +63,7 @@ for branch in $BRANCHES; do
 		log ...
 
 		git-fetch $OSSTEST_TEST_PULLFROM master:incoming 2>&1 ||:
+		git-fetch $OSSTEST_TEST_PULLFROM incoming:incoming 2>&1 ||:
 		git-pull --no-commit . incoming:master 2>&1 ||:
 		git-checkout HEAD
 
