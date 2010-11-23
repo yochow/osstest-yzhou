@@ -1598,11 +1598,11 @@ sub guest_check_ip ($) {
 sub guest_editconfig ($$$) {
     my ($ho, $gho, $code) = @_;
     target_editfile_root($ho, "$gho->{CfgPath}", sub {
-        while (<EI>) {
+        while (<::EI>) {
             $code->();
-            print EO or die $!;
+            print ::EO or die $!;
         }
-        die $! if EI->error;
+        die $! if ::EI->error;
     });
 }
 
