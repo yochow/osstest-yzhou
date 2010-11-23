@@ -1528,7 +1528,8 @@ sub selectguest ($) {
     my ($gn) = @_;
     my $gho= {
         Guest => $gn,
-        Name => $r{"${gn}_hostname"}
+        Name => $r{"${gn}_hostname"},
+        CfgPath => $r{"${gn}_cfgpath"},
     };
     guest_find_lv($gho);
     guest_find_ether($gho);
