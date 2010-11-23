@@ -1713,6 +1713,8 @@ sub more_prepareguest_hvm ($$$$;@) {
     my $postimage_hook= $xopts{PostImageHook};
     $postimage_hook->() if $postimage_hook;
 
+    my $onreboot= $xopts{OnReboot} || 'restart';
+
     my $xencfg= <<END;
 name        = '$gho->{Name}'
 #
@@ -1745,7 +1747,7 @@ boot = 'dc'
 vif         = [ 'type=ioemu,mac=$gho->{Ether}' ]
 #
 on_poweroff = 'destroy'
-on_reboot   = 'restart'
+on_reboot   = '$onreboot'
 on_crash    = 'preserve'
 vcpus = 2
 END
