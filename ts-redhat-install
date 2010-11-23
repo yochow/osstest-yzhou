@@ -7,6 +7,9 @@ use Osstest;
 readconfig();
 opendb_state();
 
+our $stage=0;
+if (@ARGV && $ARGV[0] =~ m/^--stage(\d+)$/) { $stage=$1; shift @ARGV; }
+
 our ($whhost,$gn) = @ARGV;
 $whhost ||= 'host';
 $gn ||= 'redhat';
@@ -137,8 +140,39 @@ sub start () {
     target_cmd_root($ho, "$xl create $gho->{CfgPath}", 100);
 }
 
-prep();
-start();
+sub await_reboot () {
+    poll_loop(2000, 30, "await reboot request from $gho->{Guest}", sub {
+        my $st= guest_get_state($ho,$gho);
+        return undef if $st eq 'sr';
+        return "guest state is $st";
+    });
+}
 
-guest_await_dhcp_tcp($gho,3000);
+sub rewrite_config_nocd() {
+    guest_editconfig($ho, $gho, sub {
+        if (m/^\s*disk\s*\=/../\]/) {
+            s/['"].*\bcdrom\b[^'":]*['"]\s*\,?//;
+        }
+        s/^on_reboot.*/on_reboot='restart'/;
+    });
+}
+
+sub destroy () {
+    target_cmd_root($ho, "$xl destroy $gho->{Name}", 20);
+}
+
+if (!$stage) {
+    prep();
+    start();
+} else {
+    $gho= selectguest($gn);
+}
+if ($stage<2) {
+    await_reboot();
+    destroy();
+}
+
+rewrite_config_nocd();
+start();
+guest_await_dhcp_tcp($gho,300);
 guest_check_up($gho);
