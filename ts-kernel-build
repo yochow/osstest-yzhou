@@ -163,6 +163,8 @@ setopt CONFIG_DEBUG_INFO y
 
 setopt CONFIG_XEN_KBDDEV_FRONTEND y
 
+setopt CONFIG_TUN y
+
 $config_hardware
 END
 
