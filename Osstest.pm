@@ -1595,7 +1595,7 @@ sub guest_check_ip ($) {
     return undef;
 }
 
-sub guest_editconfig ($$) {
+sub guest_editconfig ($$$) {
     my ($ho, $gho, $code) = @_;
     target_editfile_root($ho, "$gho->{CfgPath}", sub {
         while (<EI>) {
