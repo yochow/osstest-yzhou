@@ -94,7 +94,7 @@ BEGIN {
                       dir_identify_vcs build_clone
                       hg_dir_revision git_dir_revision vcs_dir_revision
                       store_revision store_vcs_revision
-                      toolstack
+                      toolstack authorized_keys
                       );
     %EXPORT_TAGS = ( );
 
@@ -2141,6 +2141,21 @@ sub toolstack () {
         $ts->{Name}= $tsname;
     }
     return $ts;
+}
+
+sub authorized_keys () {
+    my $authkeys= '';
+    my @akf= map {
+        "$ENV{'HOME'}/.ssh/$_"
+        } qw(authorized_keys id_dsa.pub id_rsa.pub);
+    push @akf, split ':', $c{AuthorizedKeysFiles};
+    push @akf, $c{TestHostKeypairPath}.'.pub';
+    foreach my $akf (@akf) {
+        next unless $akf =~ m/\S/;
+        $authkeys .= get_filecontents($akf, "# $akf ENOENT\n"). "\n";
+    }
+    $authkeys .= $c{AuthorizedKeysAppend};
+    return $authkeys;
 }
 
 #---------- logtailer ----------

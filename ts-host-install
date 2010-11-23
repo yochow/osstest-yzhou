@@ -170,19 +170,7 @@ END
 }
 
 sub create_preseed ($) {
-
-    my $authkeys= '';
-    my @akf= map {
-        "$ENV{'HOME'}/.ssh/$_"
-        } qw(authorized_keys id_dsa.pub id_rsa.pub);
-    push @akf, split ':', $c{AuthorizedKeysFiles};
-    push @akf, $c{TestHostKeypairPath}.'.pub';
-    foreach my $akf (@akf) {
-        next unless $akf =~ m/\S/;
-        $authkeys .= get_filecontents($akf, "# $akf ENOENT\n"). "\n";
-    }
-    $authkeys .= $c{AuthorizedKeysAppend};
-    my $authkeys_url= create_webfile($ho, 'authkeys', $authkeys);
+    my $authkeys_url= create_webfile($ho, 'authkeys', authorized_keys());
 
     my $hostkeyfile= "$c{OverlayLocal}/etc/ssh/ssh_host_rsa_key.pub";
     my $hostkey= get_filecontents($hostkeyfile);
