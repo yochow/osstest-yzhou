@@ -148,6 +148,7 @@ proc test-guest {g} {
     foreach iteration {{} .2} {
         run-ts . =$iteration ts-guest-saverestore + host $g
         run-ts . =$iteration ts-guest-localmigrate + host $g
+        run-ts . =$iteration ts-guest-localmigrate --reps=10 + host $g
     }
     run-ts . = ts-guest-stop + host $g
 }
