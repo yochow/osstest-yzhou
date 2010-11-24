@@ -97,7 +97,7 @@ END
 sub prep () {
     target_install_packages_norec($ho, qw(lvm2 rsync genisoimage));
 
-    my $isotimeout= 300;
+    my $isotimeout= 600;
 
     $gho= prepareguest($ho, $gn, $guesthost, 22, $disk_mb + 1);
 
