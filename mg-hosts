@@ -98,7 +98,7 @@ END
              defined($headlines[$row]) &&
              length($headlines[$row]) >= $wantx;
              $row++) { }
-print STDERR "CW $col $wantx $row $cols[$col]\n";
+#print STDERR "CW $col $wantx $row $cols[$col]\n";
         $headlines[$row]='' if !defined $headlines[$row];
         $headlines[$row].=
             ' 'x($wantx - length $headlines[$row]).
