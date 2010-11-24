@@ -141,11 +141,16 @@ for xenarch in ${TEST_ARCHES- i386 amd64 } ; do
 		win_image=winxpsp2.iso   				\
 		all_hostflags=$most_hostflags,hvm
 
-    ./cs-job-create $flight test-$xenarch$kern-$dom0arch-rhelhvm test-rhelhvm \
+	for cpuvendor in amd intel; do
+
+    ./cs-job-create $flight test-$xenarch$kern-$dom0arch-rhelhvm-$cpuvendor \
+						test-rhelhvm \
 		$RUNVARS $TEST_RUNVARS $most_runvars $TEST_RHELHVM_RUNVARS \
 		redhat_image=rhel-server-6.0-i386-dvd.iso		\
 		toolstack=xl						\
-		all_hostflags=$most_hostflags,hvm
+		all_hostflags=$most_hostflags,hvm-$cpuvendor
+
+	done
 
       ./cs-job-create $flight test-$xenarch$kern-$dom0arch-pair test-pair \
                 !host $RUNVARS $TEST_RUNVARS $most_runvars $TEST_PAIR_RUNVARS \
