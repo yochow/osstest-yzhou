@@ -104,6 +104,7 @@ sub prep () {
     my $newiso= '/root/newiso';
 
     more_prepareguest_hvm($ho,$gho, $ram_mb, $disk_mb,
+                          OnReboot => 'preserve',
                           PostImageHook => sub {
         target_cmd_root($ho, <<END, $isotimeout);
             set -x
