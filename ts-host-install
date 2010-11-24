@@ -22,7 +22,7 @@ exit 0 if $ho->{SharedReady};
 die if $ho->{SharedOthers};
 
 our %timeout= qw(ReadPreseed  350
-                 Sshd        1200);
+                 Sshd        2400);
 
 sub install () {
     power_state($ho, 0);
