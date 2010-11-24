@@ -86,7 +86,7 @@ BEGIN {
                       selectguest prepareguest more_prepareguest_hvm
                       guest_umount_lv guest_await guest_await_dhcp_tcp
                       guest_checkrunning guest_check_ip guest_find_ether
-                      guest_find_domid guest_check_up
+                      guest_find_domid guest_check_up guest_check_up_quick
                       guest_vncsnapshot_begin guest_vncsnapshot_stash
 		      guest_check_remus_ok
                       dir_identify_vcs build_clone
@@ -1710,12 +1710,26 @@ END
     return $cfgpath;
 }
 
+sub guest_check_via_ssh ($) {
+    my ($gho) = @_;
+    return $r{"$gho->{Guest}_tcpcheckport"} == 22;
+}
+
+sub guest_check_up_quick ($) {
+    my ($gho) = @_;
+    if (guest_check_via_ssh($gho)) {
+	target_cmd_root($gho, "date");
+    } else {
+	target_ping_check_up($gho);
+    }
+}
+
 sub guest_check_up ($) {
     my ($gho) = @_;
     guest_await_dhcp_tcp($gho,20);
     target_ping_check_up($gho);
     target_cmd_root($gho, "echo guest $gho->{Name}: ok")
-        if $r{"$gho->{Guest}_tcpcheckport"} == 22;
+        if guest_check_via_ssh($gho);
 }
 
 sub guest_get_state ($$) {
