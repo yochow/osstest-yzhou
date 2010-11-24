@@ -26,7 +26,7 @@ if [ x$buildflight = x ]; then
 	tree_qemu=git://mariner.uk.xensource.com/qemu-$xenbranch.git	     \
 	tree_xen=http://hg.uk.xensource.com/$xenbranch.hg		     \
 		$RUNVARS $BUILD_RUNVARS $BUILD_XEN_RUNVARS $arch_runvars     \
-		host_hostflags=share-build-$arch,arch-$arch,build	     \
+		host_hostflags=share-build-$arch,arch-$arch,purpose-build    \
 		revision_xen=$REVISION_XEN				     \
 		revision_qemu=$REVISION_QEMU
 
@@ -34,7 +34,7 @@ if [ x$buildflight = x ]; then
 		arch=$arch kconfighow=xen-enable-xen-config		     \
 	tree_xen=http://hg.uk.xensource.com/$xenbranch.hg		     \
 		$RUNVARS $BUILD_RUNVARS $BUILD_LINUX_RUNVARS $arch_runvars   \
-		host_hostflags=share-build-$arch,arch-$arch,build	     \
+		host_hostflags=share-build-$arch,arch-$arch,purpose-build    \
 		xen_kernels=linux-2.6-pvops				     \
 		revision_xen=$REVISION_XEN				     \
 		tree_linux=$TREE_LINUX					     \
@@ -48,7 +48,7 @@ if [ x$buildflight = x ]; then
 	tree_xen=http://hg.uk.xensource.com/$xenbranch.hg		\
 		$RUNVARS $BUILD_RUNVARS $BUILD_LINUX_OLD_RUNVARS	\
 		$arch_runvars						\
-		host_hostflags=share-build-$arch,arch-$arch,build	\
+		host_hostflags=share-build-$arch,arch-$arch,purpose-build \
 		xen_kernels=linux-2.6-xen				\
 		revision_xen=$REVISION_XEN				\
 		revision_qemu=$REVISION_QEMU				\
@@ -65,7 +65,7 @@ if [ x$buildflight = x ]; then
 		$arch_runvars						      \
 		arch=$arch						\
 	kconfighow=intree-buildconfigs kimagefile=arch/x86/boot/vmlinuz \
-		host_hostflags=share-build-$arch,arch-$arch,build	      \
+		host_hostflags=share-build-$arch,arch-$arch,purpose-build     \
 		tree_xen=http://hg.uk.xensource.com/$xenbranch.hg	      \
 		revision_xen=$REVISION_XEN				      \
 	tree_linux=$TREEBASE_LINUX_XCP.hg    \
@@ -112,7 +112,7 @@ for xenarch in ${TEST_ARCHES- i386 amd64 } ; do
 
       if [ x$kern = x-xcpkern -a $dom0arch != i386 ]; then continue; fi
 
-      most_hostflags="arch-$dom0arch,arch-$xenarch,test"
+      most_hostflags="arch-$dom0arch,arch-$xenarch,purpose-test"
 
       most_runvars="
 		arch=$dom0arch			        	\
