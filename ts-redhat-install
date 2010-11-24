@@ -48,7 +48,7 @@ sshpw --username=root xenroot --plaintext
 sshpw --username=iwj xenroot --plaintext
 
 timezone --utc Europe/London
-bootloader --location=mbr --driveorder=sda --append="crashkernel=auto rhgb quiet"
+bootloader --location=mbr --driveorder=sda --append="crashkernel=auto rhgb console=ttyS0,$c{Baud}n8"
 
 # The following is the partition information you requested
 # Note that any partitions you deleted are not expressed
@@ -120,6 +120,7 @@ END
                 if (m/^\s+append/) {
                     s,$, sshd ks=cdrom:/ks.cfg,;
                     s/\baskmethod\b\S*/ /;
+                    s#$# console=ttyS0,$c{Baud}n8#;
                 }
                 s/^timeout.*/timeout 10/;
                 print EO or die $!;
