@@ -1742,6 +1742,8 @@ vncunused=0
 vncdisplay=0
 vnclisten='$ho->{Ip}'
 vncpasswd='$passwd'
+
+serial='pty'
 #
 boot = 'dc'
 #
