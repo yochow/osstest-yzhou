@@ -291,7 +291,7 @@ END
 	my $end_exptd= $alloc->{End};
 
         if (!$alloc->{Live}) {
-            $end_exptd= $plan->{Start};
+            $end_exptd= $plan->{Start} + 1;
         } elsif (!defined $end_exptd) {
             if ($alloc->{Task} == $magictask{preparing}) {
                 $end_exptd= $plan->{Start} + 1000;
