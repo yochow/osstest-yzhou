@@ -125,6 +125,8 @@ END
 }
 
 sub launder_check_plan () {
+    print DEBUG "LAUNDER PLAN ", Dumper($plan);
+
     foreach my $reso (keys %{ $plan->{Events} }) {
 	my @evts;
 
