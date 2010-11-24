@@ -298,7 +298,7 @@ END
             } else {
                 $end_exptd= $plan->{Start} + $c{PlanRogueAllocationDuration};
             }
-        } elsif ($end_exptd < $plan->{Start}) {
+        } elsif ($end_exptd <= $plan->{Start}) {
 	    # overdue
 	    my $started= $alloc->{Start};
 	    my $duration_sofar= $plan->{Start} - $started;
@@ -312,7 +312,7 @@ END
 	    print DEBUG "readjust $reskey: $duration_planned".
 		    " < $duration_sofar $duration_exptd\n" or die $!;
 	    die $duration_exptd unless $duration_exptd >= 0;
-	    $end_exptd= $started + $duration_exptd;
+	    $end_exptd= $started + $duration_exptd + 1;
 	}
 
         my @ealloc= (
