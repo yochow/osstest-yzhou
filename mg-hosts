@@ -59,18 +59,28 @@ END
 
 sub cmd_showflags () {
     die if @ARGV;
+    my $hostsq= $dbh_tests->prepare(<<END);
+        SELECT hostname FROM hostflags ORDER BY
+            split_part(hostname, '-', 2), hostname
+END
     my $findq= $dbh_tests->prepare(<<END);
         SELECT * FROM hostflags ORDER BY hostflag
 END
+    $hostsq->execute();
     $findq->execute();
+
     my (@cols, @rows, %cols, %rows, @grid);
-    my $maxflag= 1;
     my $find= sub {
         my ($ary,$hash,$key)=@_;
         my $val= $hash->{$key};  return $val if defined $val;
         push @$ary, $key;
         return $hash->{$key}= $val= $#$ary;
     };
+    while (my $hostcol= $hostsq->fetchrow_hashref()) {
+        $find->(\@cols, \%cols, $hostcol->{hostname});
+    }
+
+    my $maxflag= 1;
     while (my $hf= $findq->fetchrow_hashref()) {
         my $row= $find->(\@rows, \%rows, $hf->{hostflag});
         my $col= $find->(\@cols, \%cols, $hf->{hostname});
