@@ -1189,7 +1189,8 @@ sub alloc_resources {
     };
 
     my $priority= $ENV{OSSTEST_RESOURCE_PRIORITY};
-    if (-t STDERR) {
+    if (open TTY_TEST, "/dev/tty") {
+        close TTY_TEST;
         my $maxpriority= -10;
         if (!defined $priority) {
             logm("resource allocation: on tty, priority=$maxpriority");
