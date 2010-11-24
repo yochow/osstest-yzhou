@@ -105,6 +105,7 @@ END
             $cols[$col];
     }
     my $maxwidth= 0;
+    print "\n";
     foreach my $l (@headlines) {
         printf "%*s | %s\n", $maxflag,'', $l;
         $maxwidth= length($l) if length($l) > $maxwidth;
@@ -118,6 +119,7 @@ END
         }
         print "\n";
     }
+    print "\n";
 }    
 
 die unless @ARGV;
