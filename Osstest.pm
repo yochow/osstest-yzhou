@@ -1743,7 +1743,7 @@ vncdisplay=0
 vnclisten='$ho->{Ip}'
 vncpasswd='$passwd'
 
-serial='pty'
+serial='file:/dev/stderr'
 #
 boot = 'dc'
 #
