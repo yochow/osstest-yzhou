@@ -80,10 +80,13 @@ proc prepare-job {job} {
     global flight argv c
     set desc "$flight.$job"
 
+    db-open
+
     foreach constraint $argv {
         if {[regexp {^--jobs=(.*)$} $constraint dummy jobs]} {
             if {[lsearch -exact [split $jobs ,] $job] < 0} {
                 logputs stdout "suppress $desc (jobs)"
+                db-close
                 return 0
             }
         } elseif {[regexp {^--hostlist=(.*)$} $constraint dummy wanthosts]} {
@@ -99,6 +102,7 @@ proc prepare-job {job} {
             }
             if {[string compare $wanthosts [join $actualhosts ,]]} {
                 logputs stdout "suppress $desc (hosts $actualhosts)"
+                db-close
                 return 0
             }
         } else {
@@ -107,7 +111,7 @@ proc prepare-job {job} {
     }
 
     logputs stdout "prepping $desc"
-
+    db-close
     return 1
 }
 
