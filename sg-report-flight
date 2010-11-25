@@ -50,6 +50,10 @@ if (m/^\d+$/) {
     $branch= $_;
 }
 
+die if defined $specver{this}{flight};
+die if defined $specver{that}{flight} &&
+    grep { $_ ne 'flight' } keys %{ $specver{that} };
+
 push @blessings, 'real' unless @blessings;
 
 csreadconfig();
@@ -68,6 +72,15 @@ sub findaflight ($$) {
     my ($thisthat, $sub) = @_;
 
     die $thisthat unless keys %{ $specver{$thisthat} };
+
+    my $thatflight= $specver{that}{flight};
+    if (defined $thatflight) {
+        print DEBUG " $thatflight specified:\n";
+        my $whynot= $sub->($thatflight);
+        return $thatflight if !defined $whynot;
+        print DEBUG " $thatflight $whynot\n";
+        return undef;
+    }
 
     my $flightsq= <<END;
         SELECT flight FROM flights
@@ -393,7 +406,7 @@ END
 sub justifyfailures ($) {
     my ($fi) = @_;
 
-    return unless $specver{that};
+    return unless keys %{ $specver{that} };
 
     my @failures= values %{ $fi->{Failures} };
 
