@@ -11,6 +11,8 @@ proc check {} {
 
     if {$stopping} return
 
+    db-open
+
     set nqueued [pg_execute dbh "
         SELECT job FROM jobs j
          WHERE j.flight = $flight
@@ -49,6 +51,8 @@ proc check {} {
                    )
          ORDER BY job
     " maybe-spawn-job
+
+    db-close
 }
 
 proc prequit {why} {
@@ -211,5 +215,4 @@ proc main {} {
 }
 
 parse-args
-db-open
 main
