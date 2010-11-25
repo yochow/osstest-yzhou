@@ -55,7 +55,7 @@ proc db-open {} {
 }
 proc db-close {} {
     global dbusers
-    incr dbuser -1
+    incr dbusers -1
     if {$dbusers > 0} return
     if {$dbusers} { error "$dbusers ?!" }
     pg_disconnect dbh
@@ -70,7 +70,7 @@ proc db-update-1 {stmt} {
 proc set-flight {} {
     global flight argv env
 
-    if {[string equals [lindex $argv 0] --start-delay]} {
+    if {[string equal [lindex $argv 0] --start-delay]} {
         after [lindex $argv 1]
         set argv [lrange $argv 2 end]
     }
