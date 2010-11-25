@@ -54,7 +54,8 @@ BEGIN {
                       %c %r $dbh_tests $flight $job $stash
                       dbfl_check grabrepolock_reexec
                       get_runvar get_runvar_maybe get_runvar_default
-                      store_runvar get_stashed broken fail
+                      store_runvar get_stashed open_unique_stashfile
+                      broken fail
                       unique_incrementing_runvar system_checked
                       tcpconnect findtask @all_lock_tables
                       tcpconnect_queuedaemon plan_search
@@ -329,6 +330,19 @@ sub opendb ($) {
         })
         or die "could not open state db $src";
     return $dbh;
+}
+
+sub open_unique_stashfile ($) {
+    my ($leafref) = @_;
+    my $dh;
+    for (;;) {
+        my $df= $$leafref;
+        $dh= new IO::File "$stash/$df", O_WRONLY|O_EXCL|O_CREAT;
+        last if $dh;
+        die "$df $!" unless $!==&EEXIST;
+        $$leafref .= '+';
+    }
+    return $dh;
 }
 
 #---------- runvars ----------

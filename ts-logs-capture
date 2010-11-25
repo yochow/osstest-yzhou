@@ -156,19 +156,6 @@ END
     remote_perl_script_done($remote);
 }
 
-sub open_unique_stashfile ($) {
-    my ($dfr) = @_;
-    my $dh;
-    for (;;) {
-        my $df= $$dfr;
-        $dh= new IO::File "$stash/$df", O_WRONLY|O_EXCL|O_CREAT;
-        last if $dh;
-        die "$df $!" unless $!==&EEXIST;
-        $$dfr .= '+';
-    }
-    return $dh;
-}
-
 sub try_cmd_output_save ($;$) {
     my ($cmd, $dfn) = @_;
     if (!defined $dfn) {
