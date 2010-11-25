@@ -121,6 +121,8 @@ sub setupboot () {
     if (toolstack()->{Dom0MemFixed}) {
         $xenhopt .= " dom0_mem=512M";
     }
+    my $append= $r{xen_boot_append};
+    $xenhopt .= " $append" if defined $append;
 
     my $console= $r{console};
     if (defined $console && length $console) {
