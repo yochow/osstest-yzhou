@@ -157,6 +157,14 @@ for xenarch in ${TEST_ARCHES- i386 amd64 } ; do
 		debian_arch=$dom0arch   				  \
 		all_hostflags=$most_hostflags
 
+      ./cs-job-create $flight test-$xenarch$kern-$dom0arch-xl-credit2   \
+           test-debian guest_vcpus=4 xen_boot_append='sched=credit2'      \
+		$RUNVARS $TEST_RUNVARS $most_runvars $TEST_XL_RUNVARS	  \
+		toolstack=xl						  \
+		debian_kernkind=$kernkind				  \
+		debian_arch=$dom0arch   				  \
+		all_hostflags=$most_hostflags
+
 	for cpuvendor in amd intel; do
 
     ./cs-job-create $flight test-$xenarch$kern-$dom0arch-rhelhvm-$cpuvendor \
