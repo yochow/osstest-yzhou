@@ -37,12 +37,13 @@ proc main {} {
     set anyfailed 0
     foreach reap $builds {
 	set job [lindex $reap 0]
-        if {![reap-ts [lindex $reap 1]]} {
+        if {![reap-ts [lindex $reap 1] 1]} {
             set anyfailed 1
 	    job-set-status $flight $job fail
 	} else {
 	    job-set-status $flight $job pass
         }
+        db-close
     }
 
     if {$anyfailed} {
