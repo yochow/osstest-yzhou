@@ -313,6 +313,7 @@ proc reap-ts {reap} {
 }
 
 proc transaction {tables script} {
+    db-open
     while 1 {
         set ol {}
         pg_execute dbh BEGIN
@@ -331,6 +332,7 @@ proc transaction {tables script} {
 	} else {
 	    pg_execute dbh ROLLBACK
 	}
+        db-close
 	return -code $rc $result
     }
 }
