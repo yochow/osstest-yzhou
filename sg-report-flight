@@ -133,7 +133,7 @@ sub findspecflight () {
         ($branch) = $dbh_tests->selectrow_array(<<END, {}, $specflight);
             SELECT branch FROM flights WHERE flight=?
 END
-        die "$flight branch ?" unless defined $branch;
+        die "$specflight branch ?" unless defined $branch;
     } else {
         $specflight= findaflight('this', sub { return undef; });
         die unless defined $specflight;
