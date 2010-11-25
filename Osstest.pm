@@ -85,6 +85,7 @@ BEGIN {
                       target_kernkind_check target_kernkind_console_inittab
                       target_var target_var_prefix
                       selectguest prepareguest more_prepareguest_hvm
+                      guest_var
                       prepareguest_part_lvmdisk prepareguest_part_xencfg
                       guest_umount_lv guest_await guest_await_dhcp_tcp
                       guest_checkrunning guest_check_ip guest_find_ether
@@ -1672,6 +1673,13 @@ END
     });
     $r{$vn}= $ether;
     return $ether;
+}
+
+sub guest_var ($$$) {
+    my ($gho, $runvartail, $default) = @_;
+    my $val= $r{ $gho->{Guest}."_".$runvartail };  return $val if defined $val;
+    $val= $r{ "guests_$runvartail" };              return $val if defined $val;
+    return $default;
 }
 
 sub prepareguest ($$$$$) {
