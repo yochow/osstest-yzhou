@@ -131,6 +131,7 @@ proc run-ts {args} {
 }
 
 proc lock-tables {tables} {
+    # must be inside transaction
     foreach tab $tables {
         pg_execute dbh "
 		LOCK TABLE $tab IN ACCESS EXCLUSIVE MODE
