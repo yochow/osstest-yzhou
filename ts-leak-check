@@ -1,0 +1,131 @@
+#!/usr/bin/perl -w
+
+use strict qw(vars);
+use DBI;
+use Osstest;
+
+readconfig();
+opendb_state();
+
+our ($mode, $whhost) = @ARGV;
+our $ho= selecthost($whhost);
+
+die unless grep { $mode eq $_ } qw(print basis check);
+
+sub start_print () { open STDOUT, "|cat -v" or die $!; }
+sub item_print {
+    my ($type, $key, $val) = @_;
+    printf "%-10s %-40s %s\n", $type, $key, $val;
+}    
+sub finish_print () { close STDOUT or die "$! $?"; }
+
+our $leaks=0;
+our $statefh;
+
+my $basisf= "$stash/leak-basis-$ho->{Name}";
+
+sub start_basis () { $statefh= new IO::File "> $basisf" or die $!; }
+sub item_basis {
+    my ($type, $key, $val) = @_;
+    printf $statefh "%s %d\n", $type, length($key) or die $!;
+    print $statefh $key or die $!;
+    printf $statefh "\n%s\n", $val or die $!;
+}
+sub finish_basis () {
+    print $statefh ".\n" or die $!;
+    close $statefh or die $!;
+}
+
+our %ok;
+
+sub start_check () {
+    $statefh= new IO::File "< $basisf" or die $!;
+    for (;;) {
+        $!=0;  $_= <$statefh>;  defined or die $!;
+        last if m/^\.$/;
+        my ($type, $keylen) = m/^(\w+) (\d+)$/ or die "$_ ?";
+        my ($key, $dummy, $val);
+        $!=0;  read($statefh, $key, $keylen) == $keylen or die $!;
+        read($statefh, $dummy, 1) == 1 or die $!;
+        $dummy eq "\n" or die "$dummy ?";
+        $!=0; $val= <$statefh>;  defined $val or die $!;
+        chomp($val) or die "$val ?";
+
+        $ok{"$type $key"}= 1;
+    }
+    $statefh->error and die $!;
+    close $statefh or die $!;
+
+    my $leaf= "leak-current-$ho->{Name}";
+    $statefh= open_unique_stashfile(\$leaf);
+}
+sub item_check {
+    my ($type, $key, $val) = @_;
+    item_basis(@_);
+    return if $ok{"$type $key"};
+    logm("LEAKED $type: $val");
+    $leaks++;
+}
+sub finish_check () {
+    finish_basis();
+}
+
+sub item ($$$) {
+    &{ "item_$mode" }(@_);
+}
+
+sub inventory_xenstore () {
+    my $xs= target_cmd_output_root($ho, "xenstore-ls -fp");
+    foreach (split /\n/, $xs) {
+        next unless m/\S/;
+        m,^(/[^ =]+) \= , or die "$_ ?";
+        item('xenstore', $1, $_);
+    }
+}
+
+sub inventory_processes () {
+    my %procs;
+    foreach my $iter (qw(0 1)) {
+        my $procs= target_cmd_output_root($ho, "ps -wwef");
+        $procs =~ s/^UID.*\n// or die "$procs ?";
+        foreach (split /\n/, $procs) {
+            m/^\S+\s+(\S+)\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+(\S+)/
+                or die "$_ ?";
+            push @{ $procs{"$1 $2"} }, $_;
+        }
+    }
+    while (my ($key, $vals) = each %procs) {
+        next unless @$vals==2;
+        item('process', $key, $vals->[1]);
+    }
+}
+
+sub inventory_files ($) {
+    my ($dir) = @_;
+    my $files= target_cmd_output_root($ho,
+               "find $dir -print0 -ls -printf '\\0'");
+    my @files= split /\0/, $files;
+    my ($path, $val);
+    while (@files) {
+        ($path, $val, @files) = @files;
+        chomp($val);
+        item('file', $path, $val);
+    }
+}
+
+sub inventory () {
+    inventory_processes();
+    inventory_xenstore();
+    inventory_files('/tmp /var/run /var/tmp /var/lib/xen');
+}
+
+if (!eval {
+    &{ "start_$mode" }();
+    inventory();
+    &{ "finish_$mode" }();
+    1;
+}) {
+    broken("listing/checking leakable objects: $@");
+}
+
+fail("$leaks leaked object(s)") if $leaks;
