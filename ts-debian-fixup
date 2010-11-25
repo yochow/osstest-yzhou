@@ -90,8 +90,6 @@ sub unmount () {
 sub otherfixupcfg () {
     $cfg =~ s/^dhcp/#$&/mg;
     $cfg =~ s/^on_crash.*/on_crash='preserve'/mg;
-    $cfg =~ s/^vcpus.*//mg;
-    $cfg .= "\nvcpus = 4\n";
 };
 
 sub writecfg () {
