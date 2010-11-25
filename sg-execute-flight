@@ -7,7 +7,7 @@ source osstestlib.tcl
 readconfig
 
 proc check {} {
-    global flight jobinfo running blessing killing stopping
+    global flight jobinfo running blessing killing stopping startdelay
 
     if {$stopping} return
 
@@ -63,7 +63,7 @@ proc prequit {why} {
 }
 
 proc maybe-spawn-job {} {
-    global flight jobinfo running forever
+    global flight jobinfo running forever startdelay
 
     foreach entry $running {
         lassign $entry pid job
@@ -76,6 +76,8 @@ proc maybe-spawn-job {} {
         * { error "unknown runner for recipe $jobinfo(recipe)" }
     }
     log "flight $flight spawning $jobinfo(job) $jobinfo(recipe) $runner"
+
+    incr startdelay 300
 
     pipe waiter_sentinel_r waiter_sentinel_w
     fcntl $waiter_sentinel_r CLOEXEC 1
@@ -95,7 +97,8 @@ proc maybe-spawn-job {} {
             execl sh {-c {trap '' TERM; read dummy}}
             error "execl sh returned success ?!"
         }
-        execl ./$runner [list $flight --jobs=$jobinfo(job)]
+        execl ./$runner [list --start-delay $startdelay \
+                             $flight --jobs=$jobinfo(job)]
         error "execl returned success ?!"
     }
     close $waiter_sentinel_r
@@ -206,10 +209,11 @@ proc parse-args {} {
 }
 
 proc main {} {
-    global running flight killing stopping
+    global running flight killing stopping startdelay
     set killing 0
     set stopping 0
     set running {}
+    set startdelay 300
     signal trap {SIGTERM SIGINT SIGHUP} {shutdown {%S}}
     while 1 main_iteration
 }
