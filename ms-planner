@@ -442,6 +442,7 @@ sub cmd_book_resources () {
 	    @alloc= (
 		     Shareix => $shareix,
                      Task => $task,
+                     Live => 1,
 		     );
 
             my $reskey= "$jbook->{Reso} $shareix";
