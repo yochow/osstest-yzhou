@@ -1,0 +1,21 @@
+#!/usr/bin/perl -w
+
+use strict qw(vars);
+use DBI;
+use Osstest;
+
+readconfig();
+opendb_state();
+our ($ho,$gho) = ts_get_host_guest(@ARGV);
+
+sub destroy () {
+    target_cmd_root($ho,
+		    toolstack()->{Command}
+		    ." destroy "
+		    .$gho->{Name}, 60);
+    guest_checkrunning($ho, $gho) and die $gho->{Name};
+}
+
+guest_await_dhcp_tcp($gho, 5);
+destroy();
+target_ping_check_down($gho);
