@@ -162,6 +162,8 @@ proc test-guest {g} {
     }
     run-ts . = ts-guest-localmigrate x10 + host $g
     run-ts . = ts-guest-stop + host $g
+    run-ts . =.2 ts-guest-start + host $g
+    run-ts . = ts-guest-destroy + host $g
 }
 
 main
