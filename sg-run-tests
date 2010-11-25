@@ -10,11 +10,12 @@ proc main {} {
     global flight jobinfo builds anyfailed argv
 
     set-flight
-    db-open
     become-task "$flight $argv"
     
     set tests {}
     set anyfailed 0
+
+    db-open
 
     set to_run {}
     pg_execute -array jobinfo dbh "
@@ -29,6 +30,8 @@ proc main {} {
     " {
         lappend to_run [list $jobinfo(job) $jobinfo(recipe)]
     }
+
+    db-close
 
     foreach jobitem $to_run {
         lassign $jobitem jobinfo(job) jobinfo(recipe)
