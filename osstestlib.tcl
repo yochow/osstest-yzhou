@@ -152,6 +152,8 @@ proc spawn-ts {iffail testid ts args} {
 
     if {![string compare . $iffail]} { set iffail fail }
 
+    db-open
+
     pg_execute dbh BEGIN
     pg_execute dbh "SET TRANSACTION ISOLATION LEVEL SERIALIZABLE"
     if {[catch {
@@ -177,6 +179,7 @@ proc spawn-ts {iffail testid ts args} {
 	set ei $errorInfo
 	set ec $errorCode
 	catch { pg_execute dbh ROLLBACK }
+        db-close
 	error $emsg $ei $ec
     }
 
@@ -242,6 +245,7 @@ proc spawn-ts {iffail testid ts args} {
     set fh [open |$cmd r]
     set reap_details($fh) $details
 
+    db-close
     return $fh
 }
 
