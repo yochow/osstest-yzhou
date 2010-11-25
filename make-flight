@@ -167,7 +167,7 @@ for xenarch in ${TEST_ARCHES- i386 amd64 } ; do
 
 	for cpuvendor in amd intel; do
 
-    ./cs-job-create $flight test-$xenarch$kern-$dom0arch-rhelhvm-$cpuvendor \
+    ./cs-job-create $flight test-$xenarch$kern-$dom0arch-rhel6hvm-$cpuvendor \
 						test-rhelhvm \
 		$RUNVARS $TEST_RUNVARS $most_runvars $TEST_RHELHVM_RUNVARS \
 		redhat_image=rhel-server-6.0-i386-dvd.iso		\
