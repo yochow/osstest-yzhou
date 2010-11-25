@@ -11,7 +11,7 @@ opendb_state();
 
 our $reps= 1;
 
-if (@ARGV && $ARGV[0] =~ m/^--reps=(\d+)$/) { $reps= $1; shift @ARGV; }
+if (@ARGV==3 && $ARGV[0] =~ m/^x(\d+)$/) { $reps= $1; shift @ARGV; }
 
 our ($ho,$gho) = ts_get_host_guest(@ARGV);
 
