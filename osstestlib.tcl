@@ -70,6 +70,11 @@ proc db-update-1 {stmt} {
 proc set-flight {} {
     global flight argv env
 
+    if {[string equals [lindex $argv 0] --start-delay]} {
+        after [lindex $argv 1]
+        set argv [lrange $argv 2 end]
+    }
+
     set flight [lindex $argv 0]
     set argv [lrange $argv 1 end]
     set env(OSSTEST_FLIGHT) $flight
