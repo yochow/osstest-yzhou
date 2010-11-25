@@ -2,16 +2,20 @@
 
 use strict qw(vars);
 use DBI;
-use Osstest;
 use POSIX;
+
+use Osstest;
+use OsstestDebian;
 
 readconfig();
 opendb_state();
 
 my $debconf_priority;
 
+our %xopts;
+
 if (@ARGV && $ARGV[0] =~ m/^--priority(?:=(.*))?$/) {
-    $debconf_priority= defined($1) ? $1 : 'low';
+    $xopts{DebconfPriority}= defined($1) ? $1 : 'low';
     shift @ARGV;
 }
 
@@ -26,7 +30,15 @@ our %timeout= qw(ReadPreseed  350
 
 sub install () {
     power_state($ho, 0);
-    my ($ps_url,$ps_file)= create_preseed();
+
+    my ($ps_url,$ps_file)= preseed_create
+        ($ho, '',
+         Properties => $ho->{Properties},
+         ExtraPreseed => <<END );
+d-i netcfg/get_hostname string $ho->{Name}
+d-i netcfg/get_ipaddress string $ho->{Ip}
+END
+
     setup_pxeboot_firstboot($ps_url);
     sleep(1);
 
@@ -85,8 +97,8 @@ sub setup_pxeboot_firstboot($) {
     my $d_i= $c{PxeDiBase}.'/'.$r{arch}.'/current';
     $ps_url =~ s,^http://,,;
     
-    my @installcmdline= qw(vga=normal auto=true preseed
-                           hw-detect/load_firmware=false);
+    my @installcmdline= qw(vga=normal);
+    push @installcmdline, di_installcmdline_core($ho, $ps_url, %xopts);
 
     my $initrd= "$d_i/initrd.gz";
     my @firmwares= grep { m/^need-firmware-deb-/ } keys %{ $ho->{Flags} };
@@ -109,23 +121,15 @@ sub setup_pxeboot_firstboot($) {
     }
     
     push @installcmdline, ("initrd=$initrd",
-                           "hostname=$ho->{Name}",
-                           "url=$ps_url",
                            "domain=$c{TestHostDomain}",
 
                            "acpi=off",
 
                            "noapic",
 #                           "nolapic",
-
-                           "netcfg/dhcp_timeout=150",
-			   "netcfg/choose_interface=auto"
                            );
 
-    push @installcmdline, "debconf/priority=$debconf_priority"
-        if defined $debconf_priority;
-
-    push @installcmdline, qw(DEBCONF_DEBUG=5 DEBIAN_FRONTEND=text --);
+    push @installcmdline, qw(--);
     push @installcmdline, "console=ttyS0,$c{Baud}n8";
 
     my $installcmdline= join ' ', @installcmdline;
@@ -140,267 +144,6 @@ label overwrite
 	append $installcmdline
 default overwrite
 END
-}
-
-my %preseed_cmds;
-# $preseed_cmds{$di_key}[]= $cmd
-
-sub preseed_hook_command ($$$) {
-    my ($ho, $di_key, $text) = @_;
-    my $ix= $#{ $preseed_cmds{$di_key} } + 1;
-    my $url= create_webfile($ho, "$di_key-$ix", $text);
-    my $file= "/tmp/$di_key-$ix";
-    my $cmd_cmd= "wget -O $file '$url' && chmod +x $file && $file";
-    push @{ $preseed_cmds{$di_key} }, $cmd_cmd;
-}
-
-sub preseed_hook_command_installscript ($$$$$) {
-    my ($ho, $di_key, $installer_dir, $installer_leaf, $data) = @_;
-    my $installer_pathname= "$installer_dir/$installer_leaf";
-    my $urlfile= $installer_pathname;
-    $urlfile =~ s/[^-_0-9a-z]/ sprintf "X%02x", ord($&) /ge;
-    my $url= create_webfile($ho, $urlfile, $data);
-    preseed_hook_command($ho, 'early_command', <<END);
-#!/bin/sh
-set -ex
-mkdir -p '$installer_dir'
-wget -O '$installer_pathname' '$url'
-chmod +x '$installer_pathname'
-END
-}
-
-sub create_preseed ($) {
-    my $authkeys_url= create_webfile($ho, 'authkeys', authorized_keys());
-
-    my $hostkeyfile= "$c{OverlayLocal}/etc/ssh/ssh_host_rsa_key.pub";
-    my $hostkey= get_filecontents($hostkeyfile);
-    chomp($hostkey); $hostkey.="\n";
-    my $knownhosts= '';
-
-    my $hostsq= $dbh_tests->prepare(<<END);
-        SELECT val FROM runvars
-         WHERE flight=? AND name LIKE '%host'
-         GROUP BY val
-END
-    $hostsq->execute($flight);
-    while (my ($node) = $hostsq->fetchrow_array()) {
-        my $longname= "$node.$c{TestHostDomain}";
-        my (@hostent)= gethostbyname($longname);
-        if (!@hostent) {
-            logm("skipping host key for nonexistent host $longname");
-            next;
-        }
-        my $specs= join ',', $longname, $node, map {
-            join '.', unpack 'W4', $_;
-        } @hostent[4..$#hostent];
-        logm("adding host key for $specs");
-        $knownhosts.= "$specs ".$hostkey;
-    }
-    $hostsq->finish();
-
-    $knownhosts.= "localhost,127.0.0.1 ".$hostkey;
-    my $knownhosts_url= create_webfile($ho, 'known_hosts', $knownhosts);
-
-    my $overlays= '';
-    my $create_overlay= sub {
-        my ($srcdir, $tfilename) = @_;
-        my $url= create_webfile($ho, $tfilename, sub {
-            my ($fh) = @_;
-            my $child= fork;  defined $child or die $!;
-            if (!$child) {
-                postfork();
-                chdir($srcdir) or die $!;
-                open STDIN, 'find ! -name "*~" ! -name "#*" -type f -print0 |'
-                    or die $!;
-                open STDOUT, '>&', $fh or die $!;
-                system 'cpio -Hustar -o --quiet -0 -R 1000:1000';
-                $? and die $?;
-                $!=0; close STDIN; die "$! $?" if $! or $?;
-                exit 0;
-            }
-            waitpid($child, 0) == $child or die $!;
-            $? and die $?;
-        });
-        $overlays .= <<END;
-wget -O overlay.tar '$url'
-cd /target
-tar xf \$r/overlay.tar
-cd \$r
-rm overlay.tar
-
-END
-    };
-
-    $create_overlay->('overlay',        'overlay.tar');
-    $create_overlay->($c{OverlayLocal}, 'overlay-local.tar');
-
-    preseed_hook_command_installscript($ho, 'early_command',
-          '/lib/partman/init.d', '000override-parted-devices', <<END);
-#!/bin/sh
-set -ex
-cd /bin
-if test -f parted_devices.real; then exit 0; fi
-mv parted_devices parted_devices.real
-cat <<END2 >parted_devices
-#!/bin/sh
-/bin/parted_devices.real | grep -v '	0	'
-END2
-chmod +x parted_devices
-END
-
-    preseed_hook_command_installscript($ho, 'early_command',
-          '/lib/partman/init.d', '25erase-other-disks', <<'END');
-#!/bin/sh
-set -ex
-stamp=/var/erase-other-disks.stamp
-if test -f $stamp; then exit 0; fi
->$stamp
-zero () {
-    if test -b $dev; then
-        dd if=/dev/zero of=$dev count=64 ||:
-    fi
-}
-for sd in sd hd; do
-    for b in a b c d e f; do
-        dev=/dev/${sd}${b}
-        zero
-    done
-    for dev in /dev/${sd}a[0-9]; do
-        zero
-    done
-done
-echo ===
-set +e
-ls -l /dev/sd*
-true
-END
-
-    preseed_hook_command($ho, 'late_command', <<END);
-#!/bin/sh
-set -ex
-
-r=/target/root
-cd \$r
-
-umask 022
-mkdir .ssh
-wget -O .ssh/authorized_keys '$authkeys_url'
-wget -O .ssh/known_hosts     '$knownhosts_url'
-
-u=osstest
-h=/home/\$u
-mkdir /target\$h/.ssh
-cp .ssh/authorized_keys /target\$h/.ssh
-chroot /target chown -R \$u.\$u \$h/.ssh
-
-$overlays
-
-echo latecmd done.
-END
-
-    my $preseed_file= (<<END);
-d-i mirror/suite string $c{Suite}
-
-d-i debian-installer/locale string en_GB
-d-i console-keymaps-at/keymap select gb
-
-#d-i debconf/frontend string readline
-
-d-i mirror/country string manual
-d-i mirror/http/proxy string
-
-d-i clock-setup/utc boolean true
-d-i time/zone string Europe/London
-d-i clock-setup/ntp boolean true
-
-d-i partman-auto/method string lvm
-#d-i partman-auto/method string regular
-
-d-i partman-md/device_remove_md boolean true
-d-i partman-lvm/device_remove_lvm boolean true
-d-i partman-partitioning/confirm_write_new_label boolean true
-d-i partman/choose_partition select finish
-d-i partman/confirm boolean true
-d-i partman-lvm/confirm boolean true
-
-d-i netcfg/disable_dhcp boolean true
-d-i netcfg/get_nameservers string $c{NetNameservers}
-d-i netcfg/get_ipaddress string $ho->{Ip}
-d-i netcfg/get_netmask string $c{NetNetmask}
-d-i netcfg/get_gateway string $c{NetGateway}
-d-i netcfg/confirm_static boolean true
-d-i netcfg/get_hostname string $ho->{Name}
-d-i netcfg/get_domain string $c{TestHostDomain}
-d-i netcfg/wireless_wep string
-
-#d-i partman-auto/init_automatically_partition select regular
-d-i partman-auto/disk string /dev/sda
-
-d-i partman-ext3/no_mount_point boolean false
-d-i partman-basicmethods/method_only boolean false
-
-d-i partman-auto/expert_recipe string					\\
-	boot-root ::							\\
-		$c{HostDiskBoot} 50 $c{HostDiskBoot} ext3		\\
-			\$primary{ } \$bootable{ }			\\
-			method{ format } format{ }			\\
-			use_filesystem{ } filesystem{ ext3 }		\\
-			mountpoint{ /boot }				\\
-		.							\\
-		$c{HostDiskRoot} 50 $c{HostDiskRoot} ext3		\\
-			method{ format } format{ } \$lvmok{ }		\\
-			use_filesystem{ } filesystem{ ext3 }		\\
-			mountpoint{ / }					\\
-		.							\\
-		$c{HostDiskSwap} 40 100% linux-swap			\\
-			method{ swap } format{ } \$lvmok{ }		\\
-		.							\\
-		1 30 1000000000 ext3					\\
-			method{ keep } \$lvmok{ }			\\
-			lv_name{ dummy }				\\
-		.
-
-d-i passwd/root-password password xenroot
-d-i passwd/root-password-again password xenroot
-d-i passwd/user-fullname string FLOSS Xen Test
-d-i passwd/username string osstest
-d-i passwd/user-password password osstest
-d-i passwd/user-password-again password osstest
-
-console-common  console-data/keymap/policy      select  Don't touch keymap
-console-data    console-data/keymap/policy      select  Don't touch keymap
-console-data    console-data/keymap/family      select  qwerty
-console-data console-data/keymap/template/layout select British
-
-popularity-contest popularity-contest/participate boolean false
-tasksel tasksel/first multiselect standard, web-server
-
-d-i pkgsel/include string openssh-server
-
-d-i grub-installer/only_debian boolean true
-
-d-i finish-install/keep-consoles boolean true
-d-i finish-install/reboot_in_progress note
-d-i cdrom-detect/eject boolean false
-
-d-i mirror/http/hostname string $c{DebianMirrorHost}
-d-i mirror/http/directory string /$c{DebianMirrorSubpath}
-
-END
-
-    foreach my $di_key (keys %preseed_cmds) {
-        $preseed_file .= "d-i preseed/$di_key string ".
-            (join ' && ', @{ $preseed_cmds{$di_key} }). "\n";
-    }
-
-    $preseed_file .= "$c{Preseed}\n";
-
-    foreach my $prop (values %{ $ho->{Properties} }) {
-        next unless $prop->{name} =~ m/^preseed $c{Suite} /;
-        $preseed_file .= "$' $prop->{val}\n";
-    }
-
-    return create_webfile($ho, 'preseed', $preseed_file);
 }
 
 install();
