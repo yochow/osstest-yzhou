@@ -1705,8 +1705,8 @@ sub prepareguest ($$$$$) {
     return $gho;
 }
 
-sub prepareguest_part_lvmdisk ($$) {
-    my ($ho, $gho) = @_;
+sub prepareguest_part_lvmdisk ($$$) {
+    my ($ho, $gho, $disk_mb) = @_;
     target_cmd_root($ho, "lvremove -f $gho->{Lvdev} ||:");
     target_cmd_root($ho, "lvcreate -L ${disk_mb}M -n $gho->{Lv} $gho->{Vg}");
     target_cmd_root($ho, "dd if=/dev/zero of=$gho->{Lvdev} count=10");
@@ -1743,7 +1743,7 @@ sub more_prepareguest_hvm ($$$$;@) {
     
     my $passwd= 'xenvnc';
 
-    prepareguest_part_lvmdisk($ho, $gho);
+    prepareguest_part_lvmdisk($ho, $gho, $disk_mb);
     
     my $imageleaf= $r{"$gho->{Guest}_image"};
     die "$gho->{Guest} ?" unless $imageleaf;
