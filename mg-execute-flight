@@ -37,7 +37,7 @@ branch=`exec 2>/dev/null; git-branch | sed -n 's/^\* //p'`
 set -e
 
 export OSSTEST_RESOURCE_PRIORITY=${OSSTEST_RESOURCE_PRIORITY--8}
-export OSSTEST_RESOURCE_PREINFO="[$flight $blessing]\
+export OSSTEST_RESOURCE_PREINFO="[adhoc $blessing]\
  <${PWD##*/}${branch:+ }$branch${tty:+ }$tty>"
 
 (sponge ./sg-execute-flight $flight $blessing ||
