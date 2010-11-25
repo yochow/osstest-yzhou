@@ -63,8 +63,10 @@ proc run-job {} {
     per-host-ts broken  host-install/@(*) ts-host-install-twice
     per-host-ts .       xen-install/@     ts-xen-install
     per-host-ts .       xen-boot/@        ts-host-reboot
+    per-host-ts .       =                {ts-leak-check basis}
 
     if {$ok} { catching-otherwise fail      run-job/$jobinfo(recipe)      }
+    per-host-ts .       =                {ts-leak-check check}
     per-host-ts !broken capture-logs/@(*) ts-logs-capture
     if {$ok} { setstatus pass                                             }
 }
