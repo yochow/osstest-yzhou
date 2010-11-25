@@ -1712,9 +1712,10 @@ sub prepareguest_part_lvmdisk ($$$) {
     target_cmd_root($ho, "dd if=/dev/zero of=$gho->{Lvdev} count=10");
 }    
 
-sub prepareguest_part_xencfg ($$$) {
-    my ($ho, $gho, $cfgrest) = @_;
-    my $onreboot= $xopts{OnReboot} || 'restart';
+sub prepareguest_part_xencfg ($$$$$) {
+    my ($ho, $gho, $ram_mb, $xopts, $cfgrest) = @_;
+    my $onreboot= $xopts->{OnReboot} || 'restart';
+    my $vcpus= guest_var($gho, 'vcpus', $xopts->{DefVcpus} || 2);
     my $xencfg= <<END;
 name        = '$gho->{Name}'
 memory = ${ram_mb}
@@ -1724,7 +1725,7 @@ on_poweroff = 'destroy'
 on_reboot   = '$onreboot'
 on_crash    = 'preserve'
 #
-vcpus = 2
+vcpus = $vcpus
 #
 $cfgrest
 END
@@ -1754,7 +1755,7 @@ sub more_prepareguest_hvm ($$$$;@) {
     my $postimage_hook= $xopts{PostImageHook};
     $postimage_hook->() if $postimage_hook;
 
-    my $cfgpath= prepareguest_part_xencfg($ho, $gho, <<END);
+    my $cfgpath= prepareguest_part_xencfg($ho, $gho, $ram_mb, \%xopts, <<END);
 kernel      = 'hvmloader'
 builder     = 'hvm'
 #
