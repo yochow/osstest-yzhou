@@ -88,8 +88,14 @@ sub unmount () {
 }
 
 sub otherfixupcfg () {
+    my $vcpus=
+        $r{"$gho->{Guest}_vcpus"} ||
+        $r{guests_vcpus} ||
+        1;
     $cfg =~ s/^dhcp/#$&/mg;
     $cfg =~ s/^on_crash.*/on_crash='preserve'/mg;
+    $cfg =~ s/^vcpus.*//mg;
+    $cfg .= "\nvcpus = $vcpus\n";
 };
 
 sub writecfg () {
