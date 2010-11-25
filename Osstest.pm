@@ -85,6 +85,7 @@ BEGIN {
                       target_kernkind_check target_kernkind_console_inittab
                       target_var target_var_prefix
                       selectguest prepareguest more_prepareguest_hvm
+                      prepareguest_part_lvmdisk
                       guest_umount_lv guest_await guest_await_dhcp_tcp
                       guest_checkrunning guest_check_ip guest_find_ether
                       guest_find_domid guest_check_up guest_check_up_quick
@@ -1696,14 +1697,19 @@ sub prepareguest ($$$$$) {
     return $gho;
 }
 
+sub prepareguest_part_lvmdisk ($$) {
+    my ($ho, $gho) = @_;
+    target_cmd_root($ho, "lvremove -f $gho->{Lvdev} ||:");
+    target_cmd_root($ho, "lvcreate -L ${disk_mb}M -n $gho->{Lv} $gho->{Vg}");
+    target_cmd_root($ho, "dd if=/dev/zero of=$gho->{Lvdev} count=10");
+}    
+
 sub more_prepareguest_hvm ($$$$;@) {
     my ($ho, $gho, $ram_mb, $disk_mb, %xopts) = @_;
     
     my $passwd= 'xenvnc';
 
-    target_cmd_root($ho, "lvremove -f $gho->{Lvdev} ||:");
-    target_cmd_root($ho, "lvcreate -L ${disk_mb}M -n $gho->{Lv} $gho->{Vg}");
-    target_cmd_root($ho, "dd if=/dev/zero of=$gho->{Lvdev} count=10");
+    prepareguest_part_lvmdisk($ho, $gho);
     
     my $imageleaf= $r{"$gho->{Guest}_image"};
     die "$gho->{Guest} ?" unless $imageleaf;
