@@ -10,10 +10,11 @@ proc main {} {
     global flight jobinfo builds anyfailed argv
 
     set-flight
-    db-open
     become-task "$flight $argv"
     
     set builds {}
+
+    db-open
 
     set to_run {}
     pg_execute -array jobinfo dbh "
@@ -33,6 +34,8 @@ proc main {} {
         lassign $jobitem jobinfo(job) jobinfo(recipe)
         perhaps-start-job
     }
+
+    db-close
 
     set anyfailed 0
     foreach reap $builds {
@@ -63,6 +66,7 @@ proc prepare-host {} {
 }
 
 proc perhaps-start-job {} {
+    # db-{open,close} is done by main
     global jobinfo c builds flight doingarch
 
     pg_execute -array archinfo dbh "
