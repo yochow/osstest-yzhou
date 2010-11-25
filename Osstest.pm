@@ -85,7 +85,7 @@ BEGIN {
                       target_kernkind_check target_kernkind_console_inittab
                       target_var target_var_prefix
                       selectguest prepareguest more_prepareguest_hvm
-                      prepareguest_part_lvmdisk
+                      prepareguest_part_lvmdisk prepareguest_part_xencfg
                       guest_umount_lv guest_await guest_await_dhcp_tcp
                       guest_checkrunning guest_check_ip guest_find_ether
                       guest_find_domid guest_check_up guest_check_up_quick
@@ -1704,6 +1704,32 @@ sub prepareguest_part_lvmdisk ($$) {
     target_cmd_root($ho, "dd if=/dev/zero of=$gho->{Lvdev} count=10");
 }    
 
+sub prepareguest_part_xencfg ($$$) {
+    my ($ho, $gho, $cfgrest) = @_;
+    my $onreboot= $xopts{OnReboot} || 'restart';
+    my $xencfg= <<END;
+name        = '$gho->{Name}'
+memory = ${ram_mb}
+vif         = [ 'type=ioemu,mac=$gho->{Ether}' ]
+#
+on_poweroff = 'destroy'
+on_reboot   = '$onreboot'
+on_crash    = 'preserve'
+#
+vcpus = 2
+#
+$cfgrest
+END
+
+    my $cfgpath= "/etc/xen/$gho->{Name}.cfg";
+    store_runvar("$gho->{Guest}_cfgpath", "$cfgpath");
+    $gho->{CfgPath}= $cfgpath;
+
+    target_putfilecontents_root_stash($ho,30,$xencfg, $cfgpath);
+
+    return $cfgpath;
+}
+
 sub more_prepareguest_hvm ($$$$;@) {
     my ($ho, $gho, $ram_mb, $disk_mb, %xopts) = @_;
     
@@ -1720,11 +1746,7 @@ sub more_prepareguest_hvm ($$$$;@) {
     my $postimage_hook= $xopts{PostImageHook};
     $postimage_hook->() if $postimage_hook;
 
-    my $onreboot= $xopts{OnReboot} || 'restart';
-
-    my $xencfg= <<END;
-name        = '$gho->{Name}'
-#
+    my $cfgpath= prepareguest_part_xencfg($ho, $gho, <<END);
 kernel      = 'hvmloader'
 builder     = 'hvm'
 #
@@ -1732,8 +1754,6 @@ disk        = [
             'phy:$gho->{Lvdev},hda,w',
             'file:$gho->{Rimage},hdc:cdrom,r'
             ]
-#
-memory = ${ram_mb}
 #
 usb=1
 usbdevice='tablet'
@@ -1752,20 +1772,7 @@ vncpasswd='$passwd'
 serial='file:/dev/stderr'
 #
 boot = 'dc'
-#
-vif         = [ 'type=ioemu,mac=$gho->{Ether}' ]
-#
-on_poweroff = 'destroy'
-on_reboot   = '$onreboot'
-on_crash    = 'preserve'
-vcpus = 2
 END
-
-    my $cfgpath= "/etc/xen/$gho->{Name}.cfg";
-    store_runvar("$gho->{Guest}_cfgpath", "$cfgpath");
-    $gho->{CfgPath}= $cfgpath;
-
-    target_putfilecontents_root_stash($ho,30,$xencfg, $cfgpath);
 
     target_cmd_root($ho, <<END);
         (echo $passwd; echo $passwd) | vncpasswd $gho->{Guest}.vncpw
