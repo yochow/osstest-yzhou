@@ -227,6 +227,8 @@ proc spawn-ts {iffail testid ts args} {
         "
     }
 
+    db-close
+
     set logdir $c(Logs)/$flight/$jobinfo(job)
     file mkdir $c(Logs)/$flight
     file mkdir $logdir
@@ -250,7 +252,6 @@ proc spawn-ts {iffail testid ts args} {
     set fh [open |$cmd r]
     set reap_details($fh) $details
 
-    db-close
     return $fh
 }
 
