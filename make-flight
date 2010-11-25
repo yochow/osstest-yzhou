@@ -141,6 +141,14 @@ for xenarch in ${TEST_ARCHES- i386 amd64 } ; do
 		win_image=winxpsp2.iso   				\
 		all_hostflags=$most_hostflags,hvm
 
+      ./cs-job-create $flight test-$xenarch$kern-$dom0arch-pair test-pair \
+                !host $RUNVARS $TEST_RUNVARS $most_runvars $TEST_PAIR_RUNVARS \
+		debian_kernkind=$kernkind				  \
+		debian_arch=$dom0arch   				  \
+		all_hostflags=$most_hostflags,equiv-1
+
+      if [ $xenarch = amd64 -a $dom0arch = i386 ]; then
+
 	for cpuvendor in amd intel; do
 
     ./cs-job-create $flight test-$xenarch$kern-$dom0arch-rhelhvm-$cpuvendor \
@@ -152,11 +160,7 @@ for xenarch in ${TEST_ARCHES- i386 amd64 } ; do
 
 	done
 
-      ./cs-job-create $flight test-$xenarch$kern-$dom0arch-pair test-pair \
-                !host $RUNVARS $TEST_RUNVARS $most_runvars $TEST_PAIR_RUNVARS \
-		debian_kernkind=$kernkind				  \
-		debian_arch=$dom0arch   				  \
-		all_hostflags=$most_hostflags,equiv-1
+      fi
 
     done
 
