@@ -40,7 +40,7 @@ export OSSTEST_RESOURCE_PRIORITY=${OSSTEST_RESOURCE_PRIORITY--8}
 export OSSTEST_RESOURCE_PREINFO="[adhoc $blessing]\
  <${PWD##*/}${branch:+ }$branch${tty:+ }$tty>"
 
-(sponge ./sg-execute-flight $flight $blessing ||
+(./sg-execute-flight $flight $blessing ||
  echo "sg-execute-flight $flight $blessing failed: $?") \
  >tmp/$flight.transcript 2>&1
 
