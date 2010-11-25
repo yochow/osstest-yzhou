@@ -310,8 +310,8 @@ proc step-set-status {flight job stepno st} {
     }
 }
 
-proc reap-ts {reap} {
-    if {![string length $reap]} { return 0 }
+proc reap-ts {reap {dbopen 0}} {
+    if {![string length $reap]} { if {$dbopen} db-open; return 0 }
 
     upvar #0 reap_details($reap) details
     set detstr [lindex $details 3]
@@ -322,6 +322,7 @@ proc reap-ts {reap} {
     } else {
         set result pass
     }
+    if {$dbopen} db-open
 
     eval step-set-status [lrange $details 0 2] $result
     logputs stdout "finished $detstr $result $emsg"
