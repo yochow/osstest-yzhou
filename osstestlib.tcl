@@ -255,11 +255,13 @@ proc setstatus {st} {
 }
 
 proc job-set-status-unlocked {flight job st} {
+    db-open
     pg_execute dbh "
             UPDATE jobs SET status='$st'
                 WHERE flight=$flight AND job='$job'
                   AND status<>'aborted' AND status<>'broken'
     "
+    db-close
 }
 
 proc job-set-status {flight job st} {
