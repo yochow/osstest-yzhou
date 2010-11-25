@@ -1,0 +1,70 @@
+#!/bin/bash
+usage () { cat <<END
+
+./mg-execute-flight [options] <flight>
+ options:
+    -B<blessing>
+    -E<email>
+    -f<basisflight>
+
+END
+}
+
+set -e
+
+badusage () { echo >&2 "bad usage"; usage >&2; exit 126; }
+
+while [ $# != 0 ]; do
+	arg=$1; shift
+        case "$arg" in
+        -B?*)	blessing=${arg#-B}			;;
+        -E?*)	email=${arg#-E}				;;
+	-f?*)	basisflightopt=--that-flight=${arg#-f}	;;
+	[0-9]*)	if [ "x$flight" != x ]; then badusage; fi
+		flight=$arg				;;
+	*)	badusage				;;
+	esac
+done
+
+if [ x"$flight" = x ]; then badusage; fi
+
+: ${blessing:=play}
+: ${email:=`whoami`}
+
+set +e
+tty=`exec 2>/dev/null; tty`
+branch=`exec 2>/dev/null; git-branch | sed -n 's/^\* //p'`
+set -e
+
+export OSSTEST_RESOURCE_PRIORITY=${OSSTEST_RESOURCE_PRIORITY--8}
+export OSSTEST_RESOURCE_PREINFO="[$flight $blessing]\
+ <${PWD##*/}${branch:+ }$branch${tty:+ }$tty>"
+
+(sponge ./sg-execute-flight $flight $blessing ||
+ echo "sg-execute-flight $flight $blessing failed: $?") \
+ >tmp/$flight.transcript 2>&1
+
+./sg-report-flight $basisflightopt $flight >tmp/$flight.report
+
+subject=`sed -n 1p <tmp/$flight.report`
+
+exec >tmp/$flight.email 
+cat <<END
+To: $email
+Subject: [adhoc test] $subject
+
+$OSSTEST_RESOURCE_PREINFO
+END
+
+git-log -n1 --pretty=format:'harness %h: %s' | perl -pe 's/(.{70}).+/$1.../'
+echo
+
+cat <tmp/$flight.report
+
+echo ============================================================
+cat <tmp/$flight.transcript
+
+exec >&2
+
+/usr/sbin/sendmail -odi -oee -oi -t <tmp/$flight.email
+mv tmp/$flight.email tmp/$flight.email.sent
