@@ -39,7 +39,11 @@ proc logputs {f m} {
 }
 
 proc db-open {} {
-    global env
+    global env dbusers
+
+    if {![info exists dbusers]} { set dbusers 0 }
+    if {$dbusers > 0} { incr dbusers; return }
+
     set conninfo "dbname=osstestdb"
     foreach e {DBI_HOST DBI_PASS DBI_USER} \
 	    p {host password user} {
@@ -47,6 +51,14 @@ proc db-open {} {
 		append conninfo " $p=$env($e)"
 	    }
     pg_connect -conninfo $conninfo -connhandle dbh
+    incr dbusers
+}
+proc db-close {} {
+    global dbusers
+    incr dbuser -1
+    if {$dbusers > 0} return
+    if {$dbusers} { error "$dbusers ?!" }
+    pg_disconnect dbh
 }
 
 proc db-update-1 {stmt} {
