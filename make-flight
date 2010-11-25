@@ -150,7 +150,7 @@ for xenarch in ${TEST_ARCHES- i386 amd64 } ; do
       if [ $xenarch = amd64 -a $dom0arch = i386 ]; then
 
       ./cs-job-create $flight test-$xenarch$kern-$dom0arch-xl-multivcpu \
-                        test-debian guest_vcpus=4 \
+                        test-debian guests_vcpus=4 \
 		$RUNVARS $TEST_RUNVARS $most_runvars $TEST_XL_RUNVARS	  \
 		toolstack=xl						  \
 		debian_kernkind=$kernkind				  \
@@ -158,7 +158,7 @@ for xenarch in ${TEST_ARCHES- i386 amd64 } ; do
 		all_hostflags=$most_hostflags
 
       ./cs-job-create $flight test-$xenarch$kern-$dom0arch-xl-credit2   \
-           test-debian guest_vcpus=4 xen_boot_append='sched=credit2'      \
+           test-debian guests_vcpus=4 xen_boot_append='sched=credit2'      \
 		$RUNVARS $TEST_RUNVARS $most_runvars $TEST_XL_RUNVARS	  \
 		toolstack=xl						  \
 		debian_kernkind=$kernkind				  \
