@@ -268,7 +268,7 @@ END
             Task => $arow->{owntaskid},
 	    Info => $info,
 	    Start => $plan->{Start},
-            Live => $arow->{Live},
+            Live => $arow->{live},
 	};
     });
 
