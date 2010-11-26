@@ -586,7 +586,8 @@ END
     closedir LOGS or die $!;
     foreach my $dent (@dents) {
         next if $dent eq "$htmlleaf.new" or $dent eq $htmlleaf
-            or $dent eq '..' or $dent eq '.';
+            or $dent eq '..' or $dent eq '.' or $issteplog{$dent};
+        stat("$htmldir/$job/$dent") or die "$dent $!";
         print H "<li><a href=\"".encode_entities(uri_escape($dent))."\">".
             encode_entities($dent)."</a>\n";
     }
