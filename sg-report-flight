@@ -534,7 +534,51 @@ sub htmloutjob ($$) {
 <li><a href="$c{ResultsHtmlPubBaseUrl}/history.$job.$branch">History for $job in tests of $branch</a>
 <li><a href="./">Logfiles for $fi->{Flight} $job as webserver directory listing</a>
 </ul>
-<h2>Logfiles</h2>
+<h2>Steps</h2>
+<table rules=all>
+<tr><th>stepno</th><th>testid</th><th>script</th><th>status</th>
+<th>started</th><th>duration</th></tr>
+END
+
+    my %issteplog;
+    my $stepsq= $dbh_tests->prepare(<<END);
+        SELECT * FROM steps
+                WHERE flight=? AND job=?
+             ORDER BY stepno ASC
+END
+    $stepsq->execute($fi->{Flight}, $job);
+    my $stepstripe= 0;
+    while (my $step= $stepsq->fetchrow_hashref()) {
+        printf H "<tr bgcolor='%s'>",
+            ($step->{stepno} & 1 ? '#cccccc' : '#ffffff');
+
+        my $stepcol= sub {
+            printf H "<td%s>%s</td>", $_[1], encode_entities($step->{$_[0]});
+        };
+        $stepcol->('stepno', ' align=right');
+        $stepcol->('testid', '');
+        $stepcol->('step', '');
+
+        my $st= $step->{status};
+        my $logfilename= "$step->{stepno}.$step->{step}.log";
+        printf H "<td bgcolor='%s'><a href='%s'>%s</a></td>",
+            html_status2colour($st),
+            encode_entities(uri_escape($logfilename)),
+            encode_entities($st);
+        $issteplog{$logfilename}= 1;
+
+        printf H "<td>%s</td>",
+            encode_entities(strftime "%Y-%m-%d %H:%M:%S Z",
+                            gmtime $step->{started});
+
+        printf H "<td align=right>%d</td>\n",
+            $step->{finished} - $step->{started};
+    }
+
+    print H <<END;
+</table>
+<h2>Logfiles etc.</h2>
+For main test script logfiles, see entries in steps table.
 <ul>
 END
     opendir LOGS, "$htmldir/$job" or die "$htmldir/$job $!";
