@@ -94,6 +94,8 @@ ENDKEYS
 END
 }
 
+our $emptyiso= '/root/empty.iso';
+
 sub prep () {
     target_install_packages_norec($ho, qw(lvm2 rsync genisoimage));
 
@@ -102,6 +104,7 @@ sub prep () {
     $gho= prepareguest($ho, $gn, $guesthost, 22, $disk_mb + 1);
 
     my $newiso= '/root/newiso';
+    my $emptydir= '/root/empty-dir';
 
     more_prepareguest_hvm($ho,$gho, $ram_mb, $disk_mb,
                           OnReboot => 'preserve',
@@ -136,6 +139,11 @@ END
                             -boot-load-size 4
                             -boot-info-table);
 
+        target_cmd_root($ho, <<END, 60);
+            mkdir -p $emptydir
+            genisoimage -o $emptyiso @isogen_base $emptydir/.
+END
+
         target_cmd_root($ho, <<END, $isotimeout);
             genisoimage -o $gho->{Rimage} @isogen_base @isogen_boot $newiso/.
 END
@@ -158,7 +166,7 @@ sub await_reboot () {
 sub rewrite_config_nocd() {
     guest_editconfig($ho, $gho, sub {
         if (m/^\s*disk\s*\=/ .. /\]/) {
-            s/['"].*\bcdrom\b[^'":]*['"]\s*\,?//;
+            s/\Q$gho->{Rimage}/\E/$emptyiso/;
         }
         s/^on_reboot.*/on_reboot='restart'/;
     });
