@@ -570,6 +570,13 @@ END
     rename "$htmlfile.new", $htmlfile or die $!;
 }
 
+sub html_status2colour ($) {
+    my ($st) = @_;
+    return ($st eq 'pass' ? '#008800' :
+            $st eq 'fail' ? '#ff8888' :
+            '#ffff00');
+}
+
 sub htmlout ($) {
     my ($fi) = @_;
     return unless defined $htmldir;
@@ -647,9 +654,7 @@ END
                 my $bgc;
                 if (!defined $sum_core || !length $sum_core) {
                     $sum_core= $s->{status};
-                    $bgc= $sum_core eq 'pass' ? '#008800' :
-                          $sum_core eq 'fail' ? '#ff8888' :
-                                                '#ffff00';
+                    $bgc= html_status2colour($s->{status});
                 } else {
                     $bgc= $ei->{Blocker} eq 'regression'
                         ? '#ff8888' : '#ffff00';
