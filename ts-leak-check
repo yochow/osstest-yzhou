@@ -112,7 +112,7 @@ sub inventory_processes () {
 sub inventory_files ($) {
     my ($dir) = @_;
     my $files= target_cmd_output_root($ho,
-               "find $dir -print0 -ls -printf '\\0'");
+               "find $dir ! -type d -print0 -ls -printf '\\0'");
     my @files= split /\0/, $files;
     my ($path, $val);
     while (@files) {
