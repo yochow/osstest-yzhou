@@ -166,7 +166,7 @@ sub await_reboot () {
 sub rewrite_config_nocd() {
     guest_editconfig($ho, $gho, sub {
         if (m/^\s*disk\s*\=/ .. /\]/) {
-            s/\Q$gho->{Rimage}/\E/$emptyiso/;
+            s/\Q$gho->{Rimage}\E/$emptyiso/;
         }
         s/^on_reboot.*/on_reboot='restart'/;
     });
