@@ -178,25 +178,35 @@ END
             ORDER BY stepno
 END
 
-    my $testid2rowspec= sub {
-        my ($rowspec) = @_;
-        $rowspec =~ s/\(\d+\)$//;
-        return $rowspec;
-    };
+    my %jobtestid2rowspec;
 
     my ($tsout,$tsin);
     my $tsortpid = open2($tsout, $tsin, 'tsort');
     defined $tsortpid or die $!;
     foreach my $j (@$jobs) {
         my $lasttid;
+
+        my $id2spec= $jobtestid2rowspec{$j->{job}}= { };
+
+        my %rowspeccounts;
+        my $testid2rowspec= sub {
+            my ($testid) = @_;
+            my $rowspec= $testid;
+            $rowspec =~ s/\(\d+\)$//;
+            my $count= ++$rowspeccounts{$rowspec};
+            $rowspec .= "[$count]" if $count>1;
+            $id2spec->{$testid}= $rowspec;
+            return $rowspec;
+        };
+
         $stepsq->execute($j->{job});
         while (my $s= $stepsq->fetchrow_hashref()) {
             my $tid= $s->{testid};
             my $ref= $testid2rowspec->($tid);
-            print $tsin "$ref $tid\n" or die $!;
+            print $tsin "R$ref T$tid\n" or die $!;
             if (defined $lasttid) {
-                print $tsin "$lasttid $tid\n" or die $!;
-                print $tsin "$lasttid $ref\n" or die $!;
+                print $tsin "T$lasttid T$tid\n" or die $!;
+                print $tsin "T$lasttid R$ref\n" or die $!;
             }
             $lasttid= $tid;
         }
@@ -205,13 +215,11 @@ END
     my $ts_gridrow= 0;
     my %ts_gridrow;
     for (;;) {
-        my $tid = <$tsout>;
-        last unless defined $tid;
-        die unless chomp $tid;
-        my $ref= $testid2rowspec->($tid);
-        my $row= $ts_gridrow++;
-        next if defined $ts_gridrow{$ref};
-        $ts_gridrow{$ref}= $row;
+        my $item = <$tsout>;
+        last unless defined $item;
+        die unless chomp $item;
+        next unless $item =~ s/^R//;
+        $ts_gridrow{$item}= ++$ts_gridrow;
     }
     $tsout->error and die $!;
     close $tsout or die $!;
@@ -255,7 +263,7 @@ END
                 $foundfail= 1;
             }
 
-            my $rowspec= $testid2rowspec->($s->{testid});
+            my $rowspec= $jobtestid2rowspec{$j->{job}}{$s->{testid}};
 
             my $mingridrow= $ts_gridrow{$rowspec};
             if ($s->{step} eq 'ts-logs-capture' && $mingridrow < 100) {
