@@ -68,9 +68,10 @@ sub start_check () {
     $statefh= open_unique_stashfile(\$leaf);
 }
 sub item_check {
-    my ($type, $key, $val) = @_;
+    my ($type, $key, $val, $leakcheck) = @_;
     item_basis(@_);
     return if $ok{"$type $key"};
+    return if !$leakcheck;
     logm("LEAKED $type: $val");
     $leaks++;
 }
@@ -78,7 +79,7 @@ sub finish_check () {
     finish_basis();
 }
 
-sub item ($$$) {
+sub item ($$$$) {
     &{ "item_$mode" }(@_);
 }
 
@@ -87,7 +88,7 @@ sub inventory_xenstore () {
     foreach (split /\n/, $xs) {
         next unless m/\S/;
         m,^(/[^ =]+) \= , or die "$_ ?";
-        item('xenstore', $1, $_);
+        item('xenstore', $1, $_, 1);
     }
 }
 
@@ -104,7 +105,7 @@ sub inventory_processes () {
     }
     while (my ($key, $vals) = each %procs) {
         next unless @$vals==2;
-        item('process', $key, $vals->[1]);
+        item('process', $key, $vals->[1], $key !~ m/^\d+ \[\S+\]$/);
     }
 }
 
@@ -117,7 +118,7 @@ sub inventory_files ($) {
     while (@files) {
         ($path, $val, @files) = @files;
         chomp($val);
-        item('file', $path, $val);
+        item('file', $path, $val, 1);
     }
 }
 
