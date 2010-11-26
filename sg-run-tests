@@ -146,6 +146,7 @@ proc run-job/test-pair {} {
     run-ts . =              ts-debian-install      dst_host
     run-ts . =              ts-debian-fixup        dst_host          + debian
     run-ts . =              ts-guests-nbd-mirror + dst_host src_host + debian
+    per-host-ts . =        {ts-leak-check basis}
     run-ts . =              ts-guest-start       + src_host          + debian
     run-ts . =              ts-guest-migrate       src_host dst_host + debian
     run-ts . =              ts-guest-migrate       dst_host src_host + debian
