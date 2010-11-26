@@ -61,7 +61,7 @@ sub start_check () {
         next if m/^\#/;
         next unless m/\S/;
         die unless m/^\w+ \S.*/;
-        $ok{$1}= 1;
+        $ok{$&}= 1;
     }
 
     my $leaf= "leak-current-$ho->{Name}";
