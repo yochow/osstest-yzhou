@@ -589,7 +589,10 @@ END
             or $dent eq '..' or $dent eq '.' or $issteplog{$dent};
         stat("$htmldir/$job/$dent") or die "$dent $!";
         print H "<li><a href=\"".encode_entities(uri_escape($dent))."\">".
-            encode_entities($dent)."</a>\n";
+            encode_entities($dent).(-d _ ? "/" : "")."</a>\n";
+        if ($dent eq 'build') {
+            print H " (outputs from build)";
+        }
     }
     print H <<END;
 </ul>
