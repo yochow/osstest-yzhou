@@ -129,11 +129,15 @@ END
 
         target_putfilecontents_root_stash($ho, 10, kickstart(),
                                           "$newiso/ks.cfg");
-        my @isogen_opts= qw(-R -J -T
-                            -b isolinux/isolinux.bin -c isolinux/boot.cat
-                            -no-emul-boot -boot-load-size 4 -boot-info-table);
+        my @isogen_base= qw(-R -J -T);
+        my @isogen_boot= qw(-b isolinux/isolinux.bin
+                            -c isolinux/boot.cat
+                            -no-emul-boot
+                            -boot-load-size 4
+                            -boot-info-table);
+
         target_cmd_root($ho, <<END, $isotimeout);
-            genisoimage -o $gho->{Rimage} @isogen_opts $newiso/.
+            genisoimage -o $gho->{Rimage} @isogen_base @isogen_boot $newiso/.
 END
     });
 }
