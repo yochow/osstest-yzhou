@@ -56,6 +56,14 @@ sub start_check () {
     $statefh->error and die $!;
     close $statefh or die $!;
 
+    while (<DATA>) {
+        chomp; s/^\s+//; s/\s+$//;
+        next if m/^\#/;
+        next unless m/\S/;
+        die unless m/^\w+ \S.*/;
+        $ok{$1}= 1;
+    }
+
     my $leaf= "leak-current-$ho->{Name}";
     $statefh= open_unique_stashfile(\$leaf);
 }
@@ -129,3 +137,18 @@ if (!eval {
 }
 
 fail("$leaks leaked object(s)") if $leaks;
+
+__DATA__
+
+xenstore /local/domain/0/device-model
+xenstore /local/domain/0/backend
+xenstore /local/domain/0/backend/vbd
+xenstore /local/domain/0/backend/vif
+xenstore /local/domain/0/backend/console
+
+xenstore /local/domain/0/memory
+xenstore /local/domain/0/memory/target
+xenstore /local/domain/0/memory/static-max
+xenstore /local/domain/0/memory/freemem-slack
+
+xenstore /vm
