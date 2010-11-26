@@ -2064,7 +2064,8 @@ sub await_tcp ($$$) {
 sub guest_await ($$) {
     my ($gho,$dhcpwait) = @_;
     guest_await_dhcp_tcp($gho,$dhcpwait);
-    target_cmd_root($gho, "echo guest $gho->{Name}: ok");
+    target_cmd_root($gho, "echo guest $gho->{Name}: ok")
+        if guest_check_via_ssh($gho);
     return $gho;
 }
 
