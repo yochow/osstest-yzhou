@@ -31,6 +31,8 @@ our %preseed_cmds;
 sub di_installcmdline_core ($$;@) {
     my ($tho, $ps_url, %xopts) = @_;
 
+    $ps_url =~ s,^http://,,;
+
     my @cl= qw(
                auto=true preseed
                hw-detect/load_firmware=false

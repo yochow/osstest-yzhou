@@ -98,7 +98,6 @@ sub setup_pxeboot_firstboot($) {
     my ($ps_url) = @_;
     
     my $d_i= $c{PxeDiBase}.'/'.$r{arch}.'/current';
-    $ps_url =~ s,^http://,,;
     
     my @installcmdline= qw(vga=normal);
     push @installcmdline, di_installcmdline_core($ho, $ps_url, %xopts);
