@@ -9,10 +9,7 @@ opendb_state();
 our ($ho,$gho) = ts_get_host_guest(@ARGV);
 
 sub destroy () {
-    target_cmd_root($ho,
-		    toolstack()->{Command}
-		    ." destroy "
-		    .$gho->{Name}, 60);
+    guest_destroy($ho, $gho);
     guest_checkrunning($ho, $gho) and die $gho->{Name};
 }
 
