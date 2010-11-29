@@ -164,10 +164,6 @@ sub rewrite_config_nocd() {
     });
 }
 
-sub destroy () {
-    target_cmd_root($ho, "$xl destroy $gho->{Name}", 20);
-}
-
 if (!$stage) {
     prep();
     start();
@@ -176,7 +172,7 @@ if (!$stage) {
 }
 if ($stage<2) {
     guest_await_reboot($ho,$gho,2000);
-    destroy();
+    guest_destroy($ho,$gho);
 }
 
 rewrite_config_nocd();
