@@ -31,6 +31,9 @@ END
 }
 
 our $config_hardware= <<END;
+setopt CONFIG_DM_CRYPT m
+setopt CONFIG_DM_SNAPSHOT m
+
 setopt CONFIG_BLK_DEV_NBD m
 
 setopt CONFIG_ATA_GENERIC y
