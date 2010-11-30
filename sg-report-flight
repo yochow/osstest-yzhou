@@ -102,24 +102,37 @@ END
     #print DEBUG "===\n$mismatchq\n===\n";
     $revisionsq= $dbh_tests->prepare($revisionsq);
 
+    my $revisionsosstestq= $dbh_tests->prepare(<<END);
+            SELECT harness AS val FROM flights_harness_touched
+                WHERE flight=?
+END
+
     while (my ($tflight) = $flightsq->fetchrow_array) {
 	my $whynot;
 	foreach my $tree (keys %{ $specver{$thisthat} }) {
 	    my $v= $specver{$thisthat}{$tree};
-	    $revisionsq->execute($tflight, "built_revision_$tree");
-	    my $revisions= $revisionsq->fetchall_arrayref({});
-	    if (!@$revisions) {
-		$whynot= "no built $tree";
-		last;
-	    }
-	    my ($wrong) = grep {
-		$_->{val} !~ m/^(?: .*: )? $v /x;
-	    } @$revisions;
+            my $revisions;
+            if ($tree ne 'osstest') {
+                $revisionsq->execute($tflight, "built_revision_$tree");
+                $revisions= $revisionsq->fetchall_arrayref({});
+            } else {
+                $revisionsosstestq->execute($tflight);
+                $revisions= $revisionsosstestq->fetchall_arrayref({});
+            }
+            if (!@$revisions) {
+                $whynot= "no built/used $tree";
+                last;
+            }
+            my ($wrong) = grep {
+                $_->{val} !~ m/^(?: .*: )? $v /x;
+            } @$revisions;
 
-	    if (defined $wrong) {
-		$whynot= "mismatch $tree $wrong->{job} $wrong->{val} != $v";
-		last;
-	    }
+            if (defined $wrong) {
+                $whynot= "mismatch $tree ".
+                    (defined $wrong->{job} ? $wrong->{job} : "(osstest)").
+                    " $wrong->{val} != $v";
+                last;
+            }
 	}
         $whynot= $sub->($tflight) if !defined $whynot;
         return $flight            if !defined $whynot;
