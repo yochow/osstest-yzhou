@@ -1839,7 +1839,8 @@ sub guest_await_reboot ($$$) {
     poll_loop($timeout, 30, "await reboot request from $gho->{Guest}", sub {
         my $st= guest_get_state($ho,$gho);
         return undef if $st eq 'sr';
-        fail("guest unexpectedly shutdown; state is $st") if $st =~ m/^s/;
+        fail("guest unexpectedly shutdown; state is '$st'")
+            if $st =~ m/^s/ || $st eq '';
         return "guest state is $st";
     });
 }
