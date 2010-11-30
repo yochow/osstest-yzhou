@@ -122,17 +122,17 @@ sub setup_pxeboot_firstboot($) {
     
     push @installcmdline, ("initrd=$initrd",
                            "domain=$c{TestHostDomain}",
+
+                           "acpi=off",
+
+                           "noapic",
+#                           "nolapic",
                            );
 
     push @installcmdline, qw(--);
     push @installcmdline, "console=ttyS0,$c{Baud}n8";
 
     my $installcmdline= join ' ', @installcmdline;
-
-    my $xinstallcmdline= $ho->{Properties}{"install-append $c{Suite}"}{val};
-    $xinstallcmdline= "acpi=off noapic"
-        unless defined $xinstallcmdline;
-    $installcmdline .= " ".$xinstallcmdline;
 
     setup_pxeboot($ho, <<END);
 serial 0 $c{Baud}
