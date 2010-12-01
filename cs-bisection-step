@@ -6,6 +6,7 @@
 #
 # usage:
 #   ./cs-bisection-setup [<options>] <branch> <job> <testid>
+# options, usually:
 #      --blessings=real,real-bisect
 
 use strict qw(vars);
