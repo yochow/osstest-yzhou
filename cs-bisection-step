@@ -608,34 +608,56 @@ END
     }
 }
 
-sub need_reproduce ($$) {
-    my ($n, $what) = @_;
+our $repro_lastflight;
+our $repro_count;
+
+sub need_repro_sequence ($$) {
+    my ($need_each, $code) = @_;
+    #
+    # $code->() should call, in turn for each required event,
+    #    need_repro('pass', $nodes{SOMETHING}, $what) or
+    #    need_repro('fail', $nodes{SOMETHING}, $what)
+    # and return true as soon as any of the need_repro's return true.
+    #
+    # The result of need_repro_sequence will be true iff we need to
+    # repro something, in which case need_repro will have called
+    # do_choose_this or reported a conflict due to conflicted_warning.
+
+    local ($repro_lastflight) = 0;
+    local ($repro_count);
+    for ($repro_count=0; $repro_count<$need_each; $repro_count++) {
+        return 1 if $code->();
+    }
+}
+
+sub need_repro ($$$) {
+    my ($st, $n, $what) = @_;
 
     return 1 if conflicted_warning($n, $what);
-    
-    my $fl= $n->{Flights} ;
-    if (!defined $fl) {
-        die "$what ?" unless $broken;
+
+    my $fl= $n->{Flights};
+    foreach my $f (sort { $a->{Flight} <=> $b->{Flight} } @$fl) {
+        next unless $f->{Flight} > $repro_lastflight;
+        next unless $f->{Result} eq $st;
+        print STDERR " ".
+            ($repro_count ? "Repro" : "Result").
+            " found: flight $f->{Flight} ($st), for $what\n";
+        $repro_lastflight= $f->{Flight};
         return 0;
     }
-    if (!@$fl) {
-        die "$what ?" unless $broken;
-        print STDERR "Broken, need to reproduce $what.\n";
-        return 1;
-    }
-    if (@$fl < 2) {
-        print STDERR "Need to double-check by reproducing $what.\n";
-        do_choose_this($n);
-        return 1;
-    }
-    return 0;
+    print STDERR "Need to reproduce $what ($st); had $repro_count already.\n";
+    do_choose_this($n);
+    return 1;
 }
 
 sub search () {
     print STDERR "Searching for interesting versions\n";
 
-    return if need_reproduce($nodes{"@latest_rtuple"}, "failure");
-    return if need_reproduce($nodes{"@basispass_rtuple"}, "last pass");
+    return if 
+        need_repro_sequence(2, sub {
+            need_repro('pass', $nodes{"@basispass_rtuple"}, "basis pass") ||
+            need_repro('fail', $nodes{"@latest_rtuple"},    "basis failure");
+        });
 
     foreach my $startfail (@failures) {
         search_compute_length_below($startfail);
@@ -674,11 +696,13 @@ sub search () {
             }
             next if $nope;
             next unless @passparents;
-            
-            return if need_reproduce($fail, "first failure");
-            foreach my $pass (@passparents) {
-                return if need_reproduce($pass, "last pass");
-            }
+
+            return 1 if need_repro_sequence(3, sub {
+                foreach my $pass (@passparents) {
+                    return 1 if need_repro('pass', $pass, "last pass");
+                }
+                return 1 if need_repro('fail', $fail, "first failure");
+            });
 
             $found_exact_failure++;
             $fail->{Target}= 1;
