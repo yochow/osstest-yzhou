@@ -41,6 +41,7 @@ open DEBUG, ">/dev/null" or die $!;
 open SUMMARY, ">/dev/null" or die $!;
 
 our @org_argv= @ARGV;
+our $maxflight_cond= '';
 
 while (@ARGV && $ARGV[0] =~ m/^\-/) {
     $_= shift @ARGV;
@@ -60,6 +61,8 @@ while (@ARGV && $ARGV[0] =~ m/^\-/) {
         $graphfile= '';
     } elsif (m/^--flight=(\d+)$/) {
         $popflight= $1;
+    } elsif (m/^--max-flight=(\d+)$/) {
+        $maxflight_cond= "AND flights.flight <= $1";
     } elsif (m/^--(fail|basis)-flight=(\d+)$/) {
         $specflights{$1}= $2;
     } elsif (m/^-D$/) {
@@ -267,6 +270,7 @@ sub findbasics () {
                  AND (status = 'fail' OR status = 'pass')
                  AND branch = ?
                  AND $flight_cond{fail}
+                     $maxflight_cond
                ORDER BY notbroken DESC, flights.started DESC
                LIMIT 1
 END
@@ -296,6 +300,7 @@ END
              AND branch = ?
              AND $flight_is_not_broken
              AND $flight_cond{basis}
+                 $maxflight_cond
 	   ORDER BY flights.started DESC
 END
     $sth->execute($job,$testid,$blessings[0],$branch);
@@ -444,6 +449,7 @@ END
             AND flights.started >= $basispass_date
             AND branch = ?
             AND $flight_is_not_broken
+                $maxflight_cond
     ");
     $jobq->execute($job,$branch);
     while (my $jobrow= $jobq->fetchrow_hashref()) {
@@ -926,22 +932,24 @@ END
     if ($cacheok and $recipe =~ m/^build/ and !@$subjobs) {
         my $reusejob= $dbh_tests->selectrow_hashref(<<END,{}, $popjob,$popjob);
             SELECT  *
-            FROM    flights f JOIN jobs j USING (flight)
+            FROM    flights JOIN jobs j USING (flight)
             WHERE   j.job=?
             AND     j.status='pass'
             AND     $blessingscond
+                    $maxflight_cond
             AND     0 = ( SELECT count(*)
                           FROM
                               ( SELECT name,val
                                 FROM   runvars
-                                WHERE  flight=f.flight AND job=? AND synth='f'
+                                WHERE  runvars.flight = flights.flight
+                                  AND  job=? AND synth='f'
                               ) o
                           FULL OUTER JOIN
                               bisection_runvars want
                           USING (name)
                           WHERE (o.val = want.val) IS NOT TRUE
                         )
-            ORDER BY f.started desc
+            ORDER BY flights.started desc
             LIMIT 1
 END
 
