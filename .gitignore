@@ -2,6 +2,9 @@
 tmp
 bisection.ps
 bisection.dot
+bisection.html
+bisection.png
+bisection.mini.png
 repos
 *.mro
 *.mro.new
