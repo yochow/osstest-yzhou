@@ -167,6 +167,7 @@ for xenarch in ${TEST_ARCHES- i386 amd64 } ; do
 
 	for cpuvendor in intel; do
 # amd
+# 
 
     ./cs-job-create $flight test-$xenarch$kern-$dom0arch-rhel6hvm-$cpuvendor \
 						test-rhelhvm \
