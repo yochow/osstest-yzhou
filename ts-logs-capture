@@ -71,7 +71,7 @@ END
         $r{$vn}
     /ge;
 
-    my $targhost= $ho->{Name} =~ m/mite$/ ? 'xcser1' : 'woking';
+    my $targhost= $ho->{Name} =~ m/mite$|beetle$/ ? 'xcser1' : 'woking';
 
     logm("collecting serial logs since $started from $targhost");
 
