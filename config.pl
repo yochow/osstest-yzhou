@@ -65,6 +65,8 @@ $c{HarnessPublishGitRepoDir}= 'git/osstest.git';
 
 $c{Tftp}= '/tftpboot/pxe';
 
+$c{TftpPxeGroup}= 'osstest';
+
 #$c{Baud}= 38400;
 $c{Baud}= 115200;
 $c{PxeDiBase}= 'osstest/debian-installer';

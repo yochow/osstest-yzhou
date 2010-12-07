@@ -8,6 +8,24 @@ csreadconfig();
 
 sub l ($) { return split /,/, $_[0]; }
 
+sub cmd_mkpxedir () {
+    die unless @ARGV>=1;
+    foreach my $hn (@ARGV) {
+        my $ho= selecthost("host=$hn");
+        my $macdir= $ho->{Ether};
+        $macdir =~ s/\:/-/g;
+        system_checked(<<END);
+            set -e
+            cd $c{Tftp}
+            sudo chown root.$c{TftpPxeGroup} $macdir
+            sudo chmod 2775 $macdir
+            sudo rm -f $hn
+            sudo ln -s $macdir $hn
+            ls -ald $hn $macdir
+END
+    }
+}
+
 sub cmd_copy () {
     die unless @ARGV==2;
     my ($src,$dsts) = @ARGV;
