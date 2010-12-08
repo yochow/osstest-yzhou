@@ -165,9 +165,7 @@ for xenarch in ${TEST_ARCHES- i386 amd64 } ; do
 		debian_arch=$dom0arch   				  \
 		all_hostflags=$most_hostflags
 
-	for cpuvendor in intel; do
-# amd
-# 
+	for cpuvendor in amd intel; do
 
     ./cs-job-create $flight test-$xenarch$kern-$dom0arch-rhel6hvm-$cpuvendor \
 						test-rhelhvm \
