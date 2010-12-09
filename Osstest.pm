@@ -1481,8 +1481,8 @@ sub duration_estimator ($$;$) {
                       AND  r.val=?
 		      AND  (j.status='pass' OR j.status='fail')
                       AND  f.started IS NOT NULL
+                      AND  f.started >= ?
                  ORDER BY f.started DESC
-                    LIMIT 1
 END
 
     my $duration_anyref_q= $dbh_tests->prepare(<<END);
@@ -1491,8 +1491,9 @@ END
 		        ON s.flight=f.flight
 		     WHERE s.job=? AND f.blessing=? AND f.branch=?
                        AND s.finished IS NOT NULL
+                       AND f.started IS NOT NULL
+                       AND f.started >= ?
                      ORDER BY s.finished DESC
-		     LIMIT 1
 END
 
     my $duration_duration_q= $dbh_tests->prepare(<<END);
@@ -1508,47 +1509,46 @@ END
             $debug->("DUR $branch $blessing $job $hostidname $onhost @_");
         } : sub { };
 
-        my ($refflight, $mostrecent, $started);
+        my $refs=[];
+        my $limit= time - 86400*14;
 
         if ($hostidname ne '') {
             $recentflights_q->execute($hostidname,
                                       $blessing,
                                       $branch,
                                       $job,
-                                      $onhost);
-            $mostrecent= $recentflights_q->fetchrow_hashref();
+                                      $onhost,
+                                      $limit);
+            $refs= $recentflights_q->fetchall_arrayref({});
             $recentflights_q->finish();
-            $refflight= $mostrecent->{flight};
+            $dbg->("SAME-HOST GOT ".scalar(@$refs));
         }
 
-        if (defined $refflight) {
-            $dbg->("GOOD DURATION SAME-HOST FLIGHT $refflight");
-            $started= $mostrecent->{started};
-        } else {
-            $dbg->("GOOD DURATION SAME-HOST NONE");
-            $duration_anyref_q->execute($job, $blessing, $branch);
-            $mostrecent= $duration_anyref_q->fetchrow_hashref();
+        if (!@$refs) {
+            $duration_anyref_q->execute($job, $blessing, $branch, $limit);
+            $refs= $duration_anyref_q->fetchall_arrayref({});
             $duration_anyref_q->finish();
-            
-            $refflight= $mostrecent->{flight};
-            if (!defined $refflight) {
-                $dbg->("GOOD DURATION ANY-HOST NONE");
-                return ();
-            }
-            $dbg->("GOOD DURATION ANY-HOST FLIGHT $refflight");
+            $dbg->("ANY-HOST GOT ".scalar(@$refs));
         }
 
-        $duration_duration_q->execute($refflight, $job);
-        my ($duration) = $duration_duration_q->fetchrow_array();
-        $duration_duration_q->finish();
-
-        if (!defined $duration) {
-            $dbg->("GOOD DURATION UNKNOWN NO STEPS?");
+        if (!@$refs) {
+            $dbg->("NONE");
             return ();
         }
 
-        $dbg->("GOOD DURATION $duration");
-        return ($duration, $started);
+        my $duration_max= 0;
+        foreach my $ref (@$refs) {
+            $duration_duration_q->execute($ref->{flight}, $job);
+            my ($duration) = $duration_duration_q->fetchrow_array();
+            $duration_duration_q->finish();
+            if ($duration) {
+                $dbg->("REF $ref->{flight} DURATION $duration");
+                $duration_max= $duration
+                    if $duration > $duration_max;
+            }
+        }
+
+        return ($duration_max, $refs->[0]{started});
     };
 }
 
