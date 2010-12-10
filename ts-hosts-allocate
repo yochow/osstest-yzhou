@@ -434,7 +434,7 @@ sub hid_recurse ($$) {
 	+ $duration
 	+ $duration_rightaway_adjust
         - ($variation_age / 30)
-	- $share_reuse * 2000;
+	- $share_reuse * 10000;
     
     print DEBUG "$dbg FINAL start=$start_time va=$variation_age cost=$cost\n";
 
@@ -459,9 +459,9 @@ sub alloc_hosts () {
     }
 
     my $waitstartadjust=
-        $jobinfo->{recipe} !~ m/build/
-        ? (3000 + -10 * @hids)
-        : 0;
+        $jobinfo->{recipe} =~ m/build/
+        ? -10000
+        : -10 * @hids;
 
     alloc_resources(WaitStart =>
                     ($ENV{OSSTEST_RESOURCE_WAITSTART} || $fi->{started}),
