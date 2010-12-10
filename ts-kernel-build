@@ -215,7 +215,7 @@ sub kinstall () {
     my $kernfile= $r{kimagefile};
     $kernfile= 'arch/x86/boot/bzImage' if !defined $kernfile;
 
-    target_cmd_build($ho, 100, $builddir, <<END);
+    target_cmd_build($ho, 300, $builddir, <<END);
 	mkdir -p dist/boot dist/lib/modules
 	cd linux
 	make -j4 INSTALL_MOD_PATH=$builddir/dist modules_install
