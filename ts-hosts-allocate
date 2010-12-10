@@ -463,7 +463,8 @@ sub alloc_hosts () {
         ? (3000 + -10 * @hids)
         : 0;
 
-    alloc_resources(WaitStart => $fi->{started},
+    alloc_resources(WaitStart =>
+                    ($ENV{OSSTEST_RESOURCE_WAITSTART} || $fi->{started}),
                     WaitStartAdjust => $waitstartadjust,
                     \&attempt_allocation);
 
