@@ -31,7 +31,7 @@ sub prep () {
 sub ginstall () {
     my $arch= $r{"$gho->{Guest}_arch"};
     my $archarg= defined($arch) ? "--arch $arch" : '';
-    target_cmd_root($ho, <<END, 1000);
+    target_cmd_root($ho, <<END, 2000);
         xen-create-image \\
             --dhcp --mac $gho->{Ether} \\
 	    --memory ${ram_mb}M --swap ${swap_mb}M \\
