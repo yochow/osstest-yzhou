@@ -61,7 +61,7 @@ BEGIN {
                       tcpconnect_queuedaemon plan_search
                       alloc_resources alloc_resources_rollback_begin_work
                       resource_check_allocated resource_shared_mark_ready
-                      built_stash flight_otherjob
+                      built_stash flight_otherjob duration_estimator
                       csreadconfig readconfigonly ts_get_host_guest
                       readconfig opendb_state selecthost get_hostflags
                       need_runvars
@@ -1451,6 +1451,105 @@ END
 END
         }
     });
+}
+
+#---------- duration estimator ----------
+
+sub duration_estimator ($$;$) {
+    my ($branch, $blessing, $debug) = @_;
+    # returns a function which you call like this
+    #    $durest->($job, $hostidname, $onhost)
+    # and returns one of
+    #    ($seconds, $samehoststarttime)
+    #    ($seconds, undef)
+    #    ()
+    # $debug should be something like sub { print DEBUG "@_\n"; }.
+    # Pass '' for $hostidname and $onhost for asking about on any host
+
+    my $recentflights_q= $dbh_tests->prepare(<<END);
+            SELECT f.flight AS flight,
+		   f.started AS started
+		     FROM flights f
+                     JOIN jobs j USING (flight)
+                     JOIN runvars r
+                             ON  f.flight=r.flight
+                            AND  r.name=?
+                    WHERE  j.job=r.job
+                      AND  f.blessing=?
+                      AND  f.branch=?
+                      AND  j.job=?
+                      AND  r.val=?
+		      AND  (j.status='pass' OR j.status='fail')
+                      AND  f.started IS NOT NULL
+                      AND  f.started >= ?
+                 ORDER BY f.started DESC
+END
+
+    my $duration_anyref_q= $dbh_tests->prepare(<<END);
+            SELECT f.flight AS flight
+		      FROM steps s JOIN flights f
+		        ON s.flight=f.flight
+		     WHERE s.job=? AND f.blessing=? AND f.branch=?
+                       AND s.finished IS NOT NULL
+                       AND f.started IS NOT NULL
+                       AND f.started >= ?
+                     ORDER BY s.finished DESC
+END
+
+    my $duration_duration_q= $dbh_tests->prepare(<<END);
+            SELECT sum(finished-started) AS duration FROM steps
+		          WHERE flight=? AND job=?
+                            AND step != 'ts-hosts-allocate'
+END
+
+    return sub {
+        my ($job, $hostidname, $onhost) = @_;
+
+        my $dbg= $debug ? sub {
+            $debug->("DUR $branch $blessing $job $hostidname $onhost @_");
+        } : sub { };
+
+        my $refs=[];
+        my $limit= time - 86400*14;
+
+        if ($hostidname ne '') {
+            $recentflights_q->execute($hostidname,
+                                      $blessing,
+                                      $branch,
+                                      $job,
+                                      $onhost,
+                                      $limit);
+            $refs= $recentflights_q->fetchall_arrayref({});
+            $recentflights_q->finish();
+            $dbg->("SAME-HOST GOT ".scalar(@$refs));
+        }
+
+        if (!@$refs) {
+            $duration_anyref_q->execute($job, $blessing, $branch, $limit);
+            $refs= $duration_anyref_q->fetchall_arrayref({});
+            $duration_anyref_q->finish();
+            $dbg->("ANY-HOST GOT ".scalar(@$refs));
+        }
+
+        if (!@$refs) {
+            $dbg->("NONE");
+            return ();
+        }
+
+        my $duration_max= 0;
+        foreach my $ref (@$refs) {
+            $duration_duration_q->execute($ref->{flight}, $job);
+            my ($duration) = $duration_duration_q->fetchrow_array();
+            $duration_duration_q->finish();
+            if ($duration) {
+                $dbg->("REF $ref->{flight} DURATION $duration");
+                $duration_max= $duration
+                    if $duration > $duration_max;
+            }
+        }
+
+        return ($duration_max, $refs->[0]{started});
+    };
 }
 
 #---------- hosts and guests ----------

@@ -105,13 +105,11 @@ perhaps_bisect_step () {
 #        mv -f $sticky.new $sticky
 
         if test -e $anyflagfile; then
-                subpriority=100
                 inhibitqueue=0
         else
-                subpriority=-100
                 inhibitqueue=300
         fi
-        export OSSTEST_RESOURCE_SUBPRIORITY=$subpriority
+        export OSSTEST_RESOURCE_WAITSTART=`stat -c%Y $mrof`
         
         execute_flight $flight $OSSTEST_BLESSING-bisect
         flight_executed=true

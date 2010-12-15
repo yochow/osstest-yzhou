@@ -440,6 +440,17 @@ sub justifyfailures ($) {
 END
     $anypassq= $dbh_tests->prepare($anypassq);
 
+    my $duration_estimator= duration_estimator($branch, $blessings[0],
+   sub { print STDERR "== @_\n"; });
+    foreach my $failv (@failures) {
+        my ($est) = $duration_estimator->($failv->{Job}{job},'','');
+        print STDERR "DE $failv->{Job}{job} $est\n";
+        $failv->{DurationEstimate}= $est || 1e5;
+    }
+
+    @failures= sort { $a->{DurationEstimate} <=> $b->{DurationEstimate} }
+        @failures;
+
     foreach my $failv (@failures) {
         my $j= $failv->{Job};
         my $s= $failv->{Step};
