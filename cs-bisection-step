@@ -117,19 +117,14 @@ sub summary_report ($$$) {
 }
 
 sub relevant_hosts ($) {
-    my ($flight) = @_;
+    my ($tflight) = @_;
     return join ',', map { join '=', @$_ } @{
-        $dbh_tests->selectall_arrayref(<<END,{}, $job,$latest_flight) }
+        $dbh_tests->selectall_arrayref(<<END,{}, $job,$tflight) }
             SELECT name,val FROM runvars
                WHERE job = ?
                  AND flight = ?
                  AND name LIKE '%host'
 END
-}
-
-sub flight_has_relevant_hosts ($) {
-    my ($flight) = @_;
-    my $hosts= relevant_hosts($flight);
 }
 
 sub flight_rmap ($) {
@@ -306,7 +301,8 @@ END
     $sth->execute($job,$testid,$blessings[0],$branch);
     while ($row= $sth->fetchrow_hashref()) {
 	print STDERR " $row->{flight}";
-	next unless flight_has_relevant_hosts($row->{flight});
+        my $thosts= relevant_hosts($row->{flight});
+        if ($thosts ne $hosts) { print STDERR " [$thosts]"; next; }
 	$basispass_flight= $row->{flight};
 	last;
     }
@@ -453,6 +449,14 @@ END
     ");
     $jobq->execute($job,$branch);
     while (my $jobrow= $jobq->fetchrow_hashref()) {
+        print STDERR " $jobrow->{flight} ";
+
+        my $thosts= relevant_hosts($jobrow->{flight});
+        if ($thosts ne $hosts) {
+            print STDERR "[$thosts]\n";
+            next;
+        }
+
         my @rtuple= flight_rtuple($jobrow->{flight});
 	next unless @rtuple;
 
@@ -460,7 +464,7 @@ END
         my $steprow= $stepq->fetchrow_hashref();
         $stepq->finish();
         my $st= $steprow ? $steprow->{status} : 'blocked';
-        print STDERR " $jobrow->{flight} $st ";
+        print STDERR "$st ";
         my $n= $nodes{"@rtuple"};
         if (!relevant($n)) {
             print STDERR "irrelevant\n";
