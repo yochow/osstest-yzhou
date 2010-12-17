@@ -913,6 +913,7 @@ sub preparejob ($$$) {
                  FROM  runvars
                 WHERE  flight=? AND job=? AND synth='f'
                   AND  name NOT LIKE E'revision\\_%'
+                  AND  name NOT LIKE '%host'
 END
     my (@trevisions) = split / /, $choose->{Rtuple};
 
@@ -1035,9 +1036,19 @@ sub populateflight () {
         return;
     }
 
+    my $removehosts= 
+    my $addhost= $dbh_tests->prepare(<<END);
+        INSERT INTO runvars (flight,job,name,val,synth)
+                     VALUES (?,     ?,  ?,   ?,  'f')
+END
+
     db_retry($popflight,'constructing', $dbh_tests,[qw(flights)], sub {
         print STDERR "Populating $popflight...\n";
         preparejob($job, $latest_flight, 0);
+        foreach my $hostspec (split /,/, $hosts) {
+            $hostspec =~ m/=/;
+            $addhost->execute($popflight, $job, $`, $');
+        }
     });
 
     print STDERR "Flight $popflight ready to go.\n";
