@@ -319,7 +319,7 @@ sub find_recent_duration ($$) {
     my ($dbg, $hid, $candrow) = @_;
     
     ($candrow->{Duration}, $candrow->{MostRecentStarted}) =
-        $duration_estimator->($job, $hid->{Ident}, $candrow->{hostname});
+        $duration_estimator->($job, $hid->{Ident}, $candrow->{resname});
 }
 
 
