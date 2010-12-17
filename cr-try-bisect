@@ -104,6 +104,7 @@ perhaps_bisect_step () {
                 inhibitqueue=300
         fi
         export OSSTEST_RESOURCE_WAITSTART=`stat -c%Y $mrof`
+        OSSTEST_RESOURCE_WAITSTART=$(( $OSSTEST_RESOURCE_WAITSTART - 6000 ))
         
         execute_flight $flight $OSSTEST_BLESSING-bisect
         flight_executed=true
