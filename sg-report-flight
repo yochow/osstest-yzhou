@@ -441,10 +441,10 @@ END
     $anypassq= $dbh_tests->prepare($anypassq);
 
     my $duration_estimator= duration_estimator($branch, $blessings[0],
-   sub { print STDERR "== @_\n"; });
+                                               sub { print DEBUG "== @_\n"; });
     foreach my $failv (@failures) {
         my ($est) = $duration_estimator->($failv->{Job}{job},'','');
-        print STDERR "DE $failv->{Job}{job} $est\n";
+        print DEBUG "DE $failv->{Job}{job} $est\n";
         $failv->{DurationEstimate}= $est || 1e5;
     }
 
