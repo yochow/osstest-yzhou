@@ -50,7 +50,6 @@ compute_state () {
         set +e
         ./cs-bisection-step --graph-out=$bisfile \
                 --summary-out=$summaryfile \
-		$failflight_arg \
                 --blessings=$OSSTEST_BLESSING,$OSSTEST_BLESSING-bisect \
                 "$@" $branch $job $testid >$reportfile 2>&1
         rc=$?
@@ -151,14 +150,6 @@ END
         exec 3>&-
         send_email tmp/$flight.email
 }        
-
-exec <$mrof
-while read keyword value; do
-	if [ "x$keyword" = xflight ]; then
-		failflight=$value
-		failflight_arg="--fail-flight=$failflight"
-	fi
-done
 
 exec <$mrof
 while read keyword job testid basisflight; do
