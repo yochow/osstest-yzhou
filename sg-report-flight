@@ -35,20 +35,25 @@ while (@ARGV && $ARGV[0] =~ m/^-/) {
         push @blessings, split ',', $1;
     } elsif (m/^--allow=(.*)$/) {
         my ($allowfile) = $1;
-        open A, '<', $allowfile or die "$allowfile: $!";
-        while (<A>) {
-            s/^\s+//; s/\s+$// or die;
-            next unless m/\S/;
-            next if m/^\#/;
-            s/\s+/ /g;
-            die if m/ /g > 1;
-            $_ .= ' @' unless m/ /;
-            s/\@/'[^ ]*'/ge;
-            s#\$# '[^ -/]*' #ge;
-            push @allows, '^(?:'.$_.')$';
+        if (!open A, '<', $allowfile) {
+            die "$allowfile: $!" unless $! == &ENOENT;
+        } else {
+            while (<A>) {
+                s/^\s+//; s/\s+$// or die;
+                next unless m/\S/;
+                next if m/^\#/;
+                s/\s+/ /g;
+                die if m/ /g > 1;
+                $_ .= ' @@' unless m/ /;
+                s/\@\@/ '[^ ]*' /ge;
+                s/\@/ '[^ -\/]*' /ge;
+                $_= '^(?:'.$_.')$';
+                print DEBUG "ALLOW $_\n";
+                push @allows, $_;
+            }
+            A->error and die "$allowfile $!";
+            close A or die "$allowfile $!";
         }
-        A->error and die "$allowfile $!";
-        close A or die "$allowfile $!";
     } elsif (m/^--debug/) {
         open DEBUG, ">&2" or die $!;
         DEBUG->autoflush(1);
@@ -555,7 +560,6 @@ END
             my $item= "$failv->{Job}{job} $failv->{Step}{testid}";
             print DEBUG " allow $item?";
             foreach my $allow (@allows) {
-                print DEBUG " |$allow|";
                 next unless $item =~ m/$allow/;
                 $blocker='';
                 print DEBUG " allowed";
