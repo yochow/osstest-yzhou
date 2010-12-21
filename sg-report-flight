@@ -16,6 +16,7 @@ our @blessings;
 our $mro;
 our $htmldir;
 our $branch;
+our @allows;
 
 open DEBUG, ">/dev/null";
 open MRO, ">/dev/null";
@@ -32,6 +33,22 @@ while (@ARGV && $ARGV[0] =~ m/^-/) {
         $htmldir= $1;
     } elsif (m/^--blessings?=(.*)$/) {
         push @blessings, split ',', $1;
+    } elsif (m/^--allow=(.*)$/) {
+        my ($allowfile) = $1;
+        open A, '<', $allowfile or die "$allowfile: $!";
+        while (<A>) {
+            s/^\s+//; s/\s+$// or die;
+            next unless m/\S/;
+            next if m/^\#/;
+            s/\s+/ /g;
+            die if m/ /g > 1;
+            $_ .= ' @' unless m/ /;
+            s/\@/'[^ ]*'/ge;
+            s#\$# '[^ -/]*' #ge;
+            push @allows, '^(?:'.$_.')$';
+        }
+        A->error and die "$allowfile $!";
+        close A or die "$allowfile $!";
     } elsif (m/^--debug/) {
         open DEBUG, ">&2" or die $!;
         DEBUG->autoflush(1);
@@ -533,7 +550,20 @@ END
 	    return $rtup->[2];
         });
 	@rtups= sort { $b->[0] <=> $a->[0] } @rtups;
-	$failv->{Blocker}= $rtups[0][1];
+        my $blocker= $rtups[0][1];;
+        if ($blocker) {
+            my $item= "$failv->{Job}{job} $failv->{Step}{testid}";
+            print DEBUG " allow $item?";
+            foreach my $allow (@allows) {
+                print DEBUG " |$allow|";
+                next unless $item =~ m/$allow/;
+                $blocker='';
+                print DEBUG " allowed";
+                last;
+            }
+            print DEBUG "\n";
+        }
+	$failv->{Blocker}= $blocker;
 	$failv->{SummaryCore}= $rtups[0][2];
 	$failv->{SummaryRefFlight}= $rtups[0][3];
 	$failv->{Summary}= $failv->{SummaryCore};
