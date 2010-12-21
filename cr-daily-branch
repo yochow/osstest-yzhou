@@ -98,7 +98,9 @@ globallockdir=`getconfig GlobalLockDir`
 with-lock-ex -w $globallockdir/report-lock \
   ./sg-report-job-history --html-dir=$job_html_dir --flight=$flight
 
-./sg-report-flight --html-dir=$flight_html_dir/$flight/ $sgr_args $flight
+./sg-report-flight --html-dir=$flight_html_dir/$flight/ \
+        --allow=allow.$branch --allow=allow.all \
+        $sgr_args $flight
 
 push=false
 if grep '^tolerable$' $mrof >/dev/null 2>&1; then push=$wantpush; fi
