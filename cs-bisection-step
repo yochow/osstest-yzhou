@@ -641,7 +641,7 @@ sub need_repro ($$$) {
 
     return 1 if conflicted_warning($n, $what);
 
-    my $fl= $n->{Flights};
+    my $fl= $n->{Flights} || [];
     foreach my $f (sort { $a->{Flight} <=> $b->{Flight} } @$fl) {
         next unless $f->{Flight} > $repro_lastflight;
         next unless $f->{Result} eq $st;
