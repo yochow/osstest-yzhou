@@ -121,6 +121,24 @@ END
     };
 }
 
+sub onerev_generator ($) {
+    my ($tree) = @_;
+    print DEBUG "1R-GEN ".pmap($tree).".\n";
+    my $rev= {
+        Generator => "onerev_generator:$tree->{Treename}",
+        Commit => $tree->{Earliest},
+        Parents => [],
+        Date => 1,
+    };
+    return sub {
+        my $r= $rev;
+        $rev= undef;
+        print DEBUG "1R-GEN $tree->{Treename}: ".
+            ($r ? (join ",", sort keys %$r) : "")."\n";
+        return $r;
+    };
+}
+
 sub hg_revshower ($) {
     my ($tree) = @_;
 
@@ -465,7 +483,13 @@ sub parse_trees () {
         } else {
             die "unknown tree format $_ ?";
         }
+        if (defined $tree->{Earliest} &&
+                $tree->{Earliest} eq $tree->{Latest}) {
+            $tree->{Gen}= \&onerev_generator;
+            print DEBUG "PARSE-TREES ONEREV\n";
+        }
 
+        print DEBUG "PARSE-TREES ".pmap($tree).".\n";
         push @trees, $tree;
     }
     return @trees;
