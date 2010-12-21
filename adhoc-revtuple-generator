@@ -451,6 +451,8 @@ sub parse_trees () {
             $tree->{Earliest}= $1;
             $tree->{Latest}= $2;
         }
+        $_= 'git://mariner.uk.xensource.com/linux-2.6-jeremy-temp.git' if $_ eq
+            'git://git.kernel.org/pub/scm/linux/kernel/git/jeremy/xen.git';
         $tree->{Url}= $_;
         if (m,/(\w[^/]+)\.git$,) {
             $tree->{Gen}= \&git_generator;
