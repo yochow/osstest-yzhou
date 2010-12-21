@@ -369,24 +369,42 @@ END
         print "\n" or die $!;
         print $r->{Overall} or die $!;
     }
-    print <<END or die $!;
 
-tests which did not succeed:
+    foreach my $blockers (qw(-1 1 0)) {
+        my $hdrtxt=
+            $blockers==-1 ? 'Tests which did not succeed'
+          : $blockers==0 ? 'Tests which did not succeed, but are not blocking'
+          : $blockers==1 ? 'Tests which did not succeed and are blocking'
+          : die $blockers;
+        foreach my $failk (sort keys %{ $r->{Failures} }) {
+            my $failv= $r->{Failures}{$failk};
+
+            my $isblocker=
+                !keys %{ $specver{that} } ? -1 :
+                $failv->{Blocker} ? 1 :
+                0;
+
+            next unless $isblocker == $blockers;
+            if ($hdrtxt) {
+                print <<END or die $!;
+
+$hdrtxt:
 END
-
-    foreach my $failk (sort keys %{ $r->{Failures} }) {
-        my $failv= $r->{Failures}{$failk};
-        my $s= $failv->{Step};
-        my $j= $failv->{Job};
-        my $text= (sprintf" %-${jl}s %2s %-${sl}s %-${rl}s",
-                   $j->{job}, $s->{stepno}, $s->{testid}, $s->{status});
-        $text .= $failv->{Summary} if defined $failv->{Summary};
-        $text =~ s/ *$//;
-        while (length($text) > $cw) { last unless $text =~ s/(.* ) /$1/; }
-        print $text, "\n";
+                $hdrtxt= '';
+            }
+            my $s= $failv->{Step};
+            my $j= $failv->{Job};
+            my $text= (sprintf" %-${jl}s %2s %-${sl}s %-${rl}s",
+                       $j->{job}, $s->{stepno}, $s->{testid}, $s->{status});
+            $text .= $failv->{Summary} if defined $failv->{Summary};
+            $text =~ s/ *$//;
+            while (length($text) > $cw) { last unless $text =~ s/(.* ) /$1/; }
+            print $text, "\n";
+        }
     }
+
     if (!%{ $r->{Failures} }) {
-        print " none - all tests in this flight passed" or die $!;
+        print "All tests in this flight passed" or die $!;
     }
     print "\n" or die $!;
 
