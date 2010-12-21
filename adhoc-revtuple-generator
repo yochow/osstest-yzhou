@@ -146,12 +146,12 @@ sub hg_generator ($) {
     my $treename= $tree->{Treename};
     shellcmd("set -e; exec >&2; cd $c{Repos}/$treename && hg pull -u")
         if $doupdate;
-    my $cmd= "cd $c{Repos}/$treename && hg log --template '".
-	"{node|short}\n".
-	"{node|short} {date}\n".
-	"{files}\n".
-	"{parents}\n".
-	"'";
+    my $cmd= "cd $c{Repos}/$treename && hg log -r $tree->{Latest}:1".
+        " --template ".("'{node|short}\n".
+                         "{node|short} {date}\n".
+                         "{files}\n".
+                         "{parents}\n".
+                         "'");
     my $fh= new IO::File;
     open $fh, "$cmd |" or die "$cmd $!";
     $_= <$fh>;
