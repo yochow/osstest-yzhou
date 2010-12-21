@@ -279,10 +279,9 @@ END
         unless $row->{'status'} eq 'fail';
 
     $latest_flight= $row->{flight};
-    print STDERR "Found failure, as expected, in flight $latest_flight\n";
-
     $hosts= relevant_hosts($latest_flight);
-    print STDERR "Host specification list: $hosts\n";
+
+    print STDERR "Using this failure: $latest_flight [$hosts]\n";
 
     print STDERR "Searching for basis pass:";
 
@@ -307,11 +306,13 @@ END
 	last;
     }
     $sth->finish();
+    print STDERR ".\n";
 
     if (!$basispass_flight) {
 	doubtful("No applicable basis pass.");
+    } else {
+        print STDERR "Basis pass flight $basispass_flight.\n";
     }
-    print STDERR ".\n";
 }
 
 our (%nodes, @latest_rtuple, @basispass_rtuple);
@@ -402,7 +403,8 @@ sub digraph_relevant () {
     foreach my $rtuple ("@latest_rtuple", "@basispass_rtuple") {
         foreach my $relflag (qw(RelvDown RelvUp)) {
             next if $nodes{$rtuple}{$relflag};
-            warn "*** not $relflag at $rtuple";
+            warn "*** not $relflag at $rtuple ".
+                join ';', map { $_->{Flight} } @{ $nodes{$rtuple}{Flights} };
             $broken= 1;
         }
     }
