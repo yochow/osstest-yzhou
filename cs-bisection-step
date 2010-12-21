@@ -254,8 +254,9 @@ sub findbasics () {
             ? "flight = $specflights{$fp}" : "TRUE";
     }
 
-    my $row= $dbh_tests->selectrow_hashref
-        (<<END,{}, $job,$testid,$blessings[0],$branch);
+    print STDERR "Searching for failure:";
+
+    my $rowsq= $dbh_tests->prepare(<<END);
             SELECT flights.flight, steps.status,
                    $flight_is_not_broken AS notbroken
                 FROM flights JOIN steps USING (flight)
@@ -267,16 +268,28 @@ sub findbasics () {
                  AND $flight_cond{fail}
                      $maxflight_cond
                ORDER BY notbroken DESC, flights.started DESC
-               LIMIT 1
 END
+    $rowsq->execute($job,$testid,$blessings[0],$branch);
 
-    doubtful("No applicable failure found.") unless $row;
-    doubtful("No non-broken failures found; ".
-             "flight $row->{flight} contained broken steps.")
-        unless $row->{notbroken};
-    doubtful("Supposed failure flight $row->{flight} step".
-             " was not a failure - it had status $row->{status}.")
-        unless $row->{'status'} eq 'fail';
+    my ($row,$tryrow);
+    while ($tryrow= $rowsq->fetchrow_hashref()) {
+        printf(STDERR " %s(%s%s)", $tryrow->{flight}, $tryrow->{status},
+               $tryrow->{notbroken} ? '' : ',broken');
+        last unless $tryrow->{status} eq 'fail';
+        last unless $tryrow->{notbroken};
+        $row= $tryrow;
+    }
+    print STDERR "\n";
+    if (!$row) {
+        doubtful("No applicable failure found.") unless $tryrow;
+        doubtful("No non-broken failures found; ".
+                 "flight $row->{flight} contained broken steps.")
+            unless $tryrow->{notbroken};
+        doubtful("Supposed failure flight $row->{flight} step".
+                 " was not a failure - it had status $row->{status}.")
+            unless $tryrow->{'status'} eq 'fail';
+        $row= $tryrow;
+    }
 
     $latest_flight= $row->{flight};
     $hosts= relevant_hosts($latest_flight);
