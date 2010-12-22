@@ -177,10 +177,14 @@ else
         echo
 fi
 
-if [ -f $revlog ] && \
-   [ `wc -l $revlog` -lt 300 ]; then
+if [ -f $revlog ]; then
+    revlog_lines=`wc -l <$revlog`
+    if [ $revlog_lines -lt 300 ]; then
         echo ------------------------------------------------------------
         cat $revlog
+    else
+        echo "(No revision log; it would be" $revlog_lines "lines long.)"
+    fi
 fi
 
 exec >&2
