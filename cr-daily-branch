@@ -34,14 +34,17 @@ wantpush=$OSSTEST_PUSH
 
 case "$tree" in
 xen)
+        realtree=$xenbranch
 	NEW_REVISION=$REVISION_XEN
 	;;
 linux)
+        realtree=linux
 	NEW_REVISION=$REVISION_LINUX
 	export REVISION_LINUX_XCP=disable
 	export REVISION_LINUX_OLD=disable
 	;;
 osstest)
+        realtree=
 	git fetch $HOME/testing.git pretest:incoming
 	git reset --hard incoming
 	NEW_REVISION=`git-rev-parse HEAD`
@@ -79,16 +82,18 @@ case "$NEW_REVISION/$OLD_REVISION" in
 	        sgr_args+=" --that-$tree=$OLD_REVISION"
 	fi
 
-        treeurl=`./ap-print-url $tree`
-        ./adhoc-revtuple-generator "$treeurl#$OLD_REVISION-$NEW_REVISION" \
-                >tmp/$flight.revision-log
+        if [ "$realtree" ]; then
+                treeurl=`./ap-print-url $realtree`
+                ./adhoc-revtuple-generator >tmp/$flight.revision-log \
+                        "$treeurl#$OLD_REVISION-$NEW_REVISION" \
 
-        cat <<END >tmp/$flight.people-touched
+                cat <<END >tmp/$flight.people-touched
 People who touched revisions under test:
 END
-        ./adhoc-people-touched-filter <tmp/$flight.revision-log \
-                >>tmp/$flight.people-touched
-        sgr_args+=" --include tmp/$flight.people-touched"
+                ./adhoc-people-touched-filter <tmp/$flight.revision-log \
+                        >>tmp/$flight.people-touched
+                sgr_args+=" --include tmp/$flight.people-touched"
+        fi
         ;;
 *)
         echo >&2 "NO SGR COMPARISON wronglen $NEW_REVISION/$OLD_REVISION"
