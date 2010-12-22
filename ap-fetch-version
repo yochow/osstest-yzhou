@@ -2,13 +2,10 @@
 set -e
 
 branch=$1
+xenbranch=$1
 
 . cri-lock-repos
-
-#: ${TREE_LINUX:=git://git.kernel.org/pub/scm/linux/kernel/git/jeremy/xen.git}
-: ${TREE_LINUX:=git://mariner.uk.xensource.com/linux-2.6-jeremy-temp.git}
-: ${TAG_LINUX:=xen/next-2.6.32}
-: ${LOCALREV_LINUX:=daily-cron.$branch}
+. ap-common
 
 case "$branch" in
 xen*)

@@ -8,9 +8,7 @@ buildflight=$4
 
 flight=`./cs-flight-create $blessing $branch`
 
-#: ${TREE_LINUX:=git://git.kernel.org/pub/scm/linux/kernel/git/jeremy/xen.git}
-: ${TREE_LINUX:=git://mariner.uk.xensource.com/linux-2.6-jeremy-temp.git}
-: ${TREEBASE_LINUX_XCP:=http://hg.uk.xensource.com/carbon/trunk/linux-2.6.27}
+. ap-common
 
 if [ x$buildflight = x ]; then
 
@@ -24,8 +22,8 @@ if [ x$buildflight = x ]; then
 
     ./cs-job-create $flight build-$arch build				     \
 		arch=$arch						     \
-	tree_qemu=git://mariner.uk.xensource.com/qemu-$xenbranch.git	     \
-	tree_xen=http://hg.uk.xensource.com/$xenbranch.hg		     \
+	tree_qemu=$TREE_QEMU	     \
+	tree_xen=$TREE_XEN		     \
 		$RUNVARS $BUILD_RUNVARS $BUILD_XEN_RUNVARS $arch_runvars     \
 		host_hostflags=share-build-$arch,arch-$arch,purpose-build    \
 		revision_xen=$REVISION_XEN				     \
@@ -33,7 +31,7 @@ if [ x$buildflight = x ]; then
 
     ./cs-job-create $flight build-$arch-pvops build-kern		     \
 		arch=$arch kconfighow=xen-enable-xen-config		     \
-	tree_xen=http://hg.uk.xensource.com/$xenbranch.hg		     \
+	tree_xen=$TREE_XEN		     \
 		$RUNVARS $BUILD_RUNVARS $BUILD_LINUX_RUNVARS $arch_runvars   \
 		host_hostflags=share-build-$arch,arch-$arch,purpose-build    \
 		xen_kernels=linux-2.6-pvops				     \
@@ -45,8 +43,8 @@ if [ x$buildflight = x ]; then
 
       ./cs-job-create $flight build-$arch-oldkern build			\
 		arch=$arch						\
-	tree_qemu=git://mariner.uk.xensource.com/qemu-$xenbranch.git	\
-	tree_xen=http://hg.uk.xensource.com/$xenbranch.hg		\
+	tree_qemu=$TREE_QEMU	\
+	tree_xen=$TREE_XEN		\
 		$RUNVARS $BUILD_RUNVARS $BUILD_LINUX_OLD_RUNVARS	\
 		$arch_runvars						\
 		host_hostflags=share-build-$arch,arch-$arch,purpose-build \
@@ -67,7 +65,7 @@ if [ x$buildflight = x ]; then
 		arch=$arch						\
 	kconfighow=intree-buildconfigs kimagefile=arch/x86/boot/vmlinuz \
 		host_hostflags=share-build-$arch,arch-$arch,purpose-build     \
-		tree_xen=http://hg.uk.xensource.com/$xenbranch.hg	      \
+		tree_xen=$TREE_XEN	      \
 		revision_xen=$REVISION_XEN				      \
 	tree_linux=$TREEBASE_LINUX_XCP.hg    \
      tree_pq_linux=$TREEBASE_LINUX_XCP.pq.hg \
