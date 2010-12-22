@@ -270,7 +270,7 @@ END
 
         $stepsq->execute($j->{job});
 
-        $jobsummary .= sprintf " %-${jl}s %-${rl}s\n", $j->{job}, $j->{status};
+        $jobsummary .= sprintf " %-60s %-${rl}s\n", $j->{job}, $j->{status};
 
         my $foundfail= 0;
 
