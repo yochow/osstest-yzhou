@@ -84,7 +84,7 @@ case "$NEW_REVISION/$OLD_REVISION" in
 
         if [ "$realtree" ]; then
                 treeurl=`./ap-print-url $realtree`
-                ./adhoc-revtuple-generator >tmp/$flight.revision-log \
+                ./adhoc-revtuple-generator >tmp/$flight.revision-log -S \
                         "$treeurl#$OLD_REVISION-$NEW_REVISION" \
 
                 cat <<END >tmp/$flight.people-touched
