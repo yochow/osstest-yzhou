@@ -96,6 +96,7 @@ sub psummary ($) {
 sub doubtful ($) {
     my ($msg) = @_;
     psummary("\n$msg\n\nSorry, bisection not possible.\n\n");
+    $estatus= 32;
     exit 32;
 }
 
