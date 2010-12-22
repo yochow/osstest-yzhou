@@ -93,7 +93,7 @@ People who touched revisions under test:
 END
                 ./adhoc-people-touched-filter <$revlog \
                         >>tmp/$flight.people-touched
-                sgr_args+=" --include tmp/$flight.people-touched"
+                sgr_args+=" --include=tmp/$flight.people-touched"
         fi
         ;;
 *)
