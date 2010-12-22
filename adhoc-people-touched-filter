@@ -1,0 +1,11 @@
+#!/usr/bin/perl -w
+use strict qw(refs vars);
+our %show;
+while (<>) {
+    next unless s/^    //;
+    next unless s/^(signed-off-by|tested-by|acked-by|committed-by|from):\s+//i;
+    $show{lc $_}= $_;
+}
+foreach my $k (sort keys %show) {
+    print $show{$k} or die $!;
+}
