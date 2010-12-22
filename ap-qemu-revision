@@ -1,0 +1,13 @@
+#!/bin/bash
+set -e
+
+xenbranch=$1
+xenrevision=$2
+
+. cri-lock-repos
+. ap-common
+
+cd "$repos/$xenbranch.hg"
+hg cat -r $xenrevision Config.mk | perl -ne '
+        print if s/^QEMU_TAG ?\??= ?([0-9a-f]+)$/$1/;
+'

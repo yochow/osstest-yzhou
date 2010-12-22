@@ -1,0 +1,9 @@
+#!/bin/bash
+set -e
+
+xenbranch=$1
+
+. cri-lock-repos
+. ap-common
+
+echo $TREE_QEMU
