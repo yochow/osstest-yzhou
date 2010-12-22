@@ -17,6 +17,7 @@ our $mro;
 our $htmldir;
 our $branch;
 our @allows;
+our @includefiles;
 
 open DEBUG, ">/dev/null";
 open MRO, ">/dev/null";
@@ -33,6 +34,8 @@ while (@ARGV && $ARGV[0] =~ m/^-/) {
         $htmldir= $1;
     } elsif (m/^--blessings?=(.*)$/) {
         push @blessings, split ',', $1;
+    } elsif (m/^--include=(.*)$/) {
+        push @includefiles, $1;
     } elsif (m/^--allow=(.*)$/) {
         my ($allowfile) = $1;
         if (!open A, '<', $allowfile) {
@@ -437,6 +440,15 @@ END
     if ($specver{that}) {
         print "baseline version:\n" or die $!;
         printversions('that');
+    }
+
+    if (@includefiles) {
+        print "\n","-"x60, "\n" or die $!;
+    }
+    foreach my $include (@includefiles) {
+        STDOUT->flush();
+        system_checked('cat','--',$include);
+        print "-"x60, "\n" or die $!;
     }
 
     print "\njobs:\n", $r->{JobsSummary}, "\n" or die $!;
