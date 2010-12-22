@@ -94,7 +94,7 @@ case "$NEW_REVISION/$OLD_REVISION" in
                     newqemu=`./ap-qemu-revision $realtree $NEW_REVISION`
                     if [ "$oldqemu" ] && [ "$newqemu" ]; then
                         echo >>$revlog ========================================
-                        ./adhoc-revtuple-generator -S \
+                        ./adhoc-revtuple-generator >>$revlog -S \
                             "`./ap-qemu-url $realtree`#$oldqemu-$newqemu"
                     else
                         echo >>$revlog '(qemu changes not included)'
