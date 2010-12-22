@@ -82,6 +82,13 @@ case "$NEW_REVISION/$OLD_REVISION" in
         treeurl=`./ap-print-url $tree`
         ./adhoc-revtuple-generator "$treeurl#$OLD_REVISION-$NEW_REVISION" \
                 >tmp/$flight.revision-log
+
+        cat <<END >tmp/$flight.people-touched
+People who touched revisions under test:
+END
+        ./adhoc-people-touched-filter <tmp/$flight.revision-log \
+                >>tmp/$flight.people-touched
+        sgr_args+=" --include tmp/$flight.people-touched"
         ;;
 *)
         echo >&2 "NO SGR COMPARISON wronglen $NEW_REVISION/$OLD_REVISION"
