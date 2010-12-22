@@ -441,12 +441,12 @@ END
 
     print "\njobs:\n", $r->{JobsSummary}, "\n" or die $!;
 
-    foreach my $jt (@{ $r->{JobTexts} }) {
-	print '-'x$cw or die $!;
-        print "\n" or die $!;
-        print join "\n", @$jt or die $!;
-        print "\n" or die $!;
-    }
+#    foreach my $jt (@{ $r->{JobTexts} }) {
+#	print '-'x$cw or die $!;
+#        print "\n" or die $!;
+#        print join "\n", @$jt or die $!;
+#        print "\n" or die $!;
+#    }
 
     my $hostname= `hostname -f`;
     $? and die $?;  chomp $hostname;
