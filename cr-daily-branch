@@ -119,6 +119,7 @@ execute_flight $flight $OSSTEST_BLESSING
 
 exec >tmp/$flight.email
 cat $OSSTEST_EMAIL_HEADER
+echo "Message-ID: <osstest-$flight-mainreport@xen.org>"
 printf 'Subject: [%s test] ' "$branch"
 
 flight_html_dir=$OSSTEST_HTMLPUB_DIR/
