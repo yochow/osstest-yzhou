@@ -483,8 +483,9 @@ sub parse_trees () {
         } else {
             die "unknown tree format $_ ?";
         }
-        if (defined $tree->{Earliest} &&
-                $tree->{Earliest} eq $tree->{Latest}) {
+        if (!$showrev
+            && defined $tree->{Earliest}
+            && $tree->{Earliest} eq $tree->{Latest}) {
             $tree->{Gen}= \&onerev_generator;
             print DEBUG "PARSE-TREES ONEREV\n";
         }
@@ -648,6 +649,7 @@ sub showrev () {
     my @trees= parse_trees();
     die unless @trees == 1;
     my ($tree) = @trees;
+    tree_get_gen($tree);
     $tree->{Show}($tree);
 }
 
