@@ -67,7 +67,7 @@ sub git_revshower ($) {
     my ($tree) = @_;
     my $treedir= "$c{Repos}/$tree->{Treename}";
     chdir $treedir or die $treedir;
-    exec qw(git log -n1), $tree->{Latest};
+    exec qw(git log -n1), "$tree->{Earliest}^..$tree->{Latest}";
     die $!;
 }
 
@@ -144,16 +144,16 @@ sub hg_revshower ($) {
 
     my $treedir= "$c{Repos}/$tree->{Treename}";
     chdir $treedir or die $treedir;
-    $!=0; my $output= `hg log -vr$tree->{Latest}`; die "$? $!" if $?;
-    $output =~ m/^description:\s+/m or die "$output ?";
-    my ($head,$desc) = ($`,$');
-
-    $head =~ s/^files:.*\n//im;
-    $head =~ s/\s+$//s;
-    $desc =~ s/^\s+//s;
-    $desc =~ s/\s+$//s;
-    $desc =~ s/^/    /mg;
-    print $head,"\n\n",$desc,"\n" or die $!;
+    open P, "hg log -vr$tree->{Latest}:$tree->{Earliest} |" or die $!;
+    while (<P>) {
+        if (s/^description:$//..
+            !(!m/^changeset:   \d+:[0-9a-f]{12}$/ && s/^/    /)) {
+        } else {
+            next if m/^files:/;
+        }
+        print or die $!;
+    }
+    $!=0; $!=0; close P or die "$! $?";
     exit 0;
 }
 

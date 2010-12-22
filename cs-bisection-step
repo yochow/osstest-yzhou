@@ -746,7 +746,7 @@ END
                     my @passrev= split / /, $pass->{Rtuple};
                     next if $passrev[$i] eq $failrev[$i];
 
-                    push @revs_to_show, "$trees[$i]#$passrev[$i]-$failrev[$i]";
+                    push @revs_to_show, "$trees[$i]#$failrev[$i]-$failrev[$i]";
 
                     summary_report("",<<END, -1);
 Bug is in tree:  $trees[$i]
