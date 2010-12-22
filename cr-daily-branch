@@ -88,6 +88,19 @@ case "$NEW_REVISION/$OLD_REVISION" in
                 ./adhoc-revtuple-generator >$revlog -S \
                         "$treeurl#$OLD_REVISION-$NEW_REVISION" \
 
+                case "$realtree" in
+                xen-4*|xen-unstable)
+                    oldqemu=`./ap-qemu-revision $realtree $OLD_REVISION`
+                    newqemu=`./ap-qemu-revision $realtree $NEW_REVISION`
+                    if [ "$oldqemu" ] && [ "$newqemu" ]; then
+                        echo >>$revlog ========================================
+                        ./adhoc-revtuple-generator `./ap-qemu-url $realtree`
+                    else
+                        echo >>$revlog '(qemu changes not included)'
+                    fi
+                    ;;
+                esac
+
                 cat <<END >tmp/$flight.people-touched
 People who touched revisions under test:
 END
