@@ -255,9 +255,7 @@ sub findbasics () {
             ? "flight = $specflights{$fp}" : "TRUE";
     }
 
-    print STDERR "Searching for failure:";
-
-    my $rowsq= $dbh_tests->prepare(<<END);
+    my $latestq= $dbh_tests->prepare(<<END);
             SELECT flights.flight, steps.status,
                    $flight_is_not_broken AS notbroken
                 FROM flights JOIN steps USING (flight)
@@ -270,36 +268,7 @@ sub findbasics () {
                      $maxflight_cond
                ORDER BY notbroken DESC, flights.started DESC
 END
-    $rowsq->execute($job,$testid,$blessings[0],$branch);
-
-    my ($row,$tryrow);
-    while ($tryrow= $rowsq->fetchrow_hashref()) {
-        printf(STDERR " %s(%s%s)", $tryrow->{flight}, $tryrow->{status},
-               $tryrow->{notbroken} ? '' : ',broken');
-        last unless $tryrow->{status} eq 'fail';
-        last unless $tryrow->{notbroken};
-        $row= $tryrow;
-    }
-    print STDERR "\n";
-    if (!$row) {
-        doubtful("No applicable failure found.") unless $tryrow;
-        doubtful("No non-broken failures found; ".
-                 "flight $row->{flight} contained broken steps.")
-            unless $tryrow->{notbroken};
-        doubtful("Supposed failure flight $row->{flight} step".
-                 " was not a failure - it had status $row->{status}.")
-            unless $tryrow->{'status'} eq 'fail';
-        $row= $tryrow;
-    }
-
-    $latest_flight= $row->{flight};
-    $hosts= relevant_hosts($latest_flight);
-
-    print STDERR "Using this failure: $latest_flight [$hosts]\n";
-
-    print STDERR "Searching for basis pass:";
-
-    my $sth= $dbh_tests->prepare(<<END);
+    my $basisq= $dbh_tests->prepare(<<END);
         SELECT * FROM flights JOIN steps USING (flight)
 	   WHERE job = ?
 	     AND testid = ?
@@ -311,22 +280,61 @@ END
                  $maxflight_cond
 	   ORDER BY flights.started DESC
 END
-    $sth->execute($job,$testid,$blessings[0],$branch);
-    while ($row= $sth->fetchrow_hashref()) {
-	print STDERR " $row->{flight}";
-        my $thosts= relevant_hosts($row->{flight});
-        if ($thosts ne $hosts) { print STDERR " [$thosts]"; next; }
-	$basispass_flight= $row->{flight};
-	last;
-    }
-    $sth->finish();
-    print STDERR ".\n";
 
-    if (!$basispass_flight) {
-	doubtful("No applicable basis pass.");
-    } else {
-        print STDERR "Basis pass flight $basispass_flight.\n";
+    print STDERR "Searching for failure / basis pass:\n";
+
+    $latestq->execute($job,$testid,$blessings[0],$branch);
+
+    my ($tryfail,%tried_hosts);
+
+    while ($tryfail= $latestq->fetchrow_hashref()) {
+        printf(STDERR " %s %s%s", $tryfail->{flight}, $tryfail->{status},
+               $tryfail->{notbroken} ? '' : ',broken');
+        last unless $tryfail->{status} eq 'fail';
+        last unless $tryfail->{notbroken};
+
+        my $failhosts= relevant_hosts($tryfail->{flight});
+
+        print STDERR " [$failhosts] ";
+        if ($tried_hosts{$failhosts}++) {
+            print STDERR "again\n";
+            next;
+        }
+
+        print STDERR "/";
+        my ($basisrow,$trybasis);
+        $basisq->execute($job,$testid,$blessings[0],$branch);
+        while ($trybasis= $basisq->fetchrow_hashref()) {
+            print STDERR " $trybasis->{flight}";
+            my $basishosts= relevant_hosts($trybasis->{flight});
+            if ($basishosts ne $failhosts) {
+                print STDERR " [$basishosts]";
+                next;
+            }
+            $basisrow= $trybasis;
+            last;
+        }
+        $basisq->finish();
+
+        if (!$basisrow) {
+            print STDERR " no.\n";
+            next;
+        }
+
+        print STDERR " ok.\n";
+        $latest_flight= $tryfail->{flight};
+        $basispass_flight= $basisrow->{flight};
+        last;
     }
+    $latestq->finish();
+
+    if (!$latest_flight) {
+        doubtful("No appropriate failure/pass pair found.");
+        return;
+    }
+
+    print STDERR "Failure / basis pass flights:".
+        " $latest_flight / $basispass_flight\n";
 }
 
 our (%nodes, @latest_rtuple, @basispass_rtuple);
