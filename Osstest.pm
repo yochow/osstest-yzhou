@@ -714,10 +714,9 @@ sub target_await_down ($$) {
     });
 }    
 
-sub system_checked ($) {
-    my ($cmd) = @_;
-    $!=0; $?=0; system $cmd;
-    die "$cmd $? $!" if $? or $!;
+sub system_checked {
+    $!=0; $?=0; system @_;
+    die "@_: $? $!" if $? or $!;
 }
 
 sub tcmd { # $tcmd will be put between '' but not escaped
