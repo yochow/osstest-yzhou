@@ -1,0 +1,21 @@
+#!/bin/bash
+set -e
+
+branch=$1
+xenbranch=$1
+
+. cri-lock-repos
+. ap-common
+
+case "$branch" in
+xen*)
+        echo $TREE_XEN
+	;;
+linux)
+	echo $TREE_LINUX
+	;;
+*)
+	echo >&2 "branch $branch ?"
+	exit 1
+	;;
+esac

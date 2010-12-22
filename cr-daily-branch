@@ -78,6 +78,10 @@ case "$NEW_REVISION/$OLD_REVISION" in
 	if $wantpush; then
 	        sgr_args+=" --that-$tree=$OLD_REVISION"
 	fi
+
+        treeurl=`./ap-print-url $tree`
+        ./adhoc-revtuple-generator "$treeurl#$OLD_REVISION-$NEW_REVISION" \
+                >tmp/$flight.revision-log
         ;;
 *)
         echo >&2 "NO SGR COMPARISON wronglen $NEW_REVISION/$OLD_REVISION"
@@ -144,6 +148,12 @@ else
         echo
         echo Not pushing.
         echo
+fi
+
+if [ -f tmp/$flight.revision-log ] && \
+   [ `wc -l tmp/$flight.revision-log` -lt 300 ]; then
+        echo ------------------------------------------------------------
+        cat tmp/$flight.revision-log
 fi
 
 exec >&2
