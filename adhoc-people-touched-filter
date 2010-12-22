@@ -7,5 +7,5 @@ while (<>) {
     $show{lc $_}= $_;
 }
 foreach my $k (sort keys %show) {
-    print $show{$k} or die $!;
+    print "  ", $show{$k} or die $!;
 }
