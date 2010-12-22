@@ -83,14 +83,15 @@ case "$NEW_REVISION/$OLD_REVISION" in
 	fi
 
         if [ "$realtree" ]; then
+                revlog=tmp/$flight.revision-log
                 treeurl=`./ap-print-url $realtree`
-                ./adhoc-revtuple-generator >tmp/$flight.revision-log -S \
+                ./adhoc-revtuple-generator >$revlog -S \
                         "$treeurl#$OLD_REVISION-$NEW_REVISION" \
 
                 cat <<END >tmp/$flight.people-touched
 People who touched revisions under test:
 END
-                ./adhoc-people-touched-filter <tmp/$flight.revision-log \
+                ./adhoc-people-touched-filter <$revlog \
                         >>tmp/$flight.people-touched
                 sgr_args+=" --include tmp/$flight.people-touched"
         fi
@@ -162,10 +163,10 @@ else
         echo
 fi
 
-if [ -f tmp/$flight.revision-log ] && \
-   [ `wc -l tmp/$flight.revision-log` -lt 300 ]; then
+if [ -f $revlog ] && \
+   [ `wc -l $revlog` -lt 300 ]; then
         echo ------------------------------------------------------------
-        cat tmp/$flight.revision-log
+        cat $revlog
 fi
 
 exec >&2
