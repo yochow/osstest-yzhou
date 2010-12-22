@@ -43,8 +43,8 @@ do_start () {
 	[[ "$XENSTORED_TRACE" == @(yes|on|1) ]] && export XENSTORED_TRACE
 	xenstore-read -s / >/dev/null 2>&1 || xenstored
 
-	test -z "$XENCONSOLED_TRACE" || export XENCONSOLED_TRACE
-	xenconsoled --pid-file=$XENCONSOLED_PIDFILE $XENCONSOLED_OPTIONS
+	test -z "$XENCONSOLED_TRACE" || XENCONSOLED_ARGS=" --log=$XENCONSOLED_TRACE"
+	xenconsoled --pid-file=$XENCONSOLED_PIDFILE $XENCONSOLED_ARGS $XENCONSOLED_OPTIONS
 }
 do_stop () {
 	if read 2>/dev/null <$XENCONSOLED_PIDFILE pid; then
