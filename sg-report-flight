@@ -398,7 +398,9 @@ END
     foreach my $blockers (qw(-1 1 0)) {
         my $hdrtxt=
             $blockers==-1 ? "Tests which did not succeed:"
-          : $blockers==0 ? "Tests which did not succeed, but are not blocking:"
+          : $blockers==0 ? 
+"Tests which did not succeed, but are not blocking,\n".
+"including regressions (tests previously passed) regarded as allowable:"
           : $blockers==1 ? "Tests which did not succeed and are blocking:"
           : die $blockers;
         foreach my $failk (sort keys %{ $r->{Failures} }) {
