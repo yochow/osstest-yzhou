@@ -433,11 +433,11 @@ END
     }
     print "\n" or die $!;
 
-    if ($specver{this}) {
+    if (keys %{ $specver{this} }) {
         print "version targeted for testing:\n" or die $!;
         printversions('this');
     }
-    if ($specver{that}) {
+    if (keys %{ $specver{that} }) {
         print "baseline version:\n" or die $!;
         printversions('that');
     }
