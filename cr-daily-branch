@@ -78,9 +78,7 @@ case "$NEW_REVISION/$OLD_REVISION" in
 [0-9a-f]*/[0-9a-f]*)
         sgr_args+=" --machine-readable-output=$mrof"
         sgr_args+=" --this-$tree=$NEW_REVISION"
-	if $wantpush; then
-	        sgr_args+=" --that-$tree=$OLD_REVISION"
-	fi
+        sgr_args+=" --that-$tree=$OLD_REVISION"
 
         if [ "$realtree" ]; then
                 revlog=tmp/$flight.revision-log
