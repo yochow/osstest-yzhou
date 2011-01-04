@@ -71,6 +71,8 @@ fi
 
 flight=`./make-flight $branch $xenbranch $OSSTEST_BLESSING "$@"`
 
+revlog=tmp/$flight.revision-log
+
 case "$NEW_REVISION/$OLD_REVISION" in
 */*[^0-9a-f]* | *[^0-9a-f]*/*)
         echo >&2 "NO SGR COMPARISON badchar $NEW_REVISION/$OLD_REVISION"
@@ -80,8 +82,7 @@ case "$NEW_REVISION/$OLD_REVISION" in
         sgr_args+=" --this-$tree=$NEW_REVISION"
         sgr_args+=" --that-$tree=$OLD_REVISION"
 
-        if [ "$realtree" ]; then
-                revlog=tmp/$flight.revision-log
+        if [ "$realtree" ] && [ "x$NEW_REVISION" != "x$OLD_REVISION" ]; then
                 treeurl=`./ap-print-url $realtree`
                 ./adhoc-revtuple-generator >$revlog -S \
                         "$treeurl#$OLD_REVISION-$NEW_REVISION" \
