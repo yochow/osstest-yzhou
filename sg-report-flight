@@ -548,6 +548,9 @@ END
 
 	findaflight('that', sub {
             my ($chkflight) = @_;
+	    if (defined $specflight && $chkflight==$specflight) {
+		return "current flight";
+	    }
             my $checkq= $dbh_tests->prepare(<<END);
                 SELECT status FROM steps WHERE flight=? AND job=? AND testid=?
 END
