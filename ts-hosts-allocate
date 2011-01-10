@@ -169,9 +169,16 @@ sub compute_hids () {
     our %equivs;
 
     foreach my $ident (@ARGV) {
+        my $hid= { };
+        my $override_use;
+        if ($ident =~ m/\=/) {
+            $hid->{OverrideUse}= $';
+            $ident= $`;
+            print DEBUG "HID $ident OVERRIDE $hid->{OverrideUse}\n";
+        }
         my @flags= get_hostflags($ident);
         print DEBUG "HID $ident FLAGS @flags\n";
-        my $hid= { Ident => $ident };
+        $hid->{Ident}= $ident;
         my %flags;
         foreach my $flag (@flags) {
             print DEBUG "HID $ident FLAG $flag\n";
@@ -212,7 +219,7 @@ sub hid_find_possibilities ($) {
 
     delete $hid->{Candidates};
 
-    my $use= $r{ $hid->{Ident} };
+    my $use= $hid->{OverrideUse} || $r{ $hid->{Ident} };
 
     my $findhostsq;
     if (defined $use) {
