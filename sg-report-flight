@@ -424,6 +424,8 @@ END
             $cat= "A Tests which did not succeed:";
         } elsif ($failv->{Blocker}) {
             $cat= "K Tests which did not succeed and are blocking:";
+        } elsif ($failv->{Heisen}) {
+            $cat= "K Tests which are failing intermittently (not blocking):";
         } else {
             $cat= "P ".
 "Tests which did not succeed, but are not blocking,\n".
@@ -580,6 +582,20 @@ END
         });
 	@rtups= sort { $b->[0] <=> $a->[0] } @rtups;
         my $blocker= $rtups[0][1];;
+        my $heisen;
+        if ($blocker eq 'regression') {
+            my $heisengoodflight=
+              findaflight('this', $j->{job}, $s->{testid}, sub {
+                my ($heisenchkflight, $heisenchkst) = @_;
+                return "not pass" unless $heisenchkst eq "pass";
+                return undef;
+            });
+            if ($heisengoodflight) {
+                unshift @rtups, [ 20, '', "pass in", $heisengoodflight ];
+                $failv->{Heisen}= 1;
+                $blocker='';
+            }
+        }
         if ($blocker) {
             my $item= "$failv->{Job}{job} $failv->{Step}{testid}";
             print DEBUG " allow $item?";
