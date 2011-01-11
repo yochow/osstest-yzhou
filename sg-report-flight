@@ -395,39 +395,34 @@ END
         print $r->{Overall} or die $!;
     }
 
-    foreach my $blockers (qw(-1 1 0)) {
-        my $hdrtxt=
-            $blockers==-1 ? "Tests which did not succeed:"
-          : $blockers==0 ? 
+    my %notsucceeds;
+    foreach my $failk (sort keys %{ $r->{Failures} }) {
+        my $failv= $r->{Failures}{$failk};
+
+        my $cat;
+        if (!keys %{ $specver{that} }) {
+            $cat= "A Tests which did not succeed:";
+        } elsif ($failv->{Blocker}) {
+            $cat= "K Tests which did not succeed and are blocking:";
+        } else {
+            $cat= "P ".
 "Tests which did not succeed, but are not blocking,\n".
-"including regressions (tests previously passed) regarded as allowable:"
-          : $blockers==1 ? "Tests which did not succeed and are blocking:"
-          : die $blockers;
-        foreach my $failk (sort keys %{ $r->{Failures} }) {
-            my $failv= $r->{Failures}{$failk};
-
-            my $isblocker=
-                !keys %{ $specver{that} } ? -1 :
-                $failv->{Blocker} ? 1 :
-                0;
-
-            next unless $isblocker == $blockers;
-            if ($hdrtxt) {
-                print <<END or die $!;
-
-$hdrtxt
-END
-                $hdrtxt= '';
-            }
-            my $s= $failv->{Step};
-            my $j= $failv->{Job};
-            my $text= (sprintf" %-${jl}s %2s %-${sl}s %-${rl}s",
-                       $j->{job}, $s->{stepno}, $s->{testid}, $s->{status});
-            $text .= $failv->{Summary} if defined $failv->{Summary};
-            $text =~ s/ *$//;
-            while (length($text) > $cw) { last unless $text =~ s/(.* ) /$1/; }
-            print $text, "\n";
+"including regressions (tests previously passed) regarded as allowable:";
         }
+
+        my $s= $failv->{Step};
+        my $j= $failv->{Job};
+        my $text= (sprintf" %-${jl}s %2s %-${sl}s %-${rl}s",
+                   $j->{job}, $s->{stepno}, $s->{testid}, $s->{status});
+        $text .= $failv->{Summary} if defined $failv->{Summary};
+        $text =~ s/ *$//;
+        while (length($text) > $cw) { last unless $text =~ s/(.* ) /$1/; }
+
+        $notsucceeds{$cat} .= $text."\n";
+    }
+    foreach my $cat (sort keys %notsucceeds) {
+        $cat =~ m/^\w+ / or die;
+        print "\n$'\n$notsucceeds{$cat}" or die $!;
     }
 
     if (!%{ $r->{Failures} }) {
