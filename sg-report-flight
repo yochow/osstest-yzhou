@@ -93,10 +93,14 @@ our $htmlleaf= "info.html";
 
 our $blessingscond= '('.join(' OR ', map { "blessing=?" } @blessings).')';
 
-sub findaflight ($$) {
-    my ($thisthat, $sub) = @_;
+sub findaflight ($$$$) {
+    my ($thisthat, $job, $testid, $sub) = @_;
 
     die $thisthat unless keys %{ $specver{$thisthat} };
+
+    print DEBUG "FINDAFLIGHT $thisthat";
+    print DEBUG " $job.$testid" if defined $job;
+    print DEBUG "\n";        
 
     my $thatflight= $specver{that}{flight};
     if (defined $thatflight) {
@@ -132,6 +136,9 @@ END
                 WHERE flight=?
 END
 
+    my $checkq= $dbh_tests->prepare(<<END);
+        SELECT status FROM steps WHERE flight=? AND job=? AND testid=?
+END
     while (my ($tflight) = $flightsq->fetchrow_array) {
 	my $whynot;
 	foreach my $tree (keys %{ $specver{$thisthat} }) {
@@ -159,8 +166,21 @@ END
                 last;
             }
 	}
-        $whynot= $sub->($tflight) if !defined $whynot;
-        return $flight            if !defined $whynot;
+
+        if (!defined $whynot &&
+            defined $specflight && $tflight==$specflight) {
+            $whynot= "current flight";
+        }
+        my $chkst;
+        if (!defined $whynot && defined $job) {
+            $checkq->execute($tflight, $job, $testid);
+            ($chkst) = $checkq->fetchrow_array();
+        }
+        $whynot= $sub->($tflight, $chkst) if !defined $whynot;
+        if (!defined $whynot) {
+            print DEBUG " $tflight FOUND\n";
+            return $tflight;
+        }
         print DEBUG " $tflight $whynot\n";
     }
     return undef;
@@ -173,7 +193,7 @@ sub findspecflight () {
 END
         die "$specflight branch ?" unless defined $branch;
     } else {
-        $specflight= findaflight('this', sub { return undef; });
+        $specflight= findaflight('this', undef,undef, sub { return undef; });
         die unless defined $specflight;
     }
 }
@@ -541,16 +561,8 @@ END
 	my @rtups;
 	push @rtups, [ 10, 0, "baseline untested", undef ];
 
-	findaflight('that', sub {
-            my ($chkflight) = @_;
-	    if (defined $specflight && $chkflight==$specflight) {
-		return "current flight";
-	    }
-            my $checkq= $dbh_tests->prepare(<<END);
-                SELECT status FROM steps WHERE flight=? AND job=? AND testid=?
-END
-            $checkq->execute($chkflight, $j->{job}, $s->{testid});
-            my ($chkst) = $checkq->fetchrow_array();
+	findaflight('that', $j->{job}, $s->{testid}, sub {
+            my ($chkflight, $chkst) = @_;
 	    my $rtup;
 	    if (!defined $chkst) {
 		$rtup= [ 50, '', "blocked in", $chkflight ];
