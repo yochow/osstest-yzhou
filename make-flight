@@ -135,10 +135,24 @@ for xenarch in ${TEST_ARCHES- i386 amd64 } ; do
 		debian_arch=$dom0arch   				  \
 		all_hostflags=$most_hostflags
 
-      ./cs-job-create $flight test-$xenarch$kern-$dom0arch-win test-win	\
+        for vcpus in '' 1; do
+            case "$vcpus" in
+            '') vcpus_runvars=''; vcpus_suffix='' ;;
+            *) vcpus_runvars=guests_vcpus=$vcpus; vcpus_suffix=-vcpus$vcpus ;;
+            esac
+
+            if [ "x$vcpus" = x ] || \
+               [ "$xenarch$kern-$dom0arch" = "amd64-i386" ]; then
+
+      ./cs-job-create $flight test-$xenarch$kern-$dom0arch-win$vcpus_suffix \
+                test-win \
 		$RUNVARS $TEST_RUNVARS $most_runvars $TEST_WIN_RUNVARS	\
-		win_image=winxpsp2.iso   				\
+		win_image=winxpsp2.iso $vcpus_runvars			\
 		all_hostflags=$most_hostflags,hvm
+
+            fi
+        done
+                
 
       ./cs-job-create $flight test-$xenarch$kern-$dom0arch-pair test-pair \
                 !host $RUNVARS $TEST_RUNVARS $most_runvars $TEST_PAIR_RUNVARS \
