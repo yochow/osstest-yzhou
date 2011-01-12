@@ -324,6 +324,7 @@ END
         print STDERR " ok.\n";
         $latest_flight= $tryfail->{flight};
         $basispass_flight= $basisrow->{flight};
+        $hosts= $failhosts;
         last;
     }
     $latestq->finish();
