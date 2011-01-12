@@ -45,6 +45,7 @@ linux)
 	;;
 osstest)
         realtree=
+	git fetch -f $HOME/testing.git incoming:incoming
 	git fetch $HOME/testing.git pretest:incoming
 	git reset --hard incoming
 	NEW_REVISION=`git-rev-parse HEAD`
