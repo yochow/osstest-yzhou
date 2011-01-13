@@ -11,11 +11,36 @@ check_stop daily.
 
 fetch_version () {
 	if [ "x$1" = "x$branch" ]; then
-		./ap-fetch-version "$@"
+                if [ "x$FORCE_REVISION" != x ]; then
+                        echo "$FORCE_REVISION"
+                else
+        		./ap-fetch-version "$@"
+                fi
 	else
 		./ap-fetch-version-baseline "$@"
 	fi
 }
+
+wantpush=$OSSTEST_PUSH
+
+if [ "x$OLD_REVISION" = x ]; then
+        OLD_REVISION="`./ap-fetch-version-old $branch`"
+        export OLD_REVISION
+fi
+
+testedflight=`./sg-check-tested --debug --branch=$branch \
+  --blessings=$OSSTEST_BLESSING --revision-$tree="$OLD_REVISION"`
+
+if [ "x$testedflight" = x ]; then
+        wantpush=false
+        FORCE_REVISION=$OLD_REVISION
+        export FORCE_REVISION
+        OLD_REVISION=`./sg-check-tested --debug --branch=$branch \
+          --blessings=$OSSTEST_BLESSING --print-revision=$tree`
+        if [ "x$OLD_REVISION" = x ]; then
+                OLD_REVISION="$FORCE_revision"
+        fi
+fi
 
 if [ "x$REVISION_XEN" = x ]; then
         REVISION_XEN="`fetch_version $xenbranch`"
@@ -25,12 +50,6 @@ if [ "x$REVISION_LINUX" = x ]; then
         REVISION_LINUX="`fetch_version linux`"
         export REVISION_LINUX
 fi
-if [ "x$OLD_REVISION" = x ]; then
-        OLD_REVISION="`./ap-fetch-version-old $branch`"
-        export OLD_REVISION
-fi
-
-wantpush=$OSSTEST_PUSH
 
 case "$tree" in
 xen)
