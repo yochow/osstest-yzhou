@@ -1,0 +1,88 @@
+#!/usr/bin/perl -w
+
+use DBI;
+use Osstest;
+
+our @conds;
+our @conds_vars;
+our $prrev;
+
+open DEBUG, ">/dev/null" or die $!;
+
+while (@ARGV && $ARGV[0] =~ m/^-/) {
+    $_= shift @ARGV;
+    last if m/^--?$/;
+    if (m/^--revision-([^=]+)\=([^=]+)$/) {
+        push @conds_vars, "revision_$1", $2;
+        push @conds, <<END;
+             NOT EXISTS
+             (SELECT *
+               FROM runvars r
+               WHERE name = ?
+               AND   val != ?
+               AND   r.flight = flights.flight)
+END
+    } elsif (m/^--branch=(.*)$/) {
+        push @conds_vars, $1;
+        push @conds, "branch = ?";
+    } elsif (m/^--blessings=(.*)$/) {
+        my @blessings= split /\,/, $1;
+        push @conds_vars, @blessings;
+        push @conds, "(". (join " OR ", map { "blessing=?" } @blessings). ")";
+    } elsif (m/^--print-revision=(.*)$/) {
+        die if $prrev;
+        $prrev= $1;
+    } elsif (m/^--debug$/) {
+        open DEBUG, ">&2" or die $!;
+    } else {
+        die "$_ ?";
+    }
+}
+
+die if @ARGV;
+die unless @conds;
+
+csreadconfig();
+
+my $qtxt= <<END. (join <<END, @conds). <<END. (defined $prrev ? '' : <<END);
+       SELECT *
+        FROM  flights
+        WHERE
+END
+
+        AND
+END
+
+        ORDER BY flight DESC
+END
+        LIMIT 1
+END
+
+print DEBUG $qtxt, "\n----------\n", (join ' | ', @conds_vars), "\n";
+
+my $q= $dbh_tests->prepare($qtxt);
+$q->execute(@conds_vars);
+
+while (my $row= $q->fetchrow_hashref()) {
+    my $flight= $row->{flight};
+    if (!defined $prrev) {
+        print $flight,"\n" or die $!;
+        exit 0;
+    } else {
+        my $valsq= $dbh_tests->prepare(<<END);
+            SELECT DISTINCT val
+              FROM runvars
+             WHERE flight=?
+             AND   name='revision_$prrev'
+END
+        $valsq->execute($flight);
+        my $row1= $valsq->fetchrow_hashref();
+        next unless defined $row1->{val} && length $row1->{val};
+        my $row2= $valsq->fetchrow_hashref();
+        next if defined $row2;
+        print "$row1->{val}\n";
+        exit 0;
+    }
+}
+
+exit 0;
