@@ -423,7 +423,7 @@ END
         if (!keys %{ $specver{that} }) {
             $cat= "A Tests which did not succeed:";
         } elsif ($failv->{Blocker}) {
-            $cat= "K Tests which did not succeed and are blocking:";
+            $cat= "A Tests which did not succeed and are blocking:";
         } elsif ($failv->{Heisen}) {
             $cat= "K Tests which are failing intermittently (not blocking):";
         } else {
