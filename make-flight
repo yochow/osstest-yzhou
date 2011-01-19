@@ -82,6 +82,23 @@ else
 
 fi
 
+stripy () {
+        local out_vn="$1"; shift
+        local out_0="$1"; shift
+        local out_1="$1"; shift
+        local out_val=0
+        local this_val
+        local this_cmp
+        while [ $# != 0 ]; do
+                this_val="$1"; shift
+                this_cmp="$1"; shift
+                if [ "x$this_val" = "x$this_cmp" ]; then
+                        out_val=$(( $out_val ^ 1 ))
+                fi
+        done
+        eval "$out_vn=\"\$out_$out_val\""
+}
+
 for xenarch in ${TEST_ARCHES- i386 amd64 } ; do
 
   if [ "x$xenarch" = xdisable ]; then continue; fi
