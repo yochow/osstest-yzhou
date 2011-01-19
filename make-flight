@@ -161,11 +161,29 @@ for xenarch in ${TEST_ARCHES- i386 amd64 } ; do
             if [ "x$vcpus" = x ] || \
                [ "$xenarch$kern-$dom0arch" = "amd64-i386" ]; then
 
+        stripy toolstack_runvars '' toolstack=xl \
+                "$vcpus" 1 \
+                "$kern" '' \
+                "$xenarch" i386 \
+                "$dom0arch" i386
+
       ./cs-job-create $flight test-$xenarch$kern-$dom0arch-win$vcpus_suffix \
                 test-win \
 		$RUNVARS $TEST_RUNVARS $most_runvars $TEST_WIN_RUNVARS	\
 		win_image=winxpsp2.iso $vcpus_runvars			\
 		all_hostflags=$most_hostflags,hvm
+
+        if [ "x$toolstack_runvars" != x ]; then
+                
+      ./cs-job-create $flight \
+                test-$xenarch$kern-$dom0arch-xl-win$vcpus_suffix \
+                test-win \
+		$RUNVARS $TEST_RUNVARS $most_runvars $TEST_WIN_RUNVARS	\
+		$toolstack_runvars					  \
+		win_image=winxpsp2.iso $vcpus_runvars			\
+		all_hostflags=$most_hostflags,hvm
+
+        fi
 
             fi
         done
