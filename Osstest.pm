@@ -1675,34 +1675,67 @@ sub guest_check_ip ($) {
 
     guest_find_ether($gho);
 
-    my $dbh_state= opendb_state();
-    my $q= $dbh_state->prepare('select * from ips where mac=?');
-    $q->execute($gho->{Ether});
-    my $row;
-    my $worst= "no entry in statedb::ips";
-    my @ips;
-    while ($row= $q->fetchrow_hashref()) {
-        if (!$row->{state}) {
-            $worst= "statedb::ips.state=$row->{state}";
+    my $leasesfn= $c{Dhcp3Leases};
+    my $leases= new IO::File $leasesfn, 'r';
+    if (!defined $leases) { return "open $leasesfn: $!"; }
+
+    my $inlease;
+    my $props;
+    my $best;
+    while (<$leases>) {
+        chomp; s/^\s+//; s/\s+$//;
+        next if m/^\#/;  next unless m/\S/;
+        if (m/^lease\s+([0-9.]+)\s+\{$/) {
+            return "$leasesfn:$.: lease inside lease" if defined $inlease;
+            $inlease= $1;
+            $props= { };
             next;
         }
-        push @ips, $row->{ip};
-    }
-    $q->finish();
-    $dbh_state->disconnect();
+        if (!m/^\}$/) {
+            s/^( hardware \s+ ethernet |
+                 binding \s+ state
+               ) \s+//x
+               or
+            s/^( [-a-z0-9]+
+               ) \s+//x
+               or
+              return "$leasesfn:$.: unknown syntax";
+            my $prop= $1;
+            s/\s*\;$// or return "$leasesfn:$.: missing semicolon";
+            $props->{$prop}= $_;
+            next;
+        }
+        return "$leasesfn:$.: end lease not inside lease"
+            unless defined $inlease;
 
-    if (!@ips) {
-        return $worst;
+        $props->{' addr'}= $inlease;
+        undef $inlease;
+
+        # got a lease in $props
+        foreach my $prop ('hardware ethernet', 'binding state', 'ends') {
+            return "$leasesfn:$.: lease without \`$prop'"
+                unless defined $props->{$prop};
+        }
+
+        next unless lc $props->{'hardware ethernet'} eq lc $gho->{Ether};
+        next unless lc $props->{'binding state'} eq 'active';
+
+        $props->{' ends'}= $props->{'ends'};
+        $props->{' ends'} =~
+            s/^[0-6]\s+(\S+)\s+(\d+)\:(\d+\:\d+)$/
+                sprintf "%s %02d:%s", $1,$2,$3 /e
+                or return "$leasesfn:$.: unexpected syntax for ends";
+
+        next if $best &&
+            $best->{' ends'} gt $props->{' ends'};
+        $best= $props;
     }
-    if (@ips>1) {
-        return "multiple addrs @ips";
-    }
-    $gho->{Ip}= $ips[0];
-    $gho->{Ip} =~ m/^[0-9.]+$/ or
-        die "$gho->{Name} $gho->{Ether} $gho->{Ip} ?";
+
+    return "no active lease" unless $best;
+    $gho->{Ip}= $best->{' addr'};
+
     report_once($gho, 'guest_check_ip', 
 		"guest $gho->{Name}: $gho->{Ether} $gho->{Ip}");
-
     return undef;
 }
 
