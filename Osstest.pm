@@ -12,6 +12,7 @@ use Socket;
 use IPC::Open2;
 use IO::Handle;
 use JSON;
+#use Data::Dumper;
 
 # DATABASE TABLE LOCK HIERARCHY
 #
