@@ -34,7 +34,8 @@ END { $?= $estatus; }
 #   8    bisection finished and inconclusive
 #  12    bisection finished, but inconsistent test results cast doubt
 #  16    fatally inconsistent test results
-#  32    failure seems to occur only in broken flights, etc. (no report etc.)
+#  32    failure seems to occur only in broken flights, etc.
+#            or unexpected shape to revision graph  (no report etc.)
 # 255    doom and disaster
 
 open DEBUG, ">/dev/null" or die $!;
@@ -1080,8 +1081,10 @@ END
 }
 
 sub compute_exitstatus () {
-    die if $broken;
-    if (defined($choose)) {
+    if ($broken) {
+        $estatus= 32;
+        warn "BROKEN see earlier errors."
+    } elsif (defined($choose)) {
         $estatus= 0;
     } else {
         die if $worst_estatus==0;
