@@ -28,7 +28,8 @@ sub prep () {
 }
 
 sub start () {
-    target_cmd_root($ho, "xm create $gho->{CfgPath}", 100);
+    target_cmd_root($ho, toolstack()->{Command}.
+                    " create $gho->{CfgPath}", 100);
 }
 
 prep();
