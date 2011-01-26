@@ -21,6 +21,7 @@ select_branch () {
 	case "$branch" in
 	xen*)		tree=xen;	xenbranch=$branch ;;
 	linux)		tree=linux;	xenbranch=xen-unstable ;;
+	linux-2.6.38)	tree=linux;	xenbranch=xen-unstable ;;
 	osstest)	tree=osstest;	xenbranch=xen-unstable ;;
 	esac
 

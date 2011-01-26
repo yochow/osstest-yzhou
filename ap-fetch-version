@@ -20,6 +20,11 @@ linux)
 	git fetch -f $TREE_LINUX $TAG_LINUX:$LOCALREV_LINUX
 	git-rev-parse $LOCALREV_LINUX
 	;;
+linux-2.6.38)
+	cd $repos/xen
+	git fetch -f $TREE_LINUX xen/next-2.6.38:$LOCALREV_LINUX
+	git-rev-parse $LOCALREV_LINUX
+	;;
 *)
 	echo >&2 "branch $branch ?"
 	exit 1
