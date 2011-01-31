@@ -2325,7 +2325,18 @@ sub guest_vncsnapshot_begin ($$) {
     my $domid= $gho->{Domid};
 
     my $backend= target_cmd_output_root($ho,
-        "xenstore-read /local/domain/$domid/device/vfb/0/backend");
+        "xenstore-read /local/domain/$domid/device/vfb/0/backend ||:");
+
+    if ($backend eq '') {
+        my $port= target_cmd_output_root($ho,
+            "xenstore-read /local/domain/$domid/console/vnc-port");
+        $port =~ m/^\d+/ && $port >= 5900 or die "$port ?";
+        return {
+            vnclisten => $ho->{Ip},
+            vncdisplay => $port-5900,
+        };
+    }
+
     $backend =~ m,^/local/domain/\d+/backend/vfb/\d+/\d+$,
         or die "$backend ?";
 
@@ -2341,7 +2352,7 @@ sub guest_vncsnapshot_stash ($$$$) {
     my $rfile= "/root/$leaf";
     target_cmd_root($ho,
         "vncsnapshot -passwd $gho->{Guest}.vncpw".
-                   " -nojpeg".
+                   " -nojpeg -allowblank".
                    " $v->{vnclisten}:$v->{vncdisplay}".
                    " $rfile", 100);
     target_getfile_root($ho,100, "$rfile", "$stash/$leaf");
