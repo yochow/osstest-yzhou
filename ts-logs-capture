@@ -73,6 +73,40 @@ END
 
     my $targhost= $ho->{Name} =~ m/mite$|beetle$/ ? 'xcser1' : 'woking';
 
+    logm("requesting debug information");
+
+    my $sympwrite= sub {
+        my ($what,$str,$pause) = @_;
+        logm("sending $what");
+        if (!eval {
+            local ($SIG{'PIPE'}) = 'IGNORE';
+            my $sock= "/root/sympathy/$ho->{Name}";
+            my $rcmd= "sympathy -c -k $sock -N >/dev/null";
+            open SYMPWRITE, "|ssh root\@$targhost '$rcmd'" or die $!;
+            autoflush SYMPWRITE 1;
+            print SYMPWRITE $str or die $!;
+            sleep($pause);
+            close SYMPWRITE or die "$? $!";
+            1;
+        }) {
+            warn "failed to send $what: $@\n";
+            return 0;
+        }
+        return 1;
+    };
+    my $debugkeys= sub {
+        my ($what, $keys) = @_;
+        foreach my $k (split //, $keys) {
+            $sympwrite->("$what debug info request, debug key $k", $k, 1);
+        }
+    };
+    $sympwrite->('request for input to Xen',"\x18\x18\x18",1);
+    $debugkeys->('Xen',"0HMQacdegimnrstuvz");
+    sleep(5);
+    $debugkeys->('guest',"q");
+    sleep(5);
+    $sympwrite->("RET to dom0","\x18\x18\x18\r", 5);
+
     logm("collecting serial logs since $started from $targhost");
 
     my $remote= remote_perl_script_open
