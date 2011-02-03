@@ -75,6 +75,7 @@ END
 
     logm("requesting debug information");
 
+    my ($sshopts) = sshopts();
     my $sympwrite= sub {
         my ($what,$str,$pause) = @_;
         logm("sending $what");
@@ -82,7 +83,7 @@ END
             local ($SIG{'PIPE'}) = 'IGNORE';
             my $sock= "/root/sympathy/$ho->{Name}";
             my $rcmd= "sympathy -c -k $sock -N >/dev/null";
-            open SYMPWRITE, "|ssh root\@$targhost '$rcmd'" or die $!;
+            open SYMPWRITE, "|ssh @$sshopts root\@$targhost '$rcmd'" or die $!;
             autoflush SYMPWRITE 1;
             print SYMPWRITE $str or die $!;
             sleep($pause);
