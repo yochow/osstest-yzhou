@@ -72,7 +72,7 @@ BEGIN {
                       power_state power_cycle
                       setup_pxeboot setup_pxeboot_local
                       await_webspace_fetch_byleaf await_tcp
-                      remote_perl_script_open remote_perl_script_done
+                      remote_perl_script_open remote_perl_script_done sshopts
                       target_cmd_root target_cmd target_cmd_build
                       target_cmd_output_root target_cmd_output
                       target_getfile target_getfile_root
