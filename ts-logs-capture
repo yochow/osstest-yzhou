@@ -83,6 +83,7 @@ END
             local ($SIG{'PIPE'}) = 'IGNORE';
             my $sock= "/root/sympathy/$ho->{Name}";
             my $rcmd= "sympathy -c -k $sock -N >/dev/null";
+            if ($targhost =~ m/xcser1/) { $rcmd= "alarm 5 $rcmd"; }
             open SYMPWRITE, "|ssh @$sshopts root\@$targhost '$rcmd'" or die $!;
             autoflush SYMPWRITE 1;
             print SYMPWRITE $str or die $!;
