@@ -117,7 +117,8 @@ sub setupboot () {
     target_kernkind_check($ho);
     target_kernkind_console_inittab($ho,$ho,"/");
 
-    my $xenhopt= "com1=$c{Baud},8n1 console=com1,vga gdb=com1 conswitch=x";
+    my $xenhopt= "com1=$c{Baud},8n1 console=com1,vga gdb=com1 conswitch=x".
+        " watchdog";
     if (toolstack()->{Dom0MemFixed}) {
         $xenhopt .= " dom0_mem=512M";
     }
