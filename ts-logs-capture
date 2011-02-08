@@ -235,6 +235,8 @@ sub fetch_logs_host_guests () {
                   /var/log/xen/osstest*
                   /var/log/xen/console/*
 
+                  /var/log/xen-tools/*
+
                   /boot/config*
 
                   )];
