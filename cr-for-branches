@@ -30,11 +30,16 @@ for branch in $BRANCHES; do
  (
 	set -e
 
-	branchdir=../$branchesdir/for-$branch.git
-	if ! test -e $branchdir; then
-		#echo "no $branchdir, skipping"
-		exit 0
-	fi
+	branchdirbase=$branch
+	while true; do
+		branchdir=../$branchesdir/for-$branchdirbase.git
+		if test -e $branchdir; then break; fi
+		echo "no $branchdir ..."
+		case "$branchdirbase" in
+		*-*)	branchdirbase=${branchdirbase%-*}	;;
+		*)	echo "skipping"; exit 0			;;
+		esac
+	done
 	cd $branchdir
 
 	export LOCK_ACQU_START=`date +%s`
