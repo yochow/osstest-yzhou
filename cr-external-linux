@@ -28,6 +28,6 @@ export TREE_LINUX="$url"
 
 flight=`./make-flight $branch $xenbranch $OSSTEST_BLESSING "$@"`
 
-execute_flight $flight
+execute_flight $flight $OSSTEST_BLESSING
 start_email $flight "$branch"
 publish_send_email $flight
