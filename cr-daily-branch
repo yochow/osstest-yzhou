@@ -135,23 +135,7 @@ END
 esac
 
 execute_flight $flight $OSSTEST_BLESSING
-
-exec >tmp/$flight.email
-cat $OSSTEST_EMAIL_HEADER
-echo "Message-ID: <osstest-$flight-mainreport@xen.org>"
-printf 'Subject: [%s test] ' "$branch"
-
-flight_html_dir=$OSSTEST_HTMLPUB_DIR/
-job_html_dir=$OSSTEST_HTML_DIR/
-
-globallockdir=`getconfig GlobalLockDir`
-
-with-lock-ex -w $globallockdir/report-lock \
-  ./sg-report-job-history --html-dir=$job_html_dir --flight=$flight
-
-./sg-report-flight --html-dir=$flight_html_dir/$flight/ \
-        --allow=allow.$branch --allow=allow.all \
-        $sgr_args $flight
+start_email $flight $branch "$sgr_args"
 
 push=false
 if grep '^tolerable$' $mrof >/dev/null 2>&1; then push=$wantpush; fi
@@ -207,8 +191,4 @@ if [ -f $revlog ]; then
     fi
 fi
 
-exec >&2
-
-./cr-publish-flight-logs $flight
-
-send_email tmp/$flight.email
+publish_send_email $flight

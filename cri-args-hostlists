@@ -76,6 +76,37 @@ execute_flight () {
         cat tmp/$1.transcript
 }
 
+start_email () {
+	local flight=$1
+	local branch=$2
+        local sgr_args=$3
+        # redirects stdout
+
+	exec >tmp/$flight.email
+	cat $OSSTEST_EMAIL_HEADER
+	echo "Message-ID: <osstest-$flight-mainreport@xen.org>"
+	printf 'Subject: [%s test] ' "$branch"
+
+	local flight_html_dir=$OSSTEST_HTMLPUB_DIR/
+	local job_html_dir=$OSSTEST_HTML_DIR/
+
+	globallockdir=`getconfig GlobalLockDir`
+
+	with-lock-ex -w $globallockdir/report-lock \
+	  ./sg-report-job-history --html-dir=$job_html_dir --flight=$flight
+
+	./sg-report-flight --html-dir=$flight_html_dir/$flight/ \
+		--allow=allow.$branch --allow=allow.all \
+		$sgr_args $flight
+}
+
+publish_send_email () {
+	local flight=$1
+	exec >&2
+	./cr-publish-flight-logs $flight
+	send_email tmp/$flight.email
+}
+
 send_email () {
         /usr/sbin/sendmail -odi -oee -oi -t <$1
         mv $1 $1.sent
