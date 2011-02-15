@@ -21,7 +21,7 @@ linux)
 	;;
 linux-xen-*)
         cd $repos/xen
-        git push $TREE_LINUX $revision:$branch
+        git push $TREE_LINUX $revision:refs/heads/$branch
         ;;
 osstest)
 	git push $HOME/testing.git $revision:incoming
