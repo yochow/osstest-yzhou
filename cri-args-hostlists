@@ -72,8 +72,12 @@ execute_flight () {
 
 	export OSSTEST_RESOURCE_PREINFO="[$branch $2]"
 
+	set +e
         ./sg-execute-flight $1 $2 >tmp/$1.transcript 2>&1
+	local rc=$?
+	set -e
         cat tmp/$1.transcript
+	test $rc = 0
 }
 
 start_email () {
