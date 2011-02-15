@@ -17,9 +17,14 @@ xen*)
 	        cd HG/"'"$branch.hg"'"
 	'
 	;;
-linux*)
+linux)
 	cd $repos/xen
 	git fetch -f $OLD_TREE_LINUX $OLD_TAG_LINUX:$OLD_LOCALREV_LINUX
+	git-rev-parse $OLD_LOCALREV_LINUX
+	;;
+linux-xen-*)
+	cd $repos/xen
+	git fetch -f $OLD_TREE_LINUX $branch:$OLD_LOCALREV_LINUX
 	git-rev-parse $OLD_LOCALREV_LINUX
 	;;
 osstest)
