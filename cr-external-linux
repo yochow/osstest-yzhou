@@ -1,0 +1,33 @@
+#!/bin/bash
+set -ex
+
+. cri-args-hostlists
+
+branch=$1; shift
+tree=linux
+xenbranch=xen-unstable
+
+case "$branch" in
+linux-next)
+	url=git://git.kernel.org/pub/scm/linux/kernel/git/sfr/linux-next.git
+	;;
+*)
+	echo >&2 "unknown cr-external-linux branch"
+	exit 1
+	;;
+esac
+
+select_branch
+
+check_stop external-linux.
+
+export REVISION_LINUX_OLD=disable
+export REVISION_LINUX_XCP=disable
+export REVISION_XEN="`./ap-fetch-version-baseline $xenbranch`"
+export TREE_LINUX="$url"
+
+flight=`./make-flight $branch $xenbranch $OSSTEST_BLESSING "$@"`
+
+execute_flight $flight
+start_email $flight "$branch"
+publish_send_email $flight
