@@ -34,10 +34,11 @@ for branch in $BRANCHES; do
 	while true; do
 		branchdir=../$branchesdir/for-$branchdirbase.git
 		if test -e $branchdir; then break; fi
-		echo "no $branchdir ..."
+		#echo "no $branchdir ..."
 		case "$branchdirbase" in
 		*-*)	branchdirbase=${branchdirbase%-*}	;;
-		*)	echo "skipping"; exit 0			;;
+		*)	#echo "skipping"
+                        exit 0			;;
 		esac
 	done
 	cd $branchdir
