@@ -99,6 +99,15 @@ stripy () {
         eval "$out_vn=\"\$out_$out_val\""
 }
 
+job_create_test () {
+	local job=$1; shift
+	local recipe=$1; shift
+	local toolstack=$1; shift
+
+	./cs-job-create $flight $job $recipe toolstack=$toolstack \
+		$RUNVARS $TEST_RUNVARS $most_runvars "$@"
+}
+
 for xenarch in ${TEST_ARCHES- i386 amd64 } ; do
 
   if [ "x$xenarch" = xdisable ]; then continue; fi
@@ -139,15 +148,12 @@ for xenarch in ${TEST_ARCHES- i386 amd64 } ; do
 		$arch_runvars
 		"
 
-      ./cs-job-create $flight test-$xenarch$kern-$dom0arch-pv test-debian \
-		$RUNVARS $TEST_RUNVARS $most_runvars $TEST_PV_RUNVARS	  \
+      job_create_test test-$xenarch$kern-$dom0arch-pv test-debian xend \
 		debian_kernkind=$kernkind				  \
 		debian_arch=$dom0arch   				  \
 		all_hostflags=$most_hostflags
 
-      ./cs-job-create $flight test-$xenarch$kern-$dom0arch-xl test-debian \
-		$RUNVARS $TEST_RUNVARS $most_runvars $TEST_XL_RUNVARS	  \
-		toolstack=xl						  \
+      job_create_test test-$xenarch$kern-$dom0arch-xl test-debian xl \
 		debian_kernkind=$kernkind				  \
 		debian_arch=$dom0arch   				  \
 		all_hostflags=$most_hostflags
@@ -167,18 +173,16 @@ for xenarch in ${TEST_ARCHES- i386 amd64 } ; do
                 "$xenarch" i386 \
                 "$dom0arch" i386
 
-      ./cs-job-create $flight test-$xenarch$kern-$dom0arch-win$vcpus_suffix \
-                test-win \
-		$RUNVARS $TEST_RUNVARS $most_runvars $TEST_WIN_RUNVARS	\
+      job_create_test test-$xenarch$kern-$dom0arch-win$vcpus_suffix \
+                test-win xend \
 		win_image=winxpsp2.iso $vcpus_runvars			\
 		all_hostflags=$most_hostflags,hvm
 
         if [ "x$toolstack_runvars" != x ]; then
                 
-      ./cs-job-create $flight \
+      job_create_test \
                 test-$xenarch$kern-$dom0arch-xl-win$vcpus_suffix \
-                test-win \
-		$RUNVARS $TEST_RUNVARS $most_runvars $TEST_WIN_RUNVARS	\
+                test-win xl \
 		$toolstack_runvars					  \
 		win_image=winxpsp2.iso $vcpus_runvars			\
 		all_hostflags=$most_hostflags,hvm
@@ -189,37 +193,31 @@ for xenarch in ${TEST_ARCHES- i386 amd64 } ; do
         done
                 
 
-      ./cs-job-create $flight test-$xenarch$kern-$dom0arch-pair test-pair \
-                !host $RUNVARS $TEST_RUNVARS $most_runvars $TEST_PAIR_RUNVARS \
+      job_create_test test-$xenarch$kern-$dom0arch-pair test-pair xend \
+                !host !host_hostflags \
 		debian_kernkind=$kernkind				  \
 		debian_arch=$dom0arch   				  \
 		all_hostflags=$most_hostflags,equiv-1
 
       if [ $xenarch = amd64 -a $dom0arch = i386 ]; then
 
-      ./cs-job-create $flight test-$xenarch$kern-$dom0arch-xl-multivcpu \
-                        test-debian guests_vcpus=4 \
-		$RUNVARS $TEST_RUNVARS $most_runvars $TEST_XL_RUNVARS	  \
-		toolstack=xl						  \
+      job_create_test test-$xenarch$kern-$dom0arch-xl-multivcpu \
+                        test-debian xl guests_vcpus=4 \
 		debian_kernkind=$kernkind				  \
 		debian_arch=$dom0arch   				  \
 		all_hostflags=$most_hostflags
 
-      ./cs-job-create $flight test-$xenarch$kern-$dom0arch-xl-credit2   \
-           test-debian guests_vcpus=4 xen_boot_append='sched=credit2'      \
-		$RUNVARS $TEST_RUNVARS $most_runvars $TEST_XL_RUNVARS	  \
-		toolstack=xl						  \
+      job_create_test test-$xenarch$kern-$dom0arch-xl-credit2  \
+           test-debian xl guests_vcpus=4 xen_boot_append='sched=credit2'      \
 		debian_kernkind=$kernkind				  \
 		debian_arch=$dom0arch   				  \
 		all_hostflags=$most_hostflags
 
 	for cpuvendor in amd intel; do
 
-    ./cs-job-create $flight test-$xenarch$kern-$dom0arch-rhel6hvm-$cpuvendor \
-						test-rhelhvm \
-		$RUNVARS $TEST_RUNVARS $most_runvars $TEST_RHELHVM_RUNVARS \
+    job_create_test test-$xenarch$kern-$dom0arch-rhel6hvm-$cpuvendor \
+						test-rhelhvm xl \
 		redhat_image=rhel-server-6.0-i386-dvd.iso		\
-		toolstack=xl						\
 		all_hostflags=$most_hostflags,hvm-$cpuvendor
 
 	done
