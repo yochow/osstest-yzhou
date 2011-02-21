@@ -33,8 +33,11 @@ foreach my $rv (@runvars) {
     }
     $rv =~ m/^([a-z][0-9a-z_]*)\=(.*)$/ or die "$rv ?";
     my ($name,$val) = ($1,$2);
-    next if $suppress{$name};
     $runvars{$name}= $val;
+}
+
+foreach my $name (keys %suppress) {
+    delete $runvars{$name};
 }
 
 db_retry($flight,'constructing', $dbh_tests,[qw(flights)], sub {
