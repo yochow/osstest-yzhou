@@ -1451,6 +1451,7 @@ END
 END
         }
     });
+    logm("$restype $resname shared $sharetype marked ready");
 }
 
 #---------- duration estimator ----------
