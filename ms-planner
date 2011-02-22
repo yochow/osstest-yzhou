@@ -261,7 +261,6 @@ END
             print DEBUG " allocation preparing\n";
             my $cs= current_sharing_info($reso);
             die "$reso ?" unless $cs;
-            next if $cs->{OnlyPreparing};
 
             print DEBUG " preparing notonly\n";
 	    $info= "(preparing)";
@@ -292,6 +291,11 @@ END
 
 	my $share= $currentshare{$reso};
 	die unless !!$share == !!$shareix;
+
+        if ($share && $share->{OnlyPreparing}) {
+            delete $plan->{Allocations}{$reskey};
+            next;
+        }
 
 	# compute new expected end time
 	my $end_exptd= $alloc->{End};
