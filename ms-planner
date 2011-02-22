@@ -242,12 +242,15 @@ END
 	    my $cs= current_sharing_info($reso);
 	    die "$reso ?" unless $cs;
 	    $currentshare{$reso}= $cs;
+            print DEBUG " allocation shared ",Dumper($cs);
 	    next;
 	}
 
 	$current{$reskey}= 1;
         my $oldalloc= $plan->{Allocations}{$reskey};
+        print DEBUG " oldalloc ",Dumper($oldalloc),"\n";
         if ($oldalloc && $oldalloc->{Task}==$arow->{owntaskid}) {
+            print DEBUG " oldalloc same task $arow->{owntaskid}\n";
             $oldalloc->{Live}= $arow->{live};
             return;
         }
@@ -255,10 +258,12 @@ END
 	# rogue allocation!
 	my $info;
 	if ($arow->{owntaskid} == $magictask{preparing}) {
+            print DEBUG " allocation preparing\n";
             my $cs= current_sharing_info($reso);
             die "$reso ?" unless $cs;
             next if $cs->{OnlyPreparing};
 
+            print DEBUG " preparing notonly\n";
 	    $info= "(preparing)";
 	} else {
 	    print DEBUG "rogue $reso $shareix: $arow->{owntaskid}\n";
@@ -270,6 +275,7 @@ END
 	    Start => $plan->{Start},
             Live => $arow->{live},
 	};
+        print DEBUG " assigned ", Dumper($plan->{Allocations}{$reskey});
     });
 
     # Delete our record of allocations now freed, and add new
