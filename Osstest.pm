@@ -1557,7 +1557,7 @@ END
 sub get_hostflags ($) {
     my ($ident) = @_;
     # may be run outside transaction, or with flights locked
-    my $flags= get_runvar_default('all_hostflags',     $job, '').
+    my $flags= get_runvar_default('all_hostflags',     $job, '').','.
                get_runvar_default("${ident}_hostflags", $job, '');
     return grep /./, split /\,/, $flags;
 }
