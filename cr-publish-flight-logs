@@ -20,7 +20,7 @@ my $githost= $c{HarnessPublishGitUserHost};
 my $gitdir= $c{HarnessPublishGitRepoDir};
 
 system_checked("git-push $githost:$gitdir HEAD:flight-$flight");
-system_checked("ssh $githost 'cd $gitdir && git-update-server-info'");
+system_checked("ssh $githost 'cd $gitdir && git update-server-info'");
 
 sub copydir ($$) {
     my ($src,$dst) = @_;
