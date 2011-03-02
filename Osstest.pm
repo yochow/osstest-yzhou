@@ -1578,26 +1578,52 @@ sub selecthost ($) {
         Ident => $ident,
         Name => $name,
         TcpCheckPort => 22,
-        Fqdn => "$name.$c{TestHostDomain}"
+        Fqdn => "$name.$c{TestHostDomain}",
+        Info => [],
     };
-    my $dbh= opendb('configdb');
-    my $selname= $ho->{Fqdn};
-    my $sth= $dbh->prepare('SELECT * FROM ips WHERE reverse_dns = ?');
-    $sth->execute($selname);
-    my $row= $sth->fetchrow_hashref();
-    die "$ident $name $selname ?" unless $row;
-    die if $sth->fetchrow_hashref();
-    $sth->finish();
-    my $get= sub {
-	my ($k) = @_;
-	my $v= $row->{$k};
-	defined $v or warn "undefined $k in configdb::ips\n";
-	return $v;
+
+    $ho->{Properties}= $dbh_tests->selectall_hashref(<<END, 'name', {}, $name);
+        SELECT * FROM resource_properties
+            WHERE restype='host' AND resname=?
+END
+
+    my $getprop= sub {
+        my ($k,$r) = @_;
+        my $row= $ho->{Properties}{$r};
+        return unless $row;
+        $ho->{$k}= $row->{val};
     };
-    $ho->{Ip}=    $get->('ip');
-    $ho->{Ether}= $get->('hardware');
-    $ho->{Asset}= $get->('asset');
-    $dbh->disconnect();
+    $getprop->('Ether','ether');
+    $getprop->('Power','power-method');
+
+    if (!$ho->{Ether} || !$ho->{Power}) {
+        my $dbh_config= opendb('configdb');
+        my $selname= $ho->{Fqdn};
+        my $sth= $dbh_config->prepare(<<END);
+            SELECT * FROM ips WHERE reverse_dns = ?
+END
+        $sth->execute($selname);
+        my $row= $sth->fetchrow_hashref();
+        die "$ident $name $selname ?" unless $row;
+        die if $sth->fetchrow_hashref();
+        $sth->finish();
+        my $get= sub {
+            my ($k) = @_;
+            my $v= $row->{$k};
+            defined $v or warn "undefined $k in configdb::ips\n";
+            return $v;
+        };
+        $ho->{Asset}= $get->('asset');
+        $ho->{Ether} ||= $get->('hardware');
+        $ho->{Power} ||= "statedb $ho->{Asset}";
+        push @{ $ho->{Info} }, "(asset=$ho->{Asset})";
+        $dbh_config->disconnect();
+    }
+
+    my $ip_packed= gethostbyname($ho->{Fqdn});
+    die "$ho->{Fqdn} ?" unless $ip_packed;
+    $ho->{Ip}= inet_ntoa($ip_packed);
+    die "$ho->{Fqdn} ?" unless defined $ho->{Ip};
 
     $ho->{Flags}= { };
     my $flagsq= $dbh_tests->prepare(<<END);
@@ -1609,11 +1635,6 @@ END
     }
     $flagsq->finish();
 
-    $ho->{Properties}= $dbh_tests->selectall_hashref(<<END, 'name', {}, $name);
-        SELECT * FROM resource_properties
-            WHERE restype='host' AND resname=?
-END
-
     $ho->{Shared}= resource_check_allocated('host', $name);
     $ho->{SharedReady}=
         $ho->{Shared} &&
@@ -1622,7 +1643,7 @@ END
     $ho->{SharedOthers}=
         $ho->{Shared} ? $ho->{Shared}{Others} : 0;
 
-    logm("host: selected $ho->{Name} $ho->{Asset} $ho->{Ether} $ho->{Ip}".
+    logm("host: selected $ho->{Name} $ho->{Ether} $ho->{Ip}".
          (!$ho->{Shared} ? '' :
           sprintf(" - shared %s %s %d", $ho->{Shared}{Type},
                   $ho->{Shared}{State}, $ho->{Shared}{Others}+1)));
@@ -2077,10 +2098,9 @@ sub guest_check_remus_ok {
 
 sub power_cycle ($) {
     my ($ho) = @_;
-    my $dbh_state= opendb_state();
-    power_state($ho, 0, $dbh_state);
+    power_state($ho, 0);
     sleep(1);
-    power_state($ho, 1, $dbh_state);
+    power_state($ho, 1);
 }
 
 sub power_state_await ($$$) {
@@ -2094,14 +2114,23 @@ sub power_state_await ($$$) {
     });
 }
 
-sub power_state ($$;$) {
-    my ($ho, $on, $dbh_state) = @_;
+sub power_state ($$) {
+    my ($ho, $on) = @_;
+
+    foreach my $meth (split /\;\s*/, $ho->{Power}) {
+        my (@meth) = split /\s+/, $meth;
+        logm("power: setting $on for $ho->{Name} (@meth)");
+        no strict qw(refs);
+        &{"power_state__$meth[0]"}($ho,$on,@meth);
+    }
+}
+
+sub power_state__statedb {
+    my ($ho,$on, $methname,$asset) = @_;
+
     my $want= (qw(s6 s1))[!!$on];
-    my $asset= $ho->{Asset};
-    logm("power: setting $want for $ho->{Name} $asset");
 
-    $dbh_state ||= opendb_state();
-
+    my $dbh_state= opendb_state();
     my $sth= $dbh_state->prepare
         ('SELECT current_power FROM control WHERE asset = ?');
 
@@ -2122,6 +2151,13 @@ sub power_state ($$;$) {
     $sth->bind_param(1, $asset);
     power_state_await($sth, $want, 'awaiting');
     $sth->finish();
+
+    $dbh_state->disconnect();
+}
+
+sub power_state__msw {
+    my ($ho,$on, $methname,$pdu,$port) = @_;
+    system_checked("echo YES | msw -s $pdu -f $port");
 }
 
 sub file_link_contents ($$) {
