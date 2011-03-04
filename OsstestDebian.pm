@@ -133,23 +133,23 @@ chmod +x parted_devices
 END
 
     preseed_hook_installscript($ho, $sfx,
-          '/lib/partman/init.d', '25erase-other-disks', <<'END');
+          '/lib/partman/init.d', '25erase-other-disks', <<END);
 #!/bin/sh
 set -ex
 stamp=/var/erase-other-disks.stamp
-if test -f $stamp; then exit 0; fi
->$stamp
+if test -f \$stamp; then exit 0; fi
+>\$stamp
 zero () {
-    if test -b $dev; then
-        dd if=/dev/zero of=$dev count=64 ||:
+    if test -b \$dev; then
+        dd if=/dev/zero of=\$dev count=64 ||:
     fi
 }
 for sd in sd hd; do
     for b in a b c d e f; do
-        dev=/dev/${sd}${b}
+        dev=/dev/\${sd}\${b}
         zero
     done
-    for dev in /dev/${sd}a[0-9]; do
+    for dev in /dev/\${sd}a[0-9]; do
         zero
     done
 done
