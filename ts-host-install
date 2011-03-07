@@ -33,6 +33,7 @@ sub install () {
 
     my ($ps_url,$ps_file)= preseed_create
         ($ho, '',
+         DiskDevice => $ho->{DiskDevice},
          Properties => $ho->{Properties},
          ExtraPreseed => <<END );
 d-i netcfg/get_hostname string $ho->{Name}
