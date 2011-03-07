@@ -1595,6 +1595,7 @@ END
     };
     $getprop->('Ether','ether');
     $getprop->('Power','power-method');
+    $getprop->('DiskDevice','disk-device');
 
     if (!$ho->{Ether} || !$ho->{Power}) {
         my $dbh_config= opendb('configdb');
