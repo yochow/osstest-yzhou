@@ -52,12 +52,14 @@ END
 
     await_tcp($timeout{Sshd},14,$ho);
 
-    target_editfile_root($ho, '/boot/grub/menu.lst', sub {
-        while (<EI>) {
-            s/^terminal.*/terminal --timeout=10 serial console/;
-            print EO or die $!;
-        }
-    });
+    if ($c{Suite} eq 'lenny') {
+        target_editfile_root($ho, '/boot/grub/menu.lst', sub {
+            while (<EI>) {
+                s/^terminal.*/terminal --timeout=10 serial console/;
+                print EO or die $!;
+            }
+        });
+    }
 
     my $lvs= target_cmd_output_root($ho, 'lvdisplay --colon');
     foreach my $l (split /\n/, $lvs) {
