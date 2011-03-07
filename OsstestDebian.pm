@@ -212,6 +212,11 @@ d-i partman/choose_partition select finish
 d-i partman/confirm boolean true
 d-i partman-lvm/confirm boolean true
 
+d-i partman/confirm_nooverwrite true
+d-i partman-lvm/confirm_nooverwrite true
+d-i partman-md/confirm_nooverwrite true
+d-i partman-crypto/confirm_nooverwrite true
+
 d-i netcfg/disable_dhcp boolean true
 d-i netcfg/get_nameservers string $c{NetNameservers}
 d-i netcfg/get_netmask string $c{NetNetmask}
