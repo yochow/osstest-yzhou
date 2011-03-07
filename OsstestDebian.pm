@@ -61,6 +61,8 @@ sub preseed_create ($$;@) {
     chomp($hostkey); $hostkey.="\n";
     my $knownhosts= '';
 
+    my $disk= $xopts{DiskDevice} || '/dev/sda';
+
     my $hostsq= $dbh_tests->prepare(<<END);
         SELECT val FROM runvars
          WHERE flight=? AND name LIKE '%host'
@@ -153,6 +155,9 @@ for sd in sd hd; do
         zero
     done
 done
+for dev in ${disk}*; do
+    zero
+done
 echo ===
 set +e
 ls -l /dev/sd*
@@ -216,7 +221,7 @@ d-i netcfg/get_domain string $c{TestHostDomain}
 d-i netcfg/wireless_wep string
 
 #d-i partman-auto/init_automatically_partition select regular
-d-i partman-auto/disk string /dev/sda
+d-i partman-auto/disk string $disk
 
 d-i partman-ext3/no_mount_point boolean false
 d-i partman-basicmethods/method_only boolean false
