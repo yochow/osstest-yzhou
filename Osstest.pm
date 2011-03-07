@@ -2157,7 +2157,8 @@ sub power_state__statedb {
 
 sub power_state__msw {
     my ($ho,$on, $methname,$pdu,$port) = @_;
-    system_checked("echo YES | msw -s $pdu -f $port");
+    my $onoff= $on ? "-o" : "-f";
+    system_checked("echo YES | msw -s $pdu $onoff $port");
 }
 
 sub file_link_contents ($$) {
