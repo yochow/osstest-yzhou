@@ -13,7 +13,10 @@ our $ho= selecthost($whhost);
 exit 0 if $ho->{SharedReady};
 
 sub lvextend () {
-    my $vg= "$ho->{Name}.$c{TestHostDomain}";
+    my $vg=
+        $c{Suite} eq 'lenny'
+        ? "$ho->{Name}.$c{TestHostDomain}"
+        : $ho->{Name};
 
     target_cmd_root($ho, <<END);
         set -ex; if ! test -f /root/swap_osstest_enabled; then
