@@ -568,6 +568,7 @@ sub tcmdex {
 
 sub tgetfileex {
     my ($ruser, $ho,$timeout, $rsrc,$ldst) = @_;
+    unlink $ldst or $!==&ENOENT or die "$ldst $!";
     tcmdex($timeout,undef,
            'scp', sshopts(),
            sshuho($ruser,$ho).":$rsrc", $ldst);
