@@ -17,7 +17,7 @@ pfile=$sbase/non-free/binary-$arch/Packages.bz2
 files='initrd.gz linux'
 
 dstroot=/tftpboot/pxe/osstest/debian-installer/
-date=`date +%Y-%m-%d`
+date=`date +%Y-%m-%d`-$suite
 dst=$arch/$date
 
 cd $dstroot
@@ -53,9 +53,9 @@ done
 
 rm Packages.bz2
 
-cd $dstroot/$arch
-rm -rf current.new
-ln -s $date current.new
-mv -Tf current.new current
+#cd $dstroot/$arch
+#rm -rf current.new
+#ln -s $date current.new
+#mv -Tf current.new current
 
-echo "installed $dstroot/$arch/$date"
+echo "downloaded $dstroot/$arch/$date"

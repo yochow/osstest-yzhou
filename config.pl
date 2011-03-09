@@ -74,6 +74,8 @@ $c{Baud}= 115200;
 $c{PxeDiBase}= 'osstest/debian-installer';
 
 $c{Suite}= 'lenny';
+$c{PxeDiVersion}= '2011-03-09-lenny';
+
 $c{GuestSuite}= 'lenny';
 $c{HostDiskBoot}=   '300'; #Mby
 $c{HostDiskRoot}= '10000'; #Mby
