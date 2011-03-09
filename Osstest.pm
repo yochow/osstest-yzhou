@@ -166,10 +166,10 @@ END
     die "modifying flight $fl blessing $bless expected @$flok\n"
         unless grep { $_ eq $bless } @$flok;
 
-    $!=0; $?=0; my $rev= `git-rev-parse HEAD`; die "$? $!" unless defined $rev;
+    $!=0; $?=0; my $rev= `git rev-parse HEAD`; die "$? $!" unless defined $rev;
     $rev =~ s/\n$//;
     die "$rev ?" unless $rev =~ m/^[0-9a-f]+$/;
-    my $diffr= system 'git-diff --exit-code HEAD >/dev/null';
+    my $diffr= system 'git diff --exit-code HEAD >/dev/null';
     if ($diffr) {
         die "$diffr $! ?" if $diffr != 256;
         $rev .= '+';
@@ -1004,7 +1004,7 @@ sub hg_dir_revision ($$) {
 
 sub git_dir_revision ($$) {
     my ($ho,$builddir) = @_;
-    my $rev= target_cmd_output($ho, "cd $builddir && git-rev-parse HEAD");
+    my $rev= target_cmd_output($ho, "cd $builddir && git rev-parse HEAD");
     $rev =~ m/^([0-9a-f]{10,})$/ or die "$builddir $rev ?";
     return "$1";
 }
