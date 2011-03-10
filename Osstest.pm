@@ -1564,6 +1564,13 @@ sub get_hostflags ($) {
     return grep /./, split /\,/, $flags;
 }
 
+sub get_host_property ($$;$) {
+    my ($ho, $prop, $defval) = @_;
+    my $row= $ho->{Properties}{$prop};
+    return $defval unless $row && defined $row->{val};
+    return $row->{val};
+}
+
 sub selecthost ($) {
     my ($ident) = @_;
     # must be run outside transaction
@@ -1594,9 +1601,9 @@ END
         return unless $row;
         $ho->{$k}= $row->{val};
     };
-    $getprop->('Ether','ether');
-    $getprop->('Power','power-method');
-    $getprop->('DiskDevice','disk-device');
+    $ho->{Ether}= get_host_property($ho,'ether');
+    $ho->{Power}= get_host_property($ho,'power-method');
+    $ho->{DiskDevice}= get_host_property($ho,'disk-device');
 
     if (!$ho->{Ether} || !$ho->{Power}) {
         my $dbh_config= opendb('configdb');
