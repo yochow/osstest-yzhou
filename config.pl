@@ -73,8 +73,8 @@ $c{TftpPxeGroup}= 'osstest';
 $c{Baud}= 115200;
 $c{PxeDiBase}= 'osstest/debian-installer';
 
-$c{Suite}= 'lenny';
-$c{PxeDiVersion}= '2011-03-09-lenny';
+$c{Suite}= 'squeeze';
+$c{PxeDiVersion}= '2011-03-02-squeeze';
 
 $c{GuestSuite}= 'lenny';
 $c{HostDiskBoot}=   '300'; #Mby
