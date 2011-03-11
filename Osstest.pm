@@ -695,6 +695,7 @@ sub target_cmd_build ($$$$) {
 	set -xe
         LC_ALL=C; export LC_ALL
         PATH=/usr/lib/ccache:\$PATH:/usr/lib/git-core
+        exec </dev/null
         cd $builddir
 END
 }
