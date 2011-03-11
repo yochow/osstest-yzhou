@@ -90,6 +90,8 @@ END
     target_cmd     ($ho, "chmod g-r .ssh/${ktarg}");
     target_cmd_root($ho, "chmod g-r .ssh/${ktarg}");
 
+    target_install_packages($ho, qw(ed));
+
     target_cmd_root($ho, "update-rc.d osstest-confirm-booted start 99 2 .");
 
     logm('OK: install completed');
