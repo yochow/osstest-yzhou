@@ -50,6 +50,13 @@ sub prep () {
 
     target_cmd_root($ho, "chmod -R a+r /usr/share/git-core/templates");
     # workaround for Debian #595728
+
+    if ($c{Suite} ne 'lenny') {
+        target_putfilecontents_stash($ho,60,<<'END','/home/osstest/.hgrc');
+[extensions]
+mq=
+END
+    }
 }
 
 sub cacheing_git_mount () {
