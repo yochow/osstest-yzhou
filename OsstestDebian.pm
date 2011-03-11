@@ -64,6 +64,7 @@ sub preseed_create ($$;@) {
     my $knownhosts= '';
 
     my $disk= $xopts{DiskDevice} || '/dev/sda';
+    my $suite= $xopts{Suite} || $c{Suite};
 
     my $hostsq= $dbh_tests->prepare(<<END);
         SELECT val FROM runvars
@@ -190,7 +191,7 @@ echo latecmd done.
 END
 
     my $preseed_file= (<<END);
-d-i mirror/suite string $c{Suite}
+d-i mirror/suite string $suite
 
 d-i debian-installer/locale string en_GB
 d-i console-keymaps-at/keymap select gb
@@ -291,7 +292,7 @@ END
     $preseed_file .= "$c{Preseed}\n";
 
     foreach my $prop (values %{ $xopts{Properties} }) {
-        next unless $prop->{name} =~ m/^preseed $c{Suite} /;
+        next unless $prop->{name} =~ m/^preseed $suite /;
         $preseed_file .= "$' $prop->{val}\n";
     }
 
