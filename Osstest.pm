@@ -943,7 +943,7 @@ sub build_clone ($$$$) {
     need_runvars("tree_$which", "revision_$which");
 
     my $tree= $r{"tree_$which"};
-    my $timeout= 2000;
+    my $timeout= 4000;
 
     if ($tree =~ m/\.hg$/) {
         $vcs= 'hg';
