@@ -131,7 +131,7 @@ sub setupboot () {
     }
 
     my $bootloader;
-    if ($c{Suite} eq 'lenny') {
+    if ($c{Suite} =~ m/lenny/) {
         $bootloader= setupboot_grub1($ho, $xenhopt, $console);
     } else {
         $bootloader= setupboot_grub2($ho, $xenhopt, $console);
