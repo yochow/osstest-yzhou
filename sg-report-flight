@@ -102,10 +102,16 @@ sub findaflight ($$$$) {
     print DEBUG " $job.$testid" if defined $job;
     print DEBUG "\n";        
 
+    my $checkq= $dbh_tests->prepare(<<END);
+        SELECT status FROM steps WHERE flight=? AND job=? AND testid=?
+END
+
     my $thatflight= $specver{that}{flight};
     if (defined $thatflight) {
         print DEBUG " $thatflight specified:\n";
-        my $whynot= $sub->($thatflight);
+        $checkq->execute($thatflight, $job, $testid);
+        my ($chkst) = $checkq->fetchrow_array();
+        my $whynot= $sub->($thatflight, $chkst);
         return $thatflight if !defined $whynot;
         print DEBUG " $thatflight $whynot\n";
         return undef;
@@ -136,9 +142,6 @@ END
                 WHERE flight=?
 END
 
-    my $checkq= $dbh_tests->prepare(<<END);
-        SELECT status FROM steps WHERE flight=? AND job=? AND testid=?
-END
     while (my ($tflight) = $flightsq->fetchrow_array) {
 	my $whynot;
 	foreach my $tree (keys %{ $specver{$thisthat} }) {
@@ -585,6 +588,7 @@ END
         my $heisen;
         if ($blocker eq 'regression') {
             my $heisengoodflight=
+                !keys %{ $specver{this} } ? undef :
               findaflight('this', $j->{job}, $s->{testid}, sub {
                 my ($heisenchkflight, $heisenchkst) = @_;
                 return "not pass" unless $heisenchkst eq "pass";
