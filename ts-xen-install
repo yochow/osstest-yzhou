@@ -330,9 +330,14 @@ our $initscripts_nobridge;
 
 sub setupinitd () {
     my $ts= toolstack();
+    my $xencommons= '/etc/init.d/xencommons';
     my $have_xencommons=
-        !!target_cmd_output_root($ho,
-                        "if test -f /etc/init.d/xencommons; then echo y; fi");
+        !!target_cmd_output_root($ho, <<END);
+ if test -f $xencommons && ! grep 'FOR USE WITH LIBXL' $xencommons >/dev/null
+ then
+   echo y
+ fi
+END
     $initscripts_nobridge= !defined($ts->{OldDaemonInitd}) || $have_xencommons;
     logm("init.d scripts ".
          ($initscripts_nobridge
