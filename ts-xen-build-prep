@@ -14,7 +14,7 @@ exit 0 if $ho->{SharedReady};
 
 sub lvextend () {
     my $vg=
-        $c{Suite} =~ m/lenny/
+        $ho->{Suite} =~ m/lenny/
         ? "$ho->{Name}.$c{TestHostDomain}"
         : $ho->{Name};
 
@@ -51,7 +51,7 @@ sub prep () {
     target_cmd_root($ho, "chmod -R a+r /usr/share/git-core/templates");
     # workaround for Debian #595728
 
-    if ($c{Suite} !~ m/lenny/) {
+    if ($ho->{Suite} !~ m/lenny/) {
         target_putfilecontents_stash($ho,60,<<'END','/home/osstest/.hgrc');
 [extensions]
 mq=

@@ -1583,12 +1583,14 @@ sub selecthost ($) {
         $name= $r{$ident};
         die "no specified $ident" unless defined $name;
     }
+
     my $ho= {
         Ident => $ident,
         Name => $name,
         TcpCheckPort => 22,
         Fqdn => "$name.$c{TestHostDomain}",
         Info => [],
+        Suite => get_runvar_default("${ident}_suite",$job,$c{Suite}),
     };
 
     $ho->{Properties}= $dbh_tests->selectall_hashref(<<END, 'name', {}, $name);

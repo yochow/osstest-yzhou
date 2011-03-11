@@ -33,6 +33,7 @@ sub install () {
 
     my ($ps_url,$ps_file)= preseed_create
         ($ho, '',
+         Suite => $ho->{Suite},
          DiskDevice => $ho->{DiskDevice},
          Properties => $ho->{Properties},
          ExtraPreseed => <<END );
@@ -52,7 +53,7 @@ END
 
     await_tcp($timeout{Sshd},14,$ho);
 
-    if ($c{Suite} =~ m/lenny/) {
+    if ($ho->{Suite} =~ m/lenny/) {
         target_editfile_root($ho, '/boot/grub/menu.lst', sub {
             while (<EI>) {
                 s/^terminal.*/terminal --timeout=10 serial console/;
