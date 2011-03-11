@@ -942,11 +942,12 @@ sub build_clone ($$$$) {
     need_runvars("tree_$which", "revision_$which");
 
     my $tree= $r{"tree_$which"};
+    my $timeout= 2000;
 
     if ($tree =~ m/\.hg$/) {
         $vcs= 'hg';
         
-        target_cmd_build($ho, 2000, $builddir, <<END.
+        target_cmd_build($ho, $timeout, $builddir, <<END.
 	    hg clone '$tree' $subdir
 	    cd $subdir
 END
@@ -956,7 +957,7 @@ END
     } elsif ($tree =~ m/\.git$/) {
         $vcs= 'git';
 
-        target_cmd_build($ho, 2000, $builddir, <<END.
+        target_cmd_build($ho, $timeout, $builddir, <<END.
             git clone '$tree' $subdir
             cd $subdir
 END
