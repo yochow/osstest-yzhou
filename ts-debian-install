@@ -31,11 +31,12 @@ sub prep () {
 sub ginstall () {
     my $arch= $r{"$gho->{Guest}_arch"};
     my $archarg= defined($arch) ? "--arch $arch" : '';
+    my $gsuite= guest_var($gho,'suite',$c{GuestSuite});
     target_cmd_root($ho, <<END, 2000);
         xen-create-image \\
             --dhcp --mac $gho->{Ether} \\
 	    --memory ${ram_mb}M --swap ${swap_mb}M \\
-            --dist $c{GuestSuite} \\
+            --dist $suite \\
             --mirror http://$c{DebianMirrorHost}/$c{DebianMirrorSubpath} \\
             --hostname $gho->{Name} \\
             --lvm $gho->{Vg} --force \\
