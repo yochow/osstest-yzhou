@@ -36,7 +36,7 @@ sub ginstall () {
         xen-create-image \\
             --dhcp --mac $gho->{Ether} \\
 	    --memory ${ram_mb}M --swap ${swap_mb}M \\
-            --dist $suite \\
+            --dist $gsuite \\
             --mirror http://$c{DebianMirrorHost}/$c{DebianMirrorSubpath} \\
             --hostname $gho->{Name} \\
             --lvm $gho->{Vg} --force \\
