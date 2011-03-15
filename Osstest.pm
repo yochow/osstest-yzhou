@@ -843,8 +843,7 @@ sub postfork () {
 sub host_reboot ($) {
     my ($ho) = @_;
     target_reboot($ho);
-    poll_loop(get_host_property($ho,'reboot-time', 40),
-              2, 'reboot-confirm-booted', sub {
+    poll_loop(40,2, 'reboot-confirm-booted', sub {
         my $output;
         if (!eval {
             $output= target_cmd_output($ho,
