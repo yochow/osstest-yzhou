@@ -71,7 +71,9 @@ END
         $r{$vn}
     /ge;
 
-    my $targhost= $ho->{Name} =~ m/mite$|beetle$/ ? 'xcser1' : 'woking';
+    my $targserial= get_host_property($ho, 'serial', 'sympathy woking');
+    $targserial =~ m/^sympathy\s+(\S+)$/ or die "$ho->{Name} $targserial";
+    my $targhost= $1;
 
     logm("requesting debug information");
 
