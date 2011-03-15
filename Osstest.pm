@@ -65,7 +65,7 @@ BEGIN {
                       built_stash flight_otherjob duration_estimator
                       csreadconfig readconfigonly ts_get_host_guest
                       readconfig opendb_state selecthost get_hostflags
-                      get_host_property
+                      get_host_property get_timeout
                       need_runvars
                       get_filecontents ensuredir postfork
                       db_retry db_begin_work
@@ -1684,6 +1684,11 @@ END
                   $ho->{Shared}{State}, $ho->{Shared}{Others}+1)));
     
     return $ho;
+}
+
+sub get_timeout ($$$) {
+    my ($ho,$which,$default) = @_;
+    return $default + get_host_property($ho, "$which-time-extra", 0);
 }
 
 sub guest_find_tcpcheckport ($) {
