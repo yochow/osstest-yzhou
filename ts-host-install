@@ -47,11 +47,12 @@ END
     my $logtailer= Osstest::Logtailer->new($c{WebspaceLog});
     power_state($ho, 1);
 
-    await_webspace_fetch_byleaf($timeout{ReadPreseed},1,
+    await_webspace_fetch_byleaf(get_timeout($ho,'reboot',$timeout{ReadPreseed})
+                                , 1,
                                 $logtailer, $ho, $ps_url);
     setup_pxeboot_local($ho);
 
-    await_tcp($timeout{Sshd},14,$ho);
+    await_tcp(get_timeout($ho,'reboot',$timeout{Sshd}), 14,$ho);
 
     if ($ho->{Suite} =~ m/lenny/) {
         target_editfile_root($ho, '/boot/grub/menu.lst', sub {
