@@ -862,13 +862,13 @@ sub target_reboot ($) {
     my ($ho) = @_;
     target_cmd_root($ho, "init 6");
     target_await_down($ho, $timeout{RebootDown});
-    await_tcp($timeout{RebootUp},5,$ho);
+    await_tcp(get_timeout($ho,'reboot',$timeout{RebootUp}), 5,$ho);
 }
 
 sub target_reboot_hard ($) {
     my ($ho) = @_;
     power_cycle($ho);
-    await_tcp($timeout{HardRebootUp},5,$ho);
+    await_tcp(get_timeout($ho,'reboot',$timeout{HardRebootUp}), 5, $ho);
 }
 
 sub tcpconnect ($$) {
