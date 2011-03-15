@@ -39,6 +39,9 @@ END
                (length($r{revision_linux}) ? <<END : '').
 	echo >>.config export XEN_LINUX_GITREV='$r{revision_linux}'
 END
+               ($ho->{Suite} =~ m/squeeze/ ? <<END : '').
+	echo >>.config PYTHON_PREFIX_ARG=
+END
                (length($kerns) ? <<END : <<END)
 	echo >>.config KERNELS='$kerns'
 END
