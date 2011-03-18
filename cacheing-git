@@ -3,21 +3,6 @@ set -e
 
 : ${CACHEING_GIT_CACHE:=/volatile/git-cache}
 
-echo >&2 "using cache $CACHEING_GIT_CACHE..."
-
-if ! test -d "${CACHEING_GIT_CACHE}"; then
-	mkdir "${CACHEING_GIT_CACHE}"
-	echo >&2 'cache directory ($CACHEING_GIT_CACHE) does not exist'
-	exit 127
-fi
-
-if [ "x$CACHEING_GIT_CACHE_LOCKED" != "x$CACHEING_GIT_CACHE" ]; then
-	export CACHEING_GIT_CACHE_LOCKED="$CACHEING_GIT_CACHE"
-	exec with-lock-ex -w "$CACHEING_GIT_CACHE/lock" "$0" "$@"
-fi
-
-echo >&2 "locked cache $CACHEING_GIT_CACHE..."
-
 if ! test -x "$0"; then
         echo >&2 "myself is $0 but not executable ?"
         exit 127
@@ -35,6 +20,29 @@ if [ "x$REAL_GIT" = x ]; then
         exit 127
 fi
 
+case "$1" in
+clone)
+	;;
+*)
+	echo >&2 "running $REAL_GIT $@..."
+	exec $REAL_GIT "$@" ;;
+esac
+
+echo >&2 "using cache $CACHEING_GIT_CACHE..."
+
+if ! test -d "${CACHEING_GIT_CACHE}"; then
+	mkdir "${CACHEING_GIT_CACHE}"
+	echo >&2 'cache directory ($CACHEING_GIT_CACHE) does not exist'
+	exit 127
+fi
+
+if [ "x$CACHEING_GIT_CACHE_LOCKED" != "x$CACHEING_GIT_CACHE" ]; then
+	export CACHEING_GIT_CACHE_LOCKED="$CACHEING_GIT_CACHE"
+	exec with-lock-ex -w "$CACHEING_GIT_CACHE/lock" "$0" "$@"
+fi
+
+echo >&2 "locked cache $CACHEING_GIT_CACHE..."
+
 if ! test -f "$CACHEING_GIT_CACHE"/ok; then
 	echo >&2 "initialising cache $CACHEING_GIT_CACHE..."
 	rm -rf "$CACHEING_GIT_CACHE"/.git
@@ -43,19 +51,13 @@ if ! test -f "$CACHEING_GIT_CACHE"/ok; then
 	touch "$CACHEING_GIT_CACHE"/ok
 fi
 
-case "$1" in
-clone)
-	echo >&2 "processing $0 $@..."
-        subcmd="$1"; shift
-        $REAL_GIT "$subcmd" --reference $CACHEING_GIT_CACHE "$@"
-	;;
-*)
-	echo >&2 "running git $@..."
-	exec $REAL_GIT "$@" ;;
-esac
+subcmd="$1"; shift
 
 case "$subcmd" in
 clone)
+	echo >&2 "processing $0 $subcmd $@..."
+        $REAL_GIT "$subcmd" --reference $CACHEING_GIT_CACHE "$@"
+
 	while [ $# -gt 1 ]; do shift; done
 	if ! test -d "$1"; then
 		echo >&2 \
