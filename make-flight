@@ -104,6 +104,15 @@ job_create_test () {
 	local recipe=$1; shift
 	local toolstack=$1; shift
 
+        if [ "x$JOB_MD5_PATTERN" != x ]; then
+	        local job_md5=`echo "$job" | md5sum`
+                job_md5="${job_md5%  -}"
+                case "$job_md5" in
+                $JOB_MD5_PATTERN)       ;;
+                *)                      return;;
+                esac
+        fi
+
 	./cs-job-create $flight $job $recipe toolstack=$toolstack \
 		$RUNVARS $TEST_RUNVARS $most_runvars "$@"
 }
