@@ -2323,11 +2323,6 @@ sub create_webfile ($$$) {
     return $wf_url;
 }
 
-sub guest_kernkind_check ($) {
-    my ($gho) = @_;
-    target_process_kernkind("$gho->{Guest}_");
-}    
-
 sub target_var_prefix ($) {
     my ($ho) = @_;
     if (exists $ho->{Guest}) { return $ho->{Guest}.'_'; }
