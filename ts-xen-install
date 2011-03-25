@@ -40,19 +40,10 @@ sub packages () {
     }
 }
 
-sub extract_one ($$$) {
-    my ($part, $path, $job) = @_;
-    $distpath{$part}= get_stashed($path, $job);
-    return if $checkmode;
-    my $local= $path;  $local =~ s/path_//;
-    my $distcopy= "/root/extract_$local.tar.gz";
-    target_putfile_root($ho, 300, $distpath{$part}, $distcopy);
-    target_cmd_root($ho, "cd / && tar zxf $distcopy", 300);
-}
-
 sub extract () {
     foreach my $part ('', 'kern', 'xen') {
-        extract_one($part, "path_${part}dist", $r{"${part}buildjob"});
+        target_extract_jobdistpath($ho, $part, "path_${part}dist",
+				   $r{"${part}buildjob"}, \%distpath);
     }
 }
 

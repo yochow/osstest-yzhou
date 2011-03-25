@@ -81,6 +81,7 @@ BEGIN {
 		      target_putfilecontents_root_stash
                       target_editfile_root target_file_exists
                       target_install_packages target_install_packages_norec
+                      target_extract_jobdistpath
                       host_reboot host_pxedir target_reboot target_reboot_hard
                       target_choose_vg target_umount_lv target_await_down
                       target_ping_check_down target_ping_check_up
@@ -2366,6 +2367,15 @@ sub target_kernkind_console_inittab ($$$) {
 END
     }
     return $console;
+}
+
+sub target_extract_jobdistpath ($$$$$) {
+    my ($ho, $part, $path, $job, $distpath) = @_;
+    $distpath->{$part}= get_stashed($path, $job);
+    my $local= $path;  $local =~ s/path_//;
+    my $distcopy= "/root/extract_$local.tar.gz";
+    target_putfile_root($ho, 300, $distpath->{$part}, $distcopy);
+    target_cmd_root($ho, "cd / && tar zxf $distcopy", 300);
 }
 
 sub guest_find_domid ($$) {
