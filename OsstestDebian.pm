@@ -11,7 +11,7 @@ BEGIN {
     our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
     $VERSION     = 1.00;
     @ISA         = qw(Exporter);
-    @EXPORT      = qw(
+    @EXPORT      = qw(debian_boot_setup
                       %preseed_cmds
                       preseed_create
                       preseed_hook_command preseed_hook_installscript
@@ -22,6 +22,214 @@ BEGIN {
     @EXPORT_OK   = qw();
 }
 
+#---------- manipulation of Debian bootloader setup ----------
+
+sub debian_boot_setup ($$$) {
+    my ($ho, $xenhopt, $distpath) = @_;
+
+    target_kernkind_check($ho);
+    target_kernkind_console_inittab($ho,$ho,"/");
+
+    my $console= target_var($ho,'console');
+    if (defined $console && length $console) {
+        $console= "console=$console";
+    } else {
+        $console= "xencons=ttyS console=ttyS0,$c{Baud}n8";
+    }
+
+    my $bootloader;
+    if ($ho->{Suite} =~ m/lenny/) {
+        $bootloader= setupboot_grub1($ho, $xenhopt, $console);
+    } else {
+        $bootloader= setupboot_grub2($ho, $xenhopt, $console);
+    }
+
+    target_cmd_root($ho, "update-grub");
+
+    my $kern= $bootloader->{GetBootKern}();
+    logm("dom0 kernel is $kern");
+
+    system "tar zvtf $distpath->{kern} boot/$kern";
+    $? and die "$distpath->{kern} boot/$kern $?";
+
+    my $kernver= $kern;
+    $kernver =~ s,^/?(?:boot/)?(?:vmlinu[xz]-)?,, or die "$kernver ?";
+    my $kernpath= $kern;
+    $kernpath =~ s,^(?:boot/)?,/boot/,;
+
+    target_cmd_root($ho,
+                    "update-initramfs -k $kernver -c ||".
+                    " update-initramfs -k $kernver -u",
+                    200);
+
+    $bootloader->{PreFinalUpdate}();
+
+    target_cmd_root($ho, "update-grub");
+
+    store_runvar(target_var_prefix($ho).'xen_kernel_path',$kernpath);
+    store_runvar(target_var_prefix($ho).'xen_kernel_ver',$kernver);
+}
+
+sub bl_getmenu_open ($$$) {
+    my ($ho, $rmenu, $lmenu) = @_;
+    target_getfile($ho, 60, $rmenu, $lmenu);
+    my $f= new IO::File $lmenu, 'r' or die "$lmenu $?";
+    return $f;
+}
+
+sub setupboot_grub1 ($$$) {
+    my ($ho,$xenhopt,$xenkopt) = @_;
+    my $bl= { };
+
+    my $rmenu= "/boot/grub/menu.lst";
+    my $lmenu= "$stash/$ho->{Name}--menu.lst.out";
+
+    target_editfile_root($ho, $rmenu, sub {
+        while (<::EI>) {
+            if (m/^## ## Start Default/ ..
+                m/^## ## End Default/) {
+                s/^# xenhopt=.*/# xenhopt= $xenhopt/;
+                s/^# xenkopt=.*/# xenkopt= $xenkopt/;
+            }
+            print ::EO or die $!;
+        }
+    });
+
+    $bl->{GetBootKern}= sub {
+        my $f= bl_getmenu_open($ho, $rmenu, $lmenu);
+
+        my $def;
+        while (<$f>) {
+            last if m/^\s*title\b/;
+            next unless m/^\s*default\b/;
+            die "$_ ?" unless m/^\s*default\s+(\d+)\s*$/;
+            $def= $1;
+            last;
+        }
+        my $ix= -1;
+        die unless defined $def;
+        logm("boot check: grub default is option $def");
+
+        my $kern;
+        while (<$f>) {
+            s/^\s*//; s/\s+$//;
+            if (m/^title\b/) {
+                $ix++;
+                if ($ix==$def) {
+                    logm("boot check: title $'");
+                }
+                next;
+            }
+            next unless $ix==$def;
+            if (m/^kernel\b/) {
+                die "$_ ?" unless
+                    m,^kernel\s+/(?:boot/)?(xen\-[-+.0-9a-z]+\.gz)(?:\s.*)?$,;
+                logm("boot check: xen: $1");
+            }
+            if (m/^module\b/) {
+                die "$_ ?" unless m,^module\s+/((?:boot/)?\S+)(?:\s.*)?$,;
+                $kern= $1;
+                logm("boot check: kernel: $kern");
+                last;
+            }
+        }
+        die "$def $ix" unless defined $kern;
+        return $kern;
+    };
+
+
+    $bl->{PreFinalUpdate}= sub { };
+
+    return $bl;
+}
+
+sub setupboot_grub2 ($$$) {
+    my ($ho,$xenhopt,$xenkopt) = @_;
+    my $bl= { };
+
+    my $rmenu= '/boot/grub/grub.cfg';
+ 
+    my $parsemenu= sub {
+        my $f= bl_getmenu_open($ho, $rmenu, "$stash/$ho->{Name}--grub.cfg.1");
+    
+        my $count= 0;
+        my $entry;
+        while (<$f>) {
+            next if m/^\s*\#/ || !m/\S/;
+            if (m/^\s*\}\s*$/) {
+                die unless $entry;
+                my (@missing) =
+                    grep { !defined $entry->{$_} } qw(Title Hv Kern);
+                last if !@missing;
+                logm("(skipping entry at $entry->{StartLine}; no @missing)");
+                $entry= undef;
+                next;
+            }
+            if (m/^function.*\{/) {
+                $entry= { StartLine => $. };
+            }
+            if (m/^menuentry\s+[\'\"](.*)[\'\"].*\{\s*$/) {
+                die $entry->{StartLine} if $entry;
+                $entry= { Title => $1, StartLine => $., Number => $count };
+                $count++;
+            }
+            if (m/^\s*multiboot\s*\/(xen\-[0-9][-+.0-9a-z]*\S+)/) {
+                die unless $entry;
+                $entry->{Hv}= $1;
+            }
+            if (m/^\s*module\s*\/(vmlinu[xz]-\S+)/) {
+                die unless $entry;
+                $entry->{Kern}= $1;
+            }
+            if (m/^\s*module\s*\/(initrd\S+)/) {
+                $entry->{Initrd}= $1;
+            }
+        }
+        die 'grub 2 bootloader entry not found' unless $entry;
+
+        die unless $entry->{Title};
+        die unless $entry->{Hv};
+        die unless $entry->{Kern};
+
+        logm("boot check: grub2, found $entry->{Title}");
+
+        return $entry;
+    };
+
+    $bl->{GetBootKern}= sub { return $parsemenu->()->{Kern}; };
+
+    $bl->{PreFinalUpdate}= sub {
+        my $entry= $parsemenu->();
+        
+        target_editfile_root($ho, '/etc/default/grub', sub {
+            my %k;
+            while (<::EI>) {
+                if (m/^\s*([A-Z_]+)\s*\=\s*(.*?)\s*$/) {
+                    my ($k,$v) = ($1,$2);
+                    $v =~ s/^\s*([\'\"])(.*)\1\s*$/$2/;
+                    $k{$k}= $v;
+                }
+                next if m/^GRUB_CMDLINE_(?:XEN|LINUX).*\=|^GRUB_DEFAULT.*\=/;
+                print ::EO;
+            }
+            print ::EO <<END or die $!;
+
+GRUB_DEFAULT=$entry->{Number}
+GRUB_CMDLINE_XEN="$xenhopt"
+
+END
+            foreach my $k (qw(GRUB_CMDLINE_LINUX GRUB_CMDLINE_LINUX_DEFAULT)) {
+                my $v= $k{$k};
+                $v =~ s/\bquiet\b//;
+                $v =~ s/\b(?:console|xencons)=[0-9A-Za-z,]+//;
+                $v .= " $xenkopt" if $k eq 'GRUB_CMDLINE_LINUX';
+                print ::EO "$k=\"$v\"\n" or die $!;
+            }
+        });
+    };
+
+    return $bl;
+}
 
 #---------- installation of Debian via debian-installer ----------
 
