@@ -25,6 +25,7 @@ BEGIN {
 #---------- manipulation of Debian bootloader setup ----------
 
 sub debian_boot_setup ($$$) {
+    # $xenhopt==undef => is actually a guest, do not set up a hypervisor
     my ($ho, $xenhopt, $distpath) = @_;
 
     target_kernkind_check($ho);
@@ -88,7 +89,7 @@ sub setupboot_grub1 ($$$) {
         while (<::EI>) {
             if (m/^## ## Start Default/ ..
                 m/^## ## End Default/) {
-                s/^# xenhopt=.*/# xenhopt= $xenhopt/;
+                s/^# xenhopt=.*/# xenhopt= $xenhopt/ if defined $xenhopt;
                 s/^# xenkopt=.*/# xenkopt= $xenkopt/;
             }
             print ::EO or die $!;
@@ -123,10 +124,17 @@ sub setupboot_grub1 ($$$) {
             next unless $ix==$def;
             if (m/^kernel\b/) {
                 die "$_ ?" unless
-                    m,^kernel\s+/(?:boot/)?(xen\-[-+.0-9a-z]+\.gz)(?:\s.*)?$,;
-                logm("boot check: xen: $1");
+  m,^kernel\s+/(?:boot/)?((?:xen|vmlinuz)\-[-+.0-9a-z]+\.gz)(?:\s.*)?$,;
+		my $actualkernel= $1;
+                logm("boot check: actual kernel: $actualkernel");
+		if (defined $xenhopt) {
+		    die unless $actualkernel =~ m/^xen/;
+		} else {
+		    die unless $actualkernel =~ m/^vmlinu/;
+		    $kern= $1;
+		}
             }
-            if (m/^module\b/) {
+            if (m/^module\b/ && defined $xenhopt) {
                 die "$_ ?" unless m,^module\s+/((?:boot/)?\S+)(?:\s.*)?$,;
                 $kern= $1;
                 logm("boot check: kernel: $kern");
@@ -148,6 +156,7 @@ sub setupboot_grub2 ($$$) {
     my $bl= { };
 
     my $rmenu= '/boot/grub/grub.cfg';
+    my $kernkey= (defined $xenhopt ? 'KernDom0' : 'KernOnly');
  
     my $parsemenu= sub {
         my $f= bl_getmenu_open($ho, $rmenu, "$stash/$ho->{Name}--grub.cfg.1");
@@ -159,7 +168,10 @@ sub setupboot_grub2 ($$$) {
             if (m/^\s*\}\s*$/) {
                 die unless $entry;
                 my (@missing) =
-                    grep { !defined $entry->{$_} } qw(Title Hv Kern);
+                    grep { !defined $entry->{$_} } 
+		        (defined $xenhopt
+			 ? qw(Title Hv KernDom0)
+			 : qw(Title Hv KernOnly));
                 last if !@missing;
                 logm("(skipping entry at $entry->{StartLine}; no @missing)");
                 $entry= undef;
@@ -177,9 +189,13 @@ sub setupboot_grub2 ($$$) {
                 die unless $entry;
                 $entry->{Hv}= $1;
             }
+            if (m/^\s*multiboot\s*\/(vmlinu[xz]-\S+)/) {
+                die unless $entry;
+                $entry->{KernOnly}= $1;
+            }
             if (m/^\s*module\s*\/(vmlinu[xz]-\S+)/) {
                 die unless $entry;
-                $entry->{Kern}= $1;
+                $entry->{KernDom0}= $1;
             }
             if (m/^\s*module\s*\/(initrd\S+)/) {
                 $entry->{Initrd}= $1;
@@ -188,15 +204,18 @@ sub setupboot_grub2 ($$$) {
         die 'grub 2 bootloader entry not found' unless $entry;
 
         die unless $entry->{Title};
-        die unless $entry->{Hv};
-        die unless $entry->{Kern};
 
         logm("boot check: grub2, found $entry->{Title}");
+
+	die unless $entry->{$kernkey};
+	if (defined $xenhopt) {
+	    die unless $entry->{Hv};
+	}
 
         return $entry;
     };
 
-    $bl->{GetBootKern}= sub { return $parsemenu->()->{Kern}; };
+    $bl->{GetBootKern}= sub { return $parsemenu->()->{$kernkey}; };
 
     $bl->{PreFinalUpdate}= sub {
         my $entry= $parsemenu->();
@@ -215,6 +234,9 @@ sub setupboot_grub2 ($$$) {
             print ::EO <<END or die $!;
 
 GRUB_DEFAULT=$entry->{Number}
+END
+
+            print ::EO <<END or die $! if defined $xenhopt;
 GRUB_CMDLINE_XEN="$xenhopt"
 
 END
