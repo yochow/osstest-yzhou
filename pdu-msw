@@ -1,6 +1,7 @@
 #!/usr/bin/perl -w
 my $usagemsg= <<END;
-pdu-msw SWITCH-DNS-NAME PORT-NAME-REGEXP|PORT [[delayed-]on|off|0|1|reboot]
+usage:
+  pdu-msw SWITCH-DNS-NAME PORT-NAME-REGEXP|PORT [[delayed-]on|off|0|1|reboot]
 END
 
 use strict qw(refs vars);
@@ -81,7 +82,7 @@ sub show () {
     die unless $val;
     my $mean= $map[$val];
     die "$val ?" unless defined $mean;
-    printf "%s = %d : \"%s\" = %s\n", $oid, $val, $usename, $mean;
+    printf "#%s \"%s\" = %s\n", $useport, $usename, $mean;
 }
 
 sub set () {
