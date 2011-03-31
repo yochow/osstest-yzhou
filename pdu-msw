@@ -1,0 +1,104 @@
+#!/usr/bin/perl -w
+my $usagemsg= <<END;
+pdu-msw SWITCH-DNS-NAME PORT-NAME-REGEXP|PORT [[delayed-]on|off|0|1|reboot]
+END
+
+use strict qw(refs vars);
+use Net::SNMP;
+use Data::Dumper;
+
+if (@ARGV<2 || @ARGV>3 || $ARGV[0] =~ m/^-/) { die "bad usage\n$usagemsg"; }
+
+our ($dnsname,$outlet,$action) = @ARGV;
+
+my $community= 'private';
+my $baseoid= '.1.3.6.1.4.1.318.1.1.4.4.2.1';
+
+my ($session,$error) = Net::SNMP->session(
+                                          -hostname => $dnsname,
+                                          -community => $community,
+                                          );
+die "SNMP error $error " unless defined $session;
+
+sub getname ($) {
+    my ($port) = @_;
+    my $oid= "$baseoid.4.$port";
+    my $res= $session->get_request($oid);
+    if ($res) {
+        my $name= $res->{$oid};
+        die unless defined $name;
+        return $name;
+    } elsif ($port>1 && $session->error_status() == 2) {
+        return undef;
+    } else {
+        die "SNMP error on $oid ".$session->error()." ";
+    }
+}
+
+my $useport;
+my $usename;
+if ($outlet =~ m/^\d+$/) {
+    $useport= $outlet;
+    $usename= getname($outlet);
+    $usename= '?' unless defined $usename;
+} else {
+    my (@found,@all);
+    my $ix=1;
+    for (;; $ix++) {
+        my $name= getname($ix);
+        last unless defined $name;
+        my $match= !!($name =~ m/$outlet/o);
+        my $t= [ $ix, $name, $match ];
+        push @all, $t;
+        push @found, $t if $match;
+        next;
+    }
+    if (@found!=1) {
+        foreach my $t (@all) {
+            printf("%1s %2d %s\n",
+                   ($t->[2] ? '*' : ''),
+                   $t->[0], $t->[1]);
+        }
+        die @found ? "multiple ports match\n" : "no ports match\n";
+    }
+    ($useport,$usename)= @{ $found[0] };
+}
+
+my $oid= "$baseoid.3.$useport";
+
+my @map= (undef, qw(
+                    on
+                    off
+                    reboot
+                    delayed-on
+                    delayed-off
+                    delayed-reboot));
+
+sub show () {
+    my $got= $session->get_request($oid);
+    die "SNMP error reading $oid ".$session->error()." " unless $got;
+    my $val= $got->{$oid};
+    die unless $val;
+    my $mean= $map[$val];
+    die "$val ?" unless defined $mean;
+    printf "%s = %d : \"%s\" = %s\n", $oid, $val, $usename, $mean;
+}
+
+sub set () {
+    my $delayadd= ($action =~ s/^delayed-// ? 3 : 0);
+    my $valset= ($action =~ m/^(?:0|off)$/ ? 2 :
+                 $action =~ m/^(?:1|on)$/ ? 1 :
+                 $action =~ m/^(?:reboot)$/ ? 3 :
+                 die "unknown action $action\n$usagemsg");
+        
+    my $res= $session->set_request(-varbindlist => [ $oid, INTEGER, $valset ]);
+    die "SNMP set ".$session->error()." " unless $res;
+}
+
+if (!defined $action) {
+    show();
+} else {
+    print "was: "; show();
+    set();
+    print "now: "; show();
+}
