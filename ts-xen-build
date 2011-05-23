@@ -24,6 +24,13 @@ sub checkout () {
 
     build_clone($ho, 'xen', $builddir, 'xen-unstable');
 
+    my $linux_url_envvar= 'XEN_LINUX_GIT_URL';
+    my $linux_rev_envvar= 'XEN_LINUX_GITREV';
+    if (length $r{tree_linux} && $r{tree_linux} =~ m/\.hg$/) {
+        $linux_url_envvar= 'XEN_LINUX_HGREPO';
+        $linux_rev_envvar= 'XEN_LINUX_HGREV';
+    }
+
     target_cmd_build($ho, 100, $builddir, <<END.
         cd $builddir/xen-unstable
 	>.config
@@ -34,10 +41,10 @@ END
 	echo >>.config QEMU_TAG='$r{revision_qemu}'
 END
                (length($r{tree_linux}) ? <<END : '').
-	echo >>.config export XEN_LINUX_GIT_URL='$r{tree_linux}'
+	echo >>.config export $linux_url_envvar='$r{tree_linux}'
 END
                (length($r{revision_linux}) ? <<END : '').
-	echo >>.config export XEN_LINUX_GITREV='$r{revision_linux}'
+	echo >>.config export $linux_rev_envvar='$r{revision_linux}'
 END
                ($ho->{Suite} =~ m/squeeze/ ? <<END : '').
 	echo >>.config PYTHON_PREFIX_ARG=
