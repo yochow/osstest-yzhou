@@ -74,7 +74,6 @@ while (@ARGV && $ARGV[0] =~ m/^-/) {
 $_= shift @ARGV;
 if (m/^\d+$/) {
     $specflight= $_;
-    print MRO "flight $specflight\n" or die $!;
 } else {
     $branch= $_;
 }
@@ -508,6 +507,8 @@ END
 
 sub justifyfailures ($) {
     my ($fi) = @_;
+
+    print MRO "flight $fi->{Flight}\n" or die $!;
 
     return unless keys %{ $specver{that} };
 
