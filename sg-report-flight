@@ -22,6 +22,8 @@ our @includefiles;
 open DEBUG, ">/dev/null";
 open MRO, ">/dev/null";
 
+our $maxflight;
+
 while (@ARGV && $ARGV[0] =~ m/^-/) {
     $_= shift @ARGV;
     last if m/^--?$/;
@@ -36,6 +38,8 @@ while (@ARGV && $ARGV[0] =~ m/^-/) {
         push @blessings, split ',', $1;
     } elsif (m/^--include=(.*)$/) {
         push @includefiles, $1;
+    } elsif (m/^--max-flight=(\d+)$/) {
+        $maxflight= $1;
     } elsif (m/^--allow=(.*)$/) {
         my ($allowfile) = $1;
         if (!open A, '<', $allowfile) {
@@ -92,6 +96,10 @@ our $tl= 20;
 our $htmlleaf= "info.html";
 
 our $blessingscond= '('.join(' OR ', map { "blessing=?" } @blessings).')';
+
+if (defined $maxflight) {
+    $blessingscond= "( flight <= $maxflight AND $blessingscond )";
+}
 
 sub findaflight ($$$$) {
     my ($thisthat, $job, $testid, $sub) = @_;
