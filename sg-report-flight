@@ -89,7 +89,7 @@ csreadconfig();
 # formatting settings
 our $jl= 28;
 our $sl= 28;
-our $rl= 9;
+our $rl= 8;
 our $cw= 79;
 our $tl= 20;
 our $htmlleaf= "info.html";
@@ -444,7 +444,7 @@ END
 
         my $s= $failv->{Step};
         my $j= $failv->{Job};
-        my $text= (sprintf" %-${jl}s %2s %-${sl}s %-${rl}s",
+        my $text= (sprintf" %-${jl}s %2s %-${sl}s %-${rl}s ",
                    $j->{job}, $s->{stepno}, $s->{testid}, $s->{status});
         $text .= $failv->{Summary} if defined $failv->{Summary};
         $text =~ s/ *$//;
