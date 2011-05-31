@@ -524,8 +524,7 @@ sub justifyfailures ($) {
 END
     $anypassq= $dbh_tests->prepare($anypassq);
 
-    my $duration_estimator= duration_estimator($branch, $blessings[0],
-                                               sub { print DEBUG "== @_\n"; });
+    my $duration_estimator= duration_estimator($branch, $blessings[0]);
     foreach my $failv (@failures) {
         my ($est) = $duration_estimator->($failv->{Job}{job},'','');
         print DEBUG "DE $failv->{Job}{job} $est\n";
