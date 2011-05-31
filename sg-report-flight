@@ -413,8 +413,8 @@ sub printversions ($) {
     }
 }
 
-sub printout ($) {
-    my ($r) = @_;
+sub printout {
+    my ($r, @failures) = @_;
     print <<END or die $!;
 $r->{Flight}: $r->{OutcomeSummary}
 
@@ -427,14 +427,15 @@ END
     }
 
     my %notsucceeds;
-    foreach my $failk (sort keys %{ $r->{Failures} }) {
-        my $failv= $r->{Failures}{$failk};
-
+    foreach my $failv (@failures) {
         my $cat;
+        my $heisenflightp= $failv->{Flight} != $specflight;
         if (!keys %{ $specver{that} }) {
             $cat= "A Tests which did not succeed:";
         } elsif ($failv->{Blocker}) {
             $cat= "A Tests which did not succeed and are blocking:";
+        } elsif ($heisenflightp) {
+            next;
         } elsif ($failv->{Heisen}) {
             $cat= "K Tests which are failing intermittently (not blocking):";
         } else {
@@ -447,6 +448,7 @@ END
         my $j= $failv->{Job};
         my $text= (sprintf" %-${jl}s %2s %-${sl}s %-${rl}s ",
                    $j->{job}, $s->{stepno}, $s->{testid}, $s->{status});
+        $text .= "in $failv->{Flight} " if $heisenflightp;
         $text .= $failv->{Summary} if defined $failv->{Summary};
         $text =~ s/ *$//;
         while (length($text) > $cw) { last unless $text =~ s/(.* ) /$1/; }
@@ -506,8 +508,11 @@ $c{ReportTrailer}
 END
 }
 
-sub justifyfailures ($) {
-    my ($fi) = @_;
+our %heisenjustified;
+
+sub justifyfailures ($;$);
+sub justifyfailures ($;$) {
+    my ($fi, $heisen_why) = @_;
 
     print MRO "flight $fi->{Flight}\n" or die $!;
 
@@ -533,6 +538,8 @@ END
 
     @failures= sort { $a->{DurationEstimate} <=> $b->{DurationEstimate} }
         @failures;
+
+    my @heisenflights;
 
     foreach my $failv (@failures) {
         my $j= $failv->{Job};
@@ -606,6 +613,7 @@ END
             if ($heisengoodflight) {
                 unshift @rtups, [ 20, '', "pass in", $heisengoodflight ];
                 $failv->{Heisen}= 1;
+                push @heisenflights, $heisengoodflight;
                 $blocker='';
             }
         }
@@ -634,6 +642,17 @@ END
             next;
         }
     }
+
+    foreach my $heisenflight (@heisenflights) {
+        next if $heisenflight==$specflight;
+        next if $heisenjustified{$heisenflight}++;
+        print DEBUG "RECURSING HEISENFLIGHT $heisenflight...\n";
+        my $heisen_fi= examineflight($heisenflight);
+        push @failures, justifyfailures($heisen_fi, $fi->{Flight});
+        print DEBUG "RECURSING HEISENFLIGHT $heisenflight done ",
+              scalar(@failures), "\n";
+    }
+
     if (!@failures) {
         print MRO "tolerable\nperfect\n" or die $!;
          $fi->{Overall}.= "Perfect :-)\n";
@@ -647,6 +666,8 @@ END
     } else {
         $fi->{Overall}.= "Failures and problems with tests :-(\n";
     }
+
+    return @failures;
 }
 
 sub htmloutjob ($$) {
@@ -899,8 +920,8 @@ END
 db_begin_work($dbh_tests, [qw(flights)]);
 findspecflight();
 my $fi= examineflight($specflight);
-justifyfailures($fi);
-printout($fi);
+my @fails= justifyfailures($fi);
+printout($fi, @fails);
 htmlout($fi);
 
 if (defined $mro) {
