@@ -311,6 +311,7 @@ END
             my ($s) = @_;
             my $failkey= "$j->{job}.$s->{testid}";
             my $failval= {
+                Flight, => $flight,
                 Job => $j,
                 Step => $s,
             };
