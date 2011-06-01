@@ -9,6 +9,7 @@ revision=$2
 : ${XENBITS:=xen@xenbits.xensource.com}
 : ${TREE_LINUX:=$XENBITS:git/linux-pvops}
 : ${TAG_LINUX:=master}
+: ${TAG_LINUX2639:=tested/2.6.39.x}
 
 case "$branch" in
 xen*)
@@ -18,6 +19,10 @@ xen*)
 linux)
 	cd $repos/xen
 	git push $TREE_LINUX $revision:$TAG_LINUX
+	;;
+linux-2.6.39)
+	cd $repos/xen
+	git push $TREE_LINUX $revision:$TAG_LINUX2639
 	;;
 linux-xen-*)
         cd $repos/xen
