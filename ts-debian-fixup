@@ -51,7 +51,7 @@ sub console () {
         target_kernkind_console_inittab($ho,$gho,"/mnt");
     return unless length $console;
     
-    my $xextra= "console=$console";
+    my $xextra= "console=$console earlyprintk=xen";
     my $orgextra;
     if ($cfg =~ s/^(extra=[ \t]*[\'\"](.*)[\'\"][ \t]*)\n/\n/m) {
         $orgextra= $2;
