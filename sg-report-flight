@@ -429,6 +429,7 @@ END
     }
 
     my %notsucceeds;
+    my %heisenreported_jobstep;
     foreach my $failv (@failures) {
         my $s= $failv->{Step};
         my $j= $failv->{Job};
@@ -439,8 +440,6 @@ END
             $cat= "A Tests which did not succeed:";
         } elsif ($failv->{Blocker}) {
             $cat= "A Tests which did not succeed and are blocking:";
-        } elsif ($heisenflightp) {
-            next;
         } elsif ($failv->{Heisen}) {
             $cat= "K Tests which are failing intermittently (not blocking):";
         } else {
@@ -448,6 +447,9 @@ END
 "Tests which did not succeed, but are not blocking,\n".
 "including regressions (tests previously passed) regarded as allowable:";
         }
+        my $heisencat= \$heisenreported_jobstep{"$j->{job} $s->{testid}"};
+        next if defined $$heisencat && $$heisencat ge $cat;
+        $$heisencat= $cat;
 
         my $text= (sprintf" %-${jl}s %2s %-${sl}s %-${rl}s ",
                    $j->{job}, $s->{stepno}, $s->{testid}, $s->{status});
