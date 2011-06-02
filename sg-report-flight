@@ -100,12 +100,13 @@ if (defined $maxflight) {
     $blessingscond= "( flight <= $maxflight AND $blessingscond )";
 }
 
-sub findaflight ($$$$) {
-    my ($thisthat, $job, $testid, $sub) = @_;
+sub findaflight ($$$$$) {
+    my ($thisthat, $exceptflight, $job, $testid, $sub) = @_;
 
     die $thisthat unless keys %{ $specver{$thisthat} };
 
     print DEBUG "FINDAFLIGHT $thisthat";
+    print DEBUG " !$exceptflight" if defined $exceptflight;
     print DEBUG " $job.$testid" if defined $job;
     print DEBUG "\n";        
 
@@ -178,8 +179,8 @@ END
 	}
 
         if (!defined $whynot &&
-            defined $specflight && $tflight==$specflight) {
-            $whynot= "current flight";
+            defined $exceptflight && $tflight==$exceptflight) {
+            $whynot= "flight in question";
         }
         my $chkst;
         if (!defined $whynot && defined $job) {
@@ -203,7 +204,8 @@ sub findspecflight () {
 END
         die "$specflight branch ?" unless defined $branch;
     } else {
-        $specflight= findaflight('this', undef,undef, sub { return undef; });
+        $specflight= findaflight('this', undef,undef,undef,
+                                 sub { return undef; });
         die unless defined $specflight;
     }
 }
@@ -582,7 +584,7 @@ END
 	my @rtups;
 	push @rtups, [ 10, 0, "baseline untested", undef ];
 
-	findaflight('that', $j->{job}, $s->{testid}, sub {
+	findaflight('that', $fi->{Flight}, $j->{job}, $s->{testid}, sub {
             my ($chkflight, $chkst) = @_;
 	    my $rtup;
 	    if (!defined $chkst) {
@@ -605,7 +607,7 @@ END
         if ($blocker eq 'regression') {
             my $heisengoodflight=
                 !keys %{ $specver{this} } ? undef :
-              findaflight('this', $j->{job}, $s->{testid}, sub {
+              findaflight('this', $fi->{Flight}, $j->{job}, $s->{testid}, sub {
                 my ($heisenchkflight, $heisenchkst) = @_;
                 return "not pass" unless $heisenchkst eq "pass";
                 return undef;
