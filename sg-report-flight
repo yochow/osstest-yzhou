@@ -430,6 +430,9 @@ END
 
     my %notsucceeds;
     foreach my $failv (@failures) {
+        my $s= $failv->{Step};
+        my $j= $failv->{Job};
+
         my $cat;
         my $heisenflightp= $failv->{Flight} != $specflight;
         if (!keys %{ $specver{that} }) {
@@ -446,8 +449,6 @@ END
 "including regressions (tests previously passed) regarded as allowable:";
         }
 
-        my $s= $failv->{Step};
-        my $j= $failv->{Job};
         my $text= (sprintf" %-${jl}s %2s %-${sl}s %-${rl}s ",
                    $j->{job}, $s->{stepno}, $s->{testid}, $s->{status});
         $text .= "in $failv->{Flight} " if $heisenflightp;
