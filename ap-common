@@ -8,11 +8,13 @@
 : ${TREE_QEMU:=git://hg.uk.xensource.com/HG/qemu-$xenbranch.git}
 
 
-: ${TREE_LINUX:=git://git.kernel.org/pub/scm/linux/kernel/git/jeremy/xen.git}
+: ${GIT_KERNEL_ORG:=git://git.kernel.org}
+
+: ${TREE_LINUX:=${GIT_KERNEL_ORG}/pub/scm/linux/kernel/git/jeremy/xen.git}
 #: ${TREE_LINUX:=git://mariner.uk.xensource.com/linux-2.6-jeremy-temp.git}
 : ${TAG_LINUX:=xen/next-2.6.32}
 
-: ${TREE_LINUX2639:=git://git.kernel.org/pub/scm/linux/kernel/git/konrad/xen.git }
+: ${TREE_LINUX2639:=${GIT_KERNEL_ORG}/pub/scm/linux/kernel/git/konrad/xen.git}
 : ${TAG_LINUX2639:=stable/2.6.39.x}
 
 : ${LOCALREV_LINUX:=daily-cron.$branch}
