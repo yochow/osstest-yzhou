@@ -16,19 +16,16 @@ xen*)
 	' x
 	;;
 linux)
-	cd $repos/xen
-	git fetch -f $TREE_LINUX $TAG_LINUX:$LOCALREV_LINUX
-	git-rev-parse $LOCALREV_LINUX
+	repo_tree_rev_fetch_git linux \
+		$TREE_LINUX $TAG_LINUX $LOCALREV_LINUX
 	;;
 linux-2.6.39)
-	cd $repos/xen
-	git fetch -f $TREE_LINUX2639 $TAG_LINUX2639:$LOCALREV_LINUX
-	git-rev-parse $LOCALREV_LINUX
+	repo_tree_rev_fetch_git linux \
+		$TREE_LINUX2639 $TAG_LINUX2639 $LOCALREV_LINUX
 	;;
 linux-xen-*)
-	cd $repos/xen
-	git fetch -f $TREE_LINUX xen/next-${branch#linux-xen-}:$LOCALREV_LINUX
-	git-rev-parse $LOCALREV_LINUX
+	repo_tree_rev_fetch_git linux \
+		$TREE_LINUX xen/next-${branch#linux-xen-} $LOCALREV_LINUX
 	;;
 *)
 	echo >&2 "branch $branch ?"

@@ -9,3 +9,17 @@ getconfig () {
                 print $c{'$1'} or die $!;
         '
 }
+
+repo_tree_rev_fetch_git () {
+	local treename=$1
+	local remoteurl=$2
+	local remotetag=$3
+	local localtag=$4
+	if ! test -d $repos/$treename; then
+	        CACHEING_GIT_CACHE=$repos/git-cache ./cacheing-git \
+			clone --bare $remoteurl $repos/$treename
+	fi
+	cd $repos/$treename
+	git fetch -f $remoteurl $remotetag:$localtag
+	git-rev-parse $localtag
+}

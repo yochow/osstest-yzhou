@@ -19,19 +19,16 @@ xen*)
 	'
 	;;
 linux)
-	cd $repos/xen
-	git fetch -f $OLD_TREE_LINUX $OLD_TAG_LINUX:$OLD_LOCALREV_LINUX
-	git-rev-parse $OLD_LOCALREV_LINUX
+	repo_tree_rev_fetch_git linux \
+		$OLD_TREE_LINUX $OLD_TAG_LINUX $OLD_LOCALREV_LINUX
 	;;
 linux-2.6.39)
-	cd $repos/xen
-	git fetch -f $OLD_TREE_LINUX $OLD_TAG_LINUX2639:$OLD_LOCALREV_LINUX
-	git-rev-parse $OLD_LOCALREV_LINUX
+	repo_tree_rev_fetch_git linux \
+		$OLD_TREE_LINUX $OLD_TAG_LINUX2639 $OLD_LOCALREV_LINUX
 	;;
 linux-xen-*)
-	cd $repos/xen
-	git fetch -f $OLD_TREE_LINUX $branch:$OLD_LOCALREV_LINUX
-	git-rev-parse $OLD_LOCALREV_LINUX
+	repo_tree_rev_fetch_git linux \
+		$OLD_TREE_LINUX $branch $OLD_LOCALREV_LINUX
 	;;
 osstest)
         cd $HOME/testing.git
