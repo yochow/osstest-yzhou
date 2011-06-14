@@ -226,7 +226,7 @@ for xenarch in ${TEST_ARCHES- i386 amd64 } ; do
 
     job_create_test test-$xenarch$kern-$dom0arch-rhel6hvm-$cpuvendor \
 						test-rhelhvm xl \
-		redhat_image=rhel-server-6.0-i386-dvd.iso		\
+		redhat_image=rhel-server-6.1-i386-dvd.iso		\
 		all_hostflags=$most_hostflags,hvm-$cpuvendor
 
 	done
