@@ -12,14 +12,15 @@ our $ho= selecthost($whhost);
 
 sub fail () {
     my $log= "/var/log/xen/osstest-hostfail";
+    my $interface= get_host_property($ho,'interface force','eth0');
     target_cmd_root($ho, <<END);
 set -e
 savelog $log
 ( exec </dev/null >$log
   exec 2>&1
   sleep 5
-  ifconfig eth0 down
-  ifconfig peth0 down
+  ifconfig $interface down
+  ifconfig p$interface down
   init 0 ) &
 END
 }   

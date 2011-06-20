@@ -157,15 +157,16 @@ END
 
 sub nodhcp () {
     my ($iface,$bridgex);
+    my $physif= get_host_property($ho,'interface force','eth0');
     if ($initscripts_nobridge) {
         $iface= 'xenbr0';
         $bridgex= <<END;
-    bridge_ports eth0
+    bridge_ports $physif
     bridge_fd 0
     bridge_stp off
 END
     } else {
-        $iface= 'eth0';
+        $iface= $physif;
         $bridgex= '';
     }
 logm("iface $iface >$initscripts_nobridge<");
@@ -174,9 +175,9 @@ logm("iface $iface >$initscripts_nobridge<");
         my $suppress= 0;
         while (<EI>) {
             $suppress= 0 unless m/^\s+/;
-            s/^ \s* allow-hotplug \s+ (?: eth0 | xenbr0 ) \s* $
+            s/^ \s* allow-hotplug \s+ (?: $physif | xenbr0 ) \s* $
                 /auto $iface\n/x;
-            if (m/^\s* iface \s+ (?: eth0 | xenbr0 ) \s+ inet \s /x) {
+            if (m/^\s* iface \s+ (?: $physif | xenbr0 ) \s+ inet \s /x) {
                 $suppress= 1;
                 print EO <<END;
 iface $iface inet static

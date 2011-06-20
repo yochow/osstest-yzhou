@@ -263,6 +263,8 @@ sub di_installcmdline_core ($$;@) {
 
     $ps_url =~ s,^http://,,;
 
+    my $netcfg_interface= get_host_property($tho,'interface force','auto');
+
     my @cl= qw(
                auto=true preseed
                hw-detect/load_firmware=false
@@ -273,7 +275,7 @@ sub di_installcmdline_core ($$;@) {
                "hostname=$tho->{Name}",
                "url=$ps_url",
                "netcfg/dhcp_timeout=150",
-               "netcfg/choose_interface=auto"
+               "netcfg/choose_interface=$netcfg_interface"
                );
 
     my $debconf_priority= $xopts{DebconfPriority};
