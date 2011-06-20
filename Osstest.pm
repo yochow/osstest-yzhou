@@ -65,6 +65,7 @@ BEGIN {
                       built_stash flight_otherjob duration_estimator
                       csreadconfig readconfigonly ts_get_host_guest
                       readconfig opendb_state selecthost get_hostflags
+                      get_host_property
                       need_runvars
                       get_filecontents ensuredir postfork
                       db_retry db_begin_work
