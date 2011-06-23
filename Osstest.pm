@@ -2210,15 +2210,10 @@ sub power_state__msw {
     system_checked("echo YES | msw -s $pdu $onoff $port");
 }
 
-sub file_link_contents ($$) {
-    my ($fn, $contents) = @_;
+sub file_simple_write_contents ($$) {
+    my ($real, $contents) = @_;
     # $contents may be a coderef in which case we call it with the
     #  filehandle to allow caller to fill in the file
-    my ($dir, $base, $ext) =
-        $fn =~ m,^( (?: .*/ )? )( [^/]+? )( (?: \.[^./]+ )? )$,x
-        or die "$fn ?";
-    my $real= "$dir$base--osstest$ext";
-    my $linktarg= "$base--osstest$ext";
 
     unlink $real or $!==&ENOENT or die "$real $!";
     my $flc= new IO::File "$real",'w' or die "$real $!";
@@ -2228,6 +2223,18 @@ sub file_link_contents ($$) {
         print $flc $contents or die "$real $!";
     }
     close $flc or die "$real $!";
+}
+
+sub file_link_contents ($$) {
+    my ($fn, $contents) = @_;
+    # $contents as for file_write_contents
+    my ($dir, $base, $ext) =
+        $fn =~ m,^( (?: .*/ )? )( [^/]+? )( (?: \.[^./]+ )? )$,x
+        or die "$fn ?";
+    my $real= "$dir$base--osstest$ext";
+    my $linktarg= "$base--osstest$ext";
+
+    file_simple_write_contents($real, $contents);
 
     my $newlink= "$dir$base--newlink$ext";
 
