@@ -70,6 +70,7 @@ BEGIN {
                       get_filecontents ensuredir postfork
                       db_retry db_begin_work
                       poll_loop logm link_file_contents create_webfile
+                      contents_make_cpio file_simple_write_contents
                       power_state power_cycle
                       setup_pxeboot setup_pxeboot_local
                       await_webspace_fetch_byleaf await_tcp
@@ -912,6 +913,24 @@ sub tcpconnect ($$) {
 
     }
     die "$host:$port all failed";
+}
+
+sub contents_make_cpio ($$) {
+    my ($fh, $srcdir) = @_;
+    my $child= fork;  defined $child or die $!;
+    if (!$child) {
+        postfork();
+        chdir($srcdir) or die $!;
+        open STDIN, 'find ! -name "*~" ! -name "#*" -type f -print0 |'
+            or die $!;
+        open STDOUT, '>&', $fh or die $!;
+        system 'cpio -Hustar -o --quiet -0 -R 1000:1000';
+        $? and die $?;
+        $!=0; close STDIN; die "$! $?" if $! or $?;
+        exit 0;
+    }
+    waitpid($child, 0) == $child or die $!;
+    $? and die $?;
 }
 
 #---------- building, vcs's, etc. ----------

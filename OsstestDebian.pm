@@ -327,20 +327,7 @@ END
         my ($srcdir, $tfilename) = @_;
         my $url= create_webfile($ho, "$tfilename$sfx", sub {
             my ($fh) = @_;
-            my $child= fork;  defined $child or die $!;
-            if (!$child) {
-                postfork();
-                chdir($srcdir) or die $!;
-                open STDIN, 'find ! -name "*~" ! -name "#*" -type f -print0 |'
-                    or die $!;
-                open STDOUT, '>&', $fh or die $!;
-                system 'cpio -Hustar -o --quiet -0 -R 1000:1000';
-                $? and die $?;
-                $!=0; close STDIN; die "$! $?" if $! or $?;
-                exit 0;
-            }
-            waitpid($child, 0) == $child or die $!;
-            $? and die $?;
+            contents_make_cpio($fh, $srcdir);
         });
         $overlays .= <<END;
 wget -O overlay.tar '$url'
