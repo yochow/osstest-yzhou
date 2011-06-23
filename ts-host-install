@@ -105,25 +105,24 @@ sub setup_pxeboot_firstboot($) {
     my @installcmdline= qw(vga=normal);
     push @installcmdline, di_installcmdline_core($ho, $ps_url, %xopts);
 
-    my $initrd= "$d_i/initrd.gz";
-    my @firmwares= grep { m/^need-firmware-deb-/ } keys %{ $ho->{Flags} };
-    if (@firmwares) {
-        s/^need-firmware-deb-// foreach @firmwares;
-        my @cmd= (qw(cat --), "$c{Tftp}/$initrd");
-        foreach my $fp (@firmwares) {
-            my $cpio= "$c{Tftp}/$d_i/$fp.cpio.gz";
-            if (stat $cpio) {
-                push @cmd, $cpio;
-            } elsif ($! == &ENOENT) {
-                logm("warning: no firmware cpio found for $fp at $cpio");
-            } else {
-                die "$fp $cpio $!";
-            }
+    my $src_initrd= "$d_i/initrd.gz";
+    my @initrds= "$c{Tftp}/$src_initrd";
+
+    foreach my $fp (keys %{ $ho->{Flags} }) {
+        $fp =~ s/^need-firmware-deb-// or next;
+        my $cpio= "$c{Tftp}/$d_i/$fp.cpio.gz";
+        if (stat $cpio) {
+            logm("using firmware from: $cpio");
+            push @initrds, $cpio;
+        } elsif ($! == &ENOENT) {
+            logm("warning: no firmware cpio found for $fp at $cpio");
+        } else {
+            die "$fp $cpio $!";
         }
-        $initrd= host_pxedir($ho)."/initrd.gz";
-        system_checked("@cmd >$c{Tftp}/$initrd");
-        logm("using firmware from: @firmwares");
     }
+
+    my $initrd= host_pxedir($ho)."/initrd.gz";
+    system_checked("cat -- @initrds >$c{Tftp}/$initrd");
     
     push @installcmdline, ("initrd=$initrd",
                            "domain=$c{TestHostDomain}",
