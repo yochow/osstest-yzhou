@@ -121,6 +121,27 @@ sub setup_pxeboot_firstboot($) {
         }
     }
 
+    my $initrd_overlay= "tmp/t.$ho->{Name}.initrd";
+    system qw(rm -rf --),"$initrd_overlay.d";
+    mkdir "$initrd_overlay.d" or die "$initrd_overlay.d: $!";
+
+    my $wantphysif= get_host_property($ho,'interface force','auto');
+    if ($wantphysif ne 'auto') {
+        system_checked(qw(mkdir -p --), "$initrd_overlay.d/etc/udev/rules.d");
+        file_simple_write_contents
+            ("$initrd_overlay.d/etc/udev/rules.d/70-persistent-net.rules",
+             <<END);
+SUBSYSTEM=="net", ACTION=="add", DRIVERS=="?*", ATTR{address}=="$ho->{Ether}", ATTR{dev_id}=="0x0", ATTR{type}=="1", KERNEL=="eth*", NAME="$wantphysif"
+END
+    }
+
+    file_simple_write_contents("$initrd_overlay.cpio", sub {
+        contents_make_cpio($_[0], 'newc', "$initrd_overlay.d");
+    });
+
+    system_checked(qw(gzip -1vf --), "$initrd_overlay.cpio");
+    push @initrds, "$initrd_overlay.cpio.gz";
+
     logm("using initrds: @initrds");
     my $initrd= host_pxedir($ho)."/initrd.gz";
     system_checked("cat -- @initrds >$c{Tftp}/$initrd");
