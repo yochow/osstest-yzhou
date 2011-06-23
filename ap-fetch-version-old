@@ -32,7 +32,7 @@ linux-xen-*)
 	;;
 osstest)
         cd $HOME/testing.git
-        git-rev-parse incoming
+        git-rev-parse incoming^0
         ;;
 *)
 	echo >&2 "branch $branch ?"

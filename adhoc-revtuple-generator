@@ -280,7 +280,7 @@ sub xu_withtag_generator ($) {
 		die unless $targetqemu =~ m/^[^-]/;
 		$!=0; $?=0;
 		$targetqemu= `cd $c{Repos}/$qemutree &&
-                              git-rev-parse '$targetqemu'`;
+                              git-rev-parse '$targetqemu^0'`;
 		die "$! $?" if (!defined $targetqemu) or $?;
 		chomp $targetqemu;
 	    }
