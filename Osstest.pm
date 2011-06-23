@@ -915,8 +915,8 @@ sub tcpconnect ($$) {
     die "$host:$port all failed";
 }
 
-sub contents_make_cpio ($$) {
-    my ($fh, $srcdir) = @_;
+sub contents_make_cpio ($$$) {
+    my ($fh, $format, $srcdir) = @_;
     my $child= fork;  defined $child or die $!;
     if (!$child) {
         postfork();
@@ -924,7 +924,7 @@ sub contents_make_cpio ($$) {
         open STDIN, 'find ! -name "*~" ! -name "#*" -type f -print0 |'
             or die $!;
         open STDOUT, '>&', $fh or die $!;
-        system 'cpio -Hustar -o --quiet -0 -R 1000:1000';
+        system "cpio -H$format -o --quiet -0 -R 1000:1000";
         $? and die $?;
         $!=0; close STDIN; die "$! $?" if $! or $?;
         exit 0;

@@ -327,7 +327,7 @@ END
         my ($srcdir, $tfilename) = @_;
         my $url= create_webfile($ho, "$tfilename$sfx", sub {
             my ($fh) = @_;
-            contents_make_cpio($fh, $srcdir);
+            contents_make_cpio($fh, 'ustar', $srcdir);
         });
         $overlays .= <<END;
 wget -O overlay.tar '$url'
