@@ -129,6 +129,7 @@ setopt CONFIG_BNX2X m
 setopt CONFIG_E1000 m
 setopt CONFIG_E1000E m
 setopt CONFIG_NETXEN_NIC m
+setopt CONFIG_IGB m
 
 setopt CONFIG_EXT4_FS m
 
