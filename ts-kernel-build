@@ -131,6 +131,8 @@ setopt CONFIG_E1000E m
 setopt CONFIG_NETXEN_NIC m
 setopt CONFIG_IGB m
 
+setopt CONFIG_PCI_IOV y
+
 setopt CONFIG_EXT4_FS m
 
 END
