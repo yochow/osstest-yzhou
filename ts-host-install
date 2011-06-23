@@ -121,6 +121,7 @@ sub setup_pxeboot_firstboot($) {
         }
     }
 
+    logm("using initrds: @initrds");
     my $initrd= host_pxedir($ho)."/initrd.gz";
     system_checked("cat -- @initrds >$c{Tftp}/$initrd");
     
