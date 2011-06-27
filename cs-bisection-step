@@ -822,7 +822,7 @@ digraph "$job $testid" {
   ranksep=0;
   nodesep=0.3;
   edge [arrowsize=0.2];
-  node [shape=box, fontname=Courier, fontsize=9, style=filled];
+  node [shape=box, fontname="Courier-Bold", fontsize=9, style="filled"];
 END
 
     foreach my $n (values %nodes) {
