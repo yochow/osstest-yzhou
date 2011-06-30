@@ -31,18 +31,19 @@ sub debian_boot_setup ($$$) {
     target_kernkind_check($ho);
     target_kernkind_console_inittab($ho,$ho,"/");
 
+    my $kopt;
     my $console= target_var($ho,'console');
     if (defined $console && length $console) {
-        $console= "console=$console";
+        $kopt= "console=$console";
     } else {
-        $console= "xencons=ttyS console=ttyS0,$c{Baud}n8";
+        $kopt= "xencons=ttyS console=ttyS0,$c{Baud}n8";
     }
 
     my $bootloader;
     if ($ho->{Suite} =~ m/lenny/) {
-        $bootloader= setupboot_grub1($ho, $xenhopt, $console);
+        $bootloader= setupboot_grub1($ho, $xenhopt, $kopt);
     } else {
-        $bootloader= setupboot_grub2($ho, $xenhopt, $console);
+        $bootloader= setupboot_grub2($ho, $xenhopt, $kopt);
     }
 
     target_cmd_root($ho, "update-grub");
