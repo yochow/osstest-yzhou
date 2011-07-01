@@ -1703,6 +1703,9 @@ sub selectguest ($) {
         Name => $r{"${gn}_hostname"},
         CfgPath => $r{"${gn}_cfgpath"},
     };
+    foreach my $opt (guest_var_commalist($gho,'options')) {
+        $gho->{Options}{$opt}++;
+    }
     guest_find_lv($gho);
     guest_find_ether($gho);
     guest_find_tcpcheckport($gho);
