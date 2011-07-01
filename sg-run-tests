@@ -123,7 +123,7 @@ proc check-not-blocked {} {
 
 proc need-hosts/test-debian-nomigr {} { return host }
 proc run-job/test-debian-nomigr {} {
-    install-guest debian
+    install-guest-debian
     run-ts . =   ts-guest-stop    + host debian
     run-ts . =.2 ts-guest-start   + host debian
     run-ts . =   ts-guest-destroy + host debian
