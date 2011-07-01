@@ -87,6 +87,12 @@ sub unmount () {
     guest_umount_lv($ho, $gho);
 }
 
+sub setcfg ($$) {
+    my ($lhs,$rhs) = @_;
+    $cfg =~ s/^$lhs\s*\=.*\n?//mg;
+    $cfg .= "$lhs = $rhs\n";
+}
+
 sub otherfixupcfg () {
     my $vcpus= guest_var($gho,'vcpus',1);
     $cfg =~ s/^dhcp/#$&/mg;
