@@ -46,6 +46,8 @@ sub access () {
 END
 }
 
+our $extra;
+
 sub console () {
     my $console=
         target_kernkind_console_inittab($ho,$gho,"/mnt");
@@ -63,9 +65,9 @@ sub console () {
     } else {
         $orgextra= '';
     }
-    my $extra= "extra='$orgextra$xextra'";
+    $orgextra =~ s/\bearlyprintk=\S+\s*//g;
+    $extra= "$orgextra$xextra";
     logm("extra: $extra");
-    $cfg .= "\n$extra\n";
 }
 
 sub filesystems () {
@@ -99,6 +101,8 @@ sub otherfixupcfg () {
     $cfg =~ s/^on_crash.*/on_crash='preserve'/mg;
     $cfg =~ s/^vcpus.*//mg;
     $cfg .= "\nvcpus = $vcpus\n";
+
+    $cfg .= "\nextra='$extra'\n";
 };
 
 sub writecfg () {
