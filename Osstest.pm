@@ -1989,7 +1989,19 @@ sub prepareguest ($$$$$) {
     my ($ho, $gn, $hostname, $tcpcheckport, $mb) = @_;
     # must be run outside transaction
 
-    select_ether("${gn}_ether");
+    # If we are passing through a nic, use its mac address not a generated one
+    my $ptnichostident= $r{"${gn}_pcipassthrough_nic"};
+    if (!$ptnichostident) {
+        select_ether("${gn}_ether");
+    } else {
+        my $ptnicho= selecthost($ptnichostident);
+        my $ptnicinfo= get_host_property($ptnicho,'pcipassthrough nic');
+        $ptnicinfo =~ m,/, or die "$ptnichostident $ptnicinfo ?";
+        my $ptether= $';
+        $r{"${gn}_ether"}= $ptether;
+        logm("passthrough nic from $ptnichostident ether $ptether");
+    }
+
     store_runvar("${gn}_hostname", $hostname);
     store_runvar("${gn}_disk_lv", $r{"${gn}_hostname"}.'-disk');
     store_runvar("${gn}_tcpcheckport", $tcpcheckport);

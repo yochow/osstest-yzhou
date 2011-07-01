@@ -102,6 +102,33 @@ sub otherfixupcfg () {
     $cfg =~ s/^vcpus.*//mg;
     $cfg .= "\nvcpus = $vcpus\n";
 
+    # PCI passthrough
+    # Look for runvars   <gn>_pcipassthrough_<devtype>=<hostident>
+    # and pass through all matching devices from the specified host.
+    # If this means we pass through a pt dev with devtype "nic",
+    # remove vif=... from the config file.
+    my @pcipt;
+    foreach my $ptvar (keys %r) {
+        next unless $ptvar =~ m/^$gho->{Guest}_pcipassthrough_(\w+)$/;
+        my $devtype= $1;
+        my $ptho= selecthost($r{$ptvar});
+        logm("passthrough $devtype from $r{$ptvar} to $gho->{Guest}");
+        foreach my $ptdev (host_get_pcipassthrough_devs($ptho)) {
+            next unless $ptdev->{DevType} eq $devtype;
+            push @pcipt, $ptdev->{Bdf};
+            logm("passthrough  $ptdev->{Bdf}");
+            if ($devtype eq 'nic') {
+                logm("passthrough   nic, suppressing vif");
+                $cfg =~ s/^vif\s*\=/\#$&/mg;
+            }
+        }
+    }
+    if (@pcipt) {
+        setcfg('pci', '['.(join ',', map { "'$_'" } @pcipt).']');
+        $extra =~ s/ iommu=\w+//;
+        $extra .= " iommu=soft";
+    }
+
     $cfg .= "\nextra='$extra'\n";
 };
 
