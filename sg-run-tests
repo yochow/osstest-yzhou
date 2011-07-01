@@ -121,11 +121,23 @@ proc check-not-blocked {} {
     run-ts blocked * ts-xen-build-check
 }
 
-proc need-hosts/test-debian {} { return host }
-proc run-job/test-debian {} {
+proc need-hosts/test-debian-nomigr {} { return host }
+proc run-job/test-debian-nomigr {} {
+    install-guest debian
+    run-ts . =   ts-guest-stop    + host debian
+    run-ts . =.2 ts-guest-start   + host debian
+    run-ts . =   ts-guest-destroy + host debian
+}
+
+proc install-guest-debian {} {
     run-ts . = ts-debian-install
     run-ts . = ts-debian-fixup + debian
     run-ts . = ts-guest-start + debian
+}
+
+proc need-hosts/test-debian {} { return host }
+proc run-job/test-debian {} {
+    install-guest-debian
     test-guest debian
 }
 
