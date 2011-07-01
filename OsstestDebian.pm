@@ -24,9 +24,9 @@ BEGIN {
 
 #---------- manipulation of Debian bootloader setup ----------
 
-sub debian_boot_setup ($$$) {
+sub debian_boot_setup ($$$;$) {
     # $xenhopt==undef => is actually a guest, do not set up a hypervisor
-    my ($ho, $xenhopt, $distpath) = @_;
+    my ($ho, $xenhopt, $distpath, $hooks) = @_;
 
     target_kernkind_check($ho);
     target_kernkind_console_inittab($ho,$ho,"/");
@@ -37,6 +37,11 @@ sub debian_boot_setup ($$$) {
         $kopt= "console=$console";
     } else {
         $kopt= "xencons=ttyS console=ttyS0,$c{Baud}n8";
+    }
+
+    foreach my $hook ($hooks ? @$hooks : ()) {
+        my $bo_hook= $hook->{EditBootOptions};
+        $bo_hook->($ho, \$xenhopt, \$kopt) if $bo_hook;
     }
 
     my $bootloader;
