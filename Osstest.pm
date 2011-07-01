@@ -1601,6 +1601,7 @@ sub selecthost ($) {
     if ($ident =~ m/=/) {
         $ident= $`;
         $name= $';
+        $r{$ident}= $name;
     } else {
         $name= $r{$ident};
         die "no specified $ident" unless defined $name;
