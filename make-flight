@@ -238,6 +238,21 @@ for xenarch in ${TEST_ARCHES- i386 amd64 } ; do
 
       fi
 
+      if [ $xenarch = amd64 -a $dom0arch = amd64 -a "$kern" = "" ]; then
+
+        for cpuvendor in intel; do
+
+      job_create_test test-$xenarch$kern-$dom0arch-xl-ipt-intel \
+                        test-debian-nomigr xl guests_vcpus=4 \
+		debian_kernkind=$kernkind				  \
+		debian_arch=$dom0arch   				  \
+		debian_pcipassthrough_nic=host				  \
+		all_hostflags=$most_hostflags,hvm-$cpuvendor,pcipassthrough-nic
+
+        done
+
+      fi
+
     done
 
   done
