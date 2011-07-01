@@ -112,7 +112,22 @@ sub setupboot () {
     my $append= $r{xen_boot_append};
     $xenhopt .= " $append" if defined $append;
 
-    debian_boot_setup($ho, $xenhopt, \%distpath);
+    my @hooks;
+
+    if (host_involves_pcipassthrough($ho)) {
+        push @hooks, {
+            EditBootOptions => sub {
+                my ($ho,$hopt,$kopt) = @_;
+                $$hopt .= ' iommu=on';
+                my $hide= ' xen-pciback.hide='. join '',map { "($_->{Bdf})" }
+                    host_get_pcipassthrough_devs($ho);
+                logm("pci passthrough: hiding in dom0: $hide");
+                $$kopt .= $hide;
+            }
+        };
+    }
+
+    debian_boot_setup($ho, $xenhopt, \%distpath, \@hooks);
 
     logm("ready to boot Xen");
 }
