@@ -67,6 +67,7 @@ BEGIN {
                       readconfig opendb_state selecthost get_hostflags
                       get_host_property get_timeout
                       need_runvars
+                      host_involves_pcipassthrough host_get_pcipassthrough_devs
                       get_filecontents ensuredir postfork
                       db_retry db_begin_work
                       poll_loop logm link_file_contents create_webfile
@@ -1592,6 +1593,29 @@ sub get_host_property ($$;$) {
     my $row= $ho->{Properties}{$prop};
     return $defval unless $row && defined $row->{val};
     return $row->{val};
+}
+
+sub host_involves_pcipassthrough ($) {
+    my ($ho) = @_;
+    return !!grep m/^pcipassthrough\-/, get_hostflags($ho->{Ident});
+}
+
+sub host_get_pcipassthrough_devs ($) {
+    my ($ho) = @_;
+    my @devs;
+    foreach my $prop (values %{ $ho->{Properties} }) {
+        next unless $prop->{name} =~ m/^pcipassthrough (\w+)$/;
+        my $devtype= $1;
+        next unless grep { m/^pcipassthrough-$devtype$/ } get_hostflags($ho);
+        $prop->{val} =~ m,^([0-9a-f]+\:[0-9a-f]+\.\d+)/, or
+            die "$ho->{Ident} $prop->{val} ?";
+        push @devs, {
+            DevType => $devtype,
+            Bdf => $1,
+            Info => $'
+            };
+    }
+    return @devs;
 }
 
 sub selecthost ($) {
