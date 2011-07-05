@@ -1,0 +1,33 @@
+gall-mite:~# diff -u /boot/grub/menu.lst{~,}
+--- /boot/grub/menu.lst~        2011-06-23 16:17:31.000000000 +0100
++++ /boot/grub/menu.lst 2011-06-23 16:17:31.000000000 +0100
+@@ -124,7 +124,7 @@
+ title          Xen 4.2-unstable / Debian GNU/Linux, kernel 2.6.32.41
+ root           (hd0,0)
+ kernel         /xen-4.2-unstable.gz com1=115200,8n1 console=com1,vga gdb=com1 conswitch=x watchdog dom0_mem=512M
+-module         /vmlinuz-2.6.32.41 root=/dev/mapper/gall--mite.cam.xci--test.com-root ro console=ttyS0,115200n8 console=hvc0
++module         /vmlinuz-2.6.32.41 root=/dev/mapper/gall--mite.cam.xci--test.com-root ro console=ttyS0,115200n8 console=hvc0 xen-pciback.hide=(07:00.0)
+ module         /initrd.img-2.6.32.41
+ 
+ title          Debian GNU/Linux, kernel 2.6.32.41
+gall-mite:~# diff -u /etc/xen/debian.guest.osstest.xl
+diff: missing operand after `/etc/xen/debian.guest.osstest.xl'
+diff: Try `diff --help' for more information.
+gall-mite:~# diff -u /etc/xen/debian.guest.osstest.xl{~,}
+--- /etc/xen/debian.guest.osstest.xl~   2011-06-23 15:55:50.000000000 +0100
++++ /etc/xen/debian.guest.osstest.xl    2011-06-23 16:12:51.000000000 +0100
+@@ -21,7 +21,11 @@
+ #  Networking;
+ #
+ #dhcp        = 'dhcp';
+-vif         = [ 'mac=5a:36:0e:02:00:01' ];
++
++#vif         = [ 'mac=5a:36:0e:02:00:01' ];
++pci=['07:00.0']
++
++
+ #
+ #  Behaviour;
+ #
+gall-mite:~# 
+
