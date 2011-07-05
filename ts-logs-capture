@@ -264,6 +264,7 @@ sub fetch_logs_host_guests () {
          'ifconfig',
          'route -vn',
          'brctl show',
+         'lvm lvs',
     'ps wwwaxf -eo pid,tty,stat,time,nice,psr,pcpu,pmem,nwchan,wchan:25,args',
          ) {
             try_cmd_output_save($cmd);
