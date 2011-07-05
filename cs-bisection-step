@@ -87,7 +87,9 @@ while (@ARGV && $ARGV[0] =~ m/^\-/) {
 our ($branch,$job,$testid) = @ARGV;
 
 our ($latest_flight, $hosts, $basispass_flight);
-our (@trees);
+our (@treeinfos);
+# $treeinfos[]{Name}
+# $treeinfos[]{Url}
 
 our $blessingscond= '('.join(" OR  ", map { "blessing='$_'" } @blessings).')';
 
@@ -170,7 +172,8 @@ END
 
         SELECT url.val AS uval,
 	       rev.val AS rval,
-	       url.job AS job
+	       url.job AS job,
+	       url.name AS longname
 
 	    FROM tmp_build_info AS rev
       CROSS JOIN tmp_build_info AS url
@@ -189,20 +192,24 @@ END
     $sth->execute();
     my $row;
     my $mixed=0;
-    my (@ttrees, @trevisions);
+    my (@ttreenames, @ttreeurls, @trevisions);
     while ($row= $sth->fetchrow_hashref()) {
-	print DEBUG " $flight.$row->{job} uval=$row->{uval} rval=$row->{rval}\n";
+        $row->{longname} =~ m/^tree_/ or die "$row->{longname} ?";
+        my $name= $';
+        print DEBUG " $flight.$row->{job} uval=$row->{uval}".
+            " rval=$row->{rval} name=$name\n";
         my $rev= $row->{rval};
         next unless length $rev;
         $rev =~ s/\+//g;
         $rev =~ s/^\d+://;
-	if (@ttrees && $row->{uval} eq $ttrees[-1]) {
+	if (@ttreenames && $name eq $ttreenames[-1]) {
 	    if ($rev ne $trevisions[-1]) {
-		print STDERR "!! flight $flight mixed revisions for $ttrees[-1]: $trevisions[-1] and $rev\n";
+		print STDERR "!! flight $flight mixed revisions for $ttreenames[-1]: $trevisions[-1] and $rev\n";
 		$mixed=1;
 	    }
 	} else {
-	    push @ttrees, $row->{uval};
+	    push @ttreenames, $name;
+            push @ttreeurls, $row->{uval};
 	    push @trevisions, $rev;
 	}
     }
@@ -212,16 +219,17 @@ END
         DROP TABLE tmp_build_info
 END
     return undef if $mixed;
-    if (!@ttrees) {
+    if (!@ttreenames) {
 	print STDERR "!! flight $flight no revisions or trees\n";
 	return undef;
     }
     my $map = {};
-    for (my $i=0; $i<@ttrees; $i++) {
-        my $ttree= $ttrees[$i];
+    for (my $i=0; $i<@ttreenames; $i++) {
+        my $ttreename= $ttreenames[$i];
         my $trev= $trevisions[$i];
-        die if exists $map->{ $ttree } and $map->{ $ttree } ne $trev;
-        $map->{ $ttree }= $trev;
+        die if exists $map->{$ttreename}
+            and $map->{$ttreename}{Rev} ne $trev;
+        $map->{$ttreename}= { Rev => $trev, Url => $ttreeurls[$i] };
     }
     return $map;
 }
@@ -231,12 +239,13 @@ sub flight_rtuple ($) {
     my $map= flight_rmap($flight);
     return () if !defined $map;
     my @revisions= ();
-    die unless @trees;
+    die unless @treeinfos;
     my $missing= 0;
-    foreach my $tree (@trees) {
-        my $revision= $map->{$tree};
+    foreach my $treeinfo (@treeinfos) {
+        my $name= $treeinfo->{Name};
+        my $revision= $map->{$name}{Rev};
         if (!defined $revision) {
-            print STDERR "!! flight $flight missing revision for $tree\n";
+            print STDERR "!! flight $flight missing revision for $name\n";
             $missing++;
             next;
         }
@@ -353,7 +362,10 @@ sub digraph_whole () {
 
     foreach my $tree (sort keys %$latest_rmap) {
         if (defined $basispass_rmap->{$tree}) {
-            push @trees, $tree;
+            push @treeinfos, {
+                Name => $tree,
+                Url => $basispass_rmap->{$tree}{Url}
+            };
         } else {
             print STDERR "(tree in latest but not in basispass: $tree)\n";
         }
@@ -363,7 +375,7 @@ sub digraph_whole () {
             print STDERR "(tree in basispass but not in latest: $tree)\n";
         }
     }
-    psummary("Tree: $_\n") foreach @trees;
+    psummary("Tree: $_->{Name} $_->{Url}\n") foreach @treeinfos;
 
     @latest_rtuple= flight_rtuple($latest_flight);
     @basispass_rtuple= flight_rtuple($basispass_flight);
@@ -372,8 +384,9 @@ sub digraph_whole () {
     print STDERR "Basis pass @basispass_rtuple\n";
 
     my $cmd= "./adhoc-revtuple-generator @revtuplegenargs";
-    foreach (my $i=0; $i<@trees; $i++) {
-        $cmd.= ' '.$trees[$i].'#'.$basispass_rtuple[$i].'-'.$latest_rtuple[$i];
+    foreach (my $i=0; $i<@treeinfos; $i++) {
+        $cmd.= ' '.$treeinfos[$i]{Url}.'#'.
+            $basispass_rtuple[$i].'-'.$latest_rtuple[$i];
     }
     print STDERR "Generating revisions with $cmd\n";
     open REVLIST, "$cmd |" or die $!;
@@ -746,15 +759,16 @@ END
             my @failrev= split / /, $fail->{Rtuple};
             my @revs_to_show;
 
-            for (my $i=0; $i<@trees; $i++) {
+            for (my $i=0; $i<@treeinfos; $i++) {
                 foreach my $pass (@passparents) {
                     my @passrev= split / /, $pass->{Rtuple};
                     next if $passrev[$i] eq $failrev[$i];
 
-                    push @revs_to_show, "$trees[$i]#$failrev[$i]-$failrev[$i]";
+                    push @revs_to_show,
+                        "$treeinfos[$i]{Url}#$failrev[$i]-$failrev[$i]";
 
                     summary_report("",<<END, -1);
-Bug is in tree:  $trees[$i]
+Bug is in tree:  $treeinfos[$i]{Name} $treeinfos[$i]{Url}
 Bug introduced:  $failrev[$i]
 Bug not present: $passrev[$i]
 END
@@ -886,7 +900,9 @@ END
 <h2>Trees</h2>
 <pre>
 END
-    . (join '', map { "  $_\n" } @trees). <<END
+    . (join '', map { "  $_->{Name}\n" } @treeinfos). <<END
+END
+    . (join '', map { "  $_->{Url}\n" } @treeinfos). <<END
 </pre>
 END
         or die "$!";
@@ -949,17 +965,16 @@ END
     my $treeq= $dbh_tests->prepare(<<END);
         SELECT name FROM runvars
           WHERE  flight=? AND job=?
-            AND  name LIKE E'tree\\_%'
-            AND  val = ?
+            AND  name = ?
 END
-    foreach (my $i=0; $i<@trees; $i++) {
-        $treeq->execute($copyflight, $popjob, $trees[$i]);
-        my ($treevar) = $treeq->fetchrow_array();
+    foreach (my $i=0; $i<@treeinfos; $i++) {
+        my $name= $treeinfos[$i]{Name};
+        my $treevar= 'tree_'.$name;
+        $treeq->execute($copyflight, $popjob, $treevar);
+        my ($treerow) = $treeq->fetchrow_array();
         $treeq->finish();
-        next unless defined $treevar;
-        $treevar =~ m/^tree_/ or
-            die "$copyflight $popjob $trees[$i] $treevar ";
-        my $revname= "revision_$'";
+        next unless defined $treerow;
+        my $revname= "revision_$name";
         my $revval= $trevisions[$i];
 
         print STDERR " $revname=$revval\n";
