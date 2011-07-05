@@ -2294,6 +2294,7 @@ sub target_umount_lv ($$$) {
         my @lv = split /:/, $lv;
         die "@lv ?" unless $lv[0] eq $dev;
         return unless $lv[5]; # "open"
+        logm("lvdisplay output says device is still open: $lv");
         target_cmd_root($ho, "umount $dev");
     }
 }
