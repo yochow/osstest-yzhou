@@ -23,6 +23,7 @@ my $graphfile= 'bisection';
 my $popflight= 0;
 my %specflights;
 my $debug= 0;
+my $cache_option= 1;
 
 our $worst_estatus= -1;
 our $estatus= 255;
@@ -60,6 +61,8 @@ while (@ARGV && $ARGV[0] =~ m/^\-/) {
         open SUMMARY, "> $1" or die $!;
     } elsif (m/^--no-graph-out$/) {
         $graphfile= '';
+    } elsif (m/^--no-reuse-builds$/) {
+        $cache_option= 0;
     } elsif (m/^--flight=(\d+)$/) {
         $popflight= $1;
     } elsif (m/^--max-flight=(\d+)$/) {
@@ -984,7 +987,7 @@ END
 
     my $usejob;
 
-    if ($cacheok and $recipe =~ m/^build/ and !@$subjobs) {
+    if ($cache_option and $cacheok and $recipe =~ m/^build/ and !@$subjobs) {
         my $reusejob= $dbh_tests->selectrow_hashref(<<END,{}, $popjob,$popjob);
             SELECT  *
             FROM    flights JOIN jobs j USING (flight)
