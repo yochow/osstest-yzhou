@@ -900,9 +900,7 @@ END
 <h2>Trees</h2>
 <pre>
 END
-    . (join '', map { "  $_->{Name}\n" } @treeinfos). <<END
-END
-    . (join '', map { "  $_->{Url}\n" } @treeinfos). <<END
+    . (join '', map { "  $_->{Name} $_->{Url}\n" } @treeinfos). <<END
 </pre>
 END
         or die "$!";
