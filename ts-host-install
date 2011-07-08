@@ -54,7 +54,10 @@ END
 
     await_tcp(get_timeout($ho,'reboot',$timeout{Sshd}), 14,$ho);
 
+    our $vgname= $ho->{Name};
+
     if ($ho->{Suite} =~ m/lenny/) {
+        $vgname .= ".$c{TestHostDomain}";
         target_editfile_root($ho, '/boot/grub/menu.lst', sub {
             while (<EI>) {
                 s/^terminal.*/terminal --timeout=10 serial console/;
@@ -76,7 +79,7 @@ END
         next unless $l =~ m/^\s*\d+\s+\d+\s+\d+\s+((?:sd|hd)[b-z])\s*$/;
         my $dev= "/dev/$1";
         target_cmd_root($ho, "pvcreate $dev");
-        target_cmd_root($ho, "vgextend $ho->{Name}.$c{TestHostDomain} $dev");
+        target_cmd_root($ho, "vgextend $vgname $dev");
     }
 
     my $kpath= $c{TestHostKeypairPath};
