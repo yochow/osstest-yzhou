@@ -75,7 +75,7 @@ sub item_check {
     return if $ok{$itemid};
     return if grep { $itemid =~ m/^$_$/ } @suppress;
     return if !$leakcheck;
-    logm("LEAKED $type: $val");
+    logm("LEAKED [$itemid] $type: $val");
     $leaks++;
 }
 sub finish_check () {
