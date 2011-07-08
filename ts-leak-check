@@ -160,3 +160,5 @@ xenstore /local/domain/0/memory/static-max
 xenstore /local/domain/0/memory/freemem-slack
 
 xenstore /vm
+
+process .* udevd
