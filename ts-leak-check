@@ -37,6 +37,7 @@ sub finish_basis () {
 }
 
 our %ok;
+our @suppress;
 
 sub start_check () {
     $statefh= new IO::File "< $basisf" or die $!;
@@ -61,7 +62,7 @@ sub start_check () {
         next if m/^\#/;
         next unless m/\S/;
         die unless m/^\w+ \S.*/;
-        $ok{$&}= 1;
+        push @suppress, $&;
     }
 
     my $leaf= "leak-current-$ho->{Name}";
@@ -70,7 +71,9 @@ sub start_check () {
 sub item_check {
     my ($type, $key, $val, $leakcheck) = @_;
     item_basis(@_);
-    return if $ok{"$type $key"};
+    my $itemid= "$type $key";
+    return if $ok{$itemid};
+    return if grep { $itemid =~ m/^$_$/ } @suppress;
     return if !$leakcheck;
     logm("LEAKED $type: $val");
     $leaks++;
