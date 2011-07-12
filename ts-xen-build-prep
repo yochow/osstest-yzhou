@@ -116,4 +116,5 @@ lvextend();
 prep();
 cacheing_git_mount();
 cacheing_git_install();
-resource_shared_mark_ready($ho->{Ident}, $ho->{Name}, "build-$r{arch}");
+resource_shared_mark_ready($ho->{Ident}, $ho->{Name},
+                           "build-".$ho->{Suite}."-".$r{arch});

@@ -9,6 +9,9 @@ buildflight=$4
 flight=`./cs-flight-create $blessing $branch`
 
 . ap-common
+. cri-common
+
+suite=`getconfig Suite`
 
 if [ x$buildflight = x ]; then
 
@@ -20,12 +23,14 @@ if [ x$buildflight = x ]; then
 	arch_runvars=\"\$ARCH_RUNVARS_$arch\"
     "
 
+    build_hostflags=share-build-$suite-$arch,arch-$arch,purpose-build
+
     ./cs-job-create $flight build-$arch build				     \
 		arch=$arch						     \
 	tree_qemu=$TREE_QEMU	     \
 	tree_xen=$TREE_XEN		     \
 		$RUNVARS $BUILD_RUNVARS $BUILD_XEN_RUNVARS $arch_runvars     \
-		host_hostflags=share-build-$arch,arch-$arch,purpose-build    \
+		host_hostflags=$build_hostflags    \
 		revision_xen=$REVISION_XEN				     \
 		revision_qemu=$REVISION_QEMU
 
@@ -33,7 +38,7 @@ if [ x$buildflight = x ]; then
 		arch=$arch kconfighow=xen-enable-xen-config		     \
 	tree_xen=$TREE_XEN		     \
 		$RUNVARS $BUILD_RUNVARS $BUILD_LINUX_RUNVARS $arch_runvars   \
-		host_hostflags=share-build-$arch,arch-$arch,purpose-build    \
+		host_hostflags=$build_hostflags    \
 		xen_kernels=linux-2.6-pvops				     \
 		revision_xen=$REVISION_XEN				     \
 		tree_linux=$TREE_LINUX					     \
@@ -47,7 +52,7 @@ if [ x$buildflight = x ]; then
 	tree_xen=$TREE_XEN		\
 		$RUNVARS $BUILD_RUNVARS $BUILD_LINUX_OLD_RUNVARS	\
 		$arch_runvars						\
-		host_hostflags=share-build-$arch,arch-$arch,purpose-build \
+		host_hostflags=$build_hostflags \
 		xen_kernels=linux-2.6-xen				\
 		revision_xen=$REVISION_XEN				\
 		revision_qemu=$REVISION_QEMU				\
@@ -64,7 +69,7 @@ if [ x$buildflight = x ]; then
 		$arch_runvars						      \
 		arch=$arch						\
 	kconfighow=intree-buildconfigs kimagefile=arch/x86/boot/vmlinuz \
-		host_hostflags=share-build-$arch,arch-$arch,purpose-build     \
+		host_hostflags=$build_hostflags     \
 		tree_xen=$TREE_XEN	      \
 		revision_xen=$REVISION_XEN				      \
 	tree_linux=$TREEBASE_LINUX_XCP.hg    \
