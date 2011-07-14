@@ -242,7 +242,7 @@ for xenarch in ${TEST_ARCHES- i386 amd64 } ; do
 
         for cpuvendor in intel; do
 
-      job_create_test test-$xenarch$kern-$dom0arch-xl-ipt-intel \
+      job_create_test test-$xenarch$kern-$dom0arch-xl-pcipt-intel \
                         test-debian-nomigr xl guests_vcpus=4 \
 		debian_kernkind=$kernkind				  \
 		debian_arch=$dom0arch   				  \
