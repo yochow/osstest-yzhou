@@ -667,7 +667,7 @@ END
     } elsif (!grep { $_->{Blocker} } @failures) {
         $fi->{OutcomeSummary}= "tolerable $fi->{OutcomeSummary}";
         print MRO "tolerable\n" or die $!
-            if defined $heisen_why;
+            unless defined $heisen_why;
         $fi->{Overall}.= "Failures :-/ but no regressions.\n";
     } else {
         $fi->{Overall}.= "Failures and problems with tests :-(\n";
