@@ -124,6 +124,14 @@ sub otherfixupcfg () {
         }
     }
     if (@pcipt) {
+        logm("checking passthrough device(s) are assignable: @pcipt");
+        my @assignables= split /\n/,
+            target_cmd_output_root($ho, toolstack()->{Command}.
+                                   " pci-list-assignable");
+        foreach my $pcipt (@pcipt) {
+            die "not assignable: $pcipt (not in: @assignables)"
+                unless grep { m/^(.*\:)?$pcipt$/ } @assignables;
+        }
         setcfg('pci', '['.(join ',', map { "'$_'" } @pcipt).']');
         $extra =~ s/ iommu=\w+//;
         $extra .= " iommu=soft";
