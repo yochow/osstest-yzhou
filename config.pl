@@ -76,7 +76,7 @@ $c{PxeDiBase}= 'osstest/debian-installer';
 $c{Suite}= 'squeeze';
 $c{PxeDiVersion}= '2011-03-02-squeeze';
 
-$c{GuestSuite}= 'lenny';
+$c{GuestSuite}= 'squeeze';
 $c{HostDiskBoot}=   '300'; #Mby
 $c{HostDiskRoot}= '10000'; #Mby
 $c{HostDiskSwap}=  '2000'; #Mby
