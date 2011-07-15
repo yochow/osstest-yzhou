@@ -815,19 +815,28 @@ sub logm ($) {
     $logm_handle->flush or die $!;
 }
 
-sub get_filecontents ($;$) {
-    my ($path, $ifnoent) = @_;  # $ifnoent=undef => is error
+sub get_filecontents_core_quiet ($) { # ENOENT => undef
+    my ($path) = @_;
     if (!open GFC, '<', $path) {
         $!==&ENOENT or die "$path $!";
-        die "$path does not exist" unless defined $ifnoent;
-        logm("read $path absent.");
-        return $ifnoent;
+        return undef;
     }
     local ($/);
     undef $/;
     my $data= <GFC>;
     defined $data or die "$path $!";
     close GFC or die "$path $!";
+    return $data;
+}
+
+sub get_filecontents ($;$) {
+    my ($path, $ifnoent) = @_;  # $ifnoent=undef => is error
+    my $data= get_filecontents_core_quiet($path);
+    if (!defined $data) {
+        die "$path does not exist" unless defined $ifnoent;
+        logm("read $path absent.");
+        return $ifnoent;
+    }
     logm("read $path ok.");
     return $data;
 }
