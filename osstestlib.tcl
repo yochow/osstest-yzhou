@@ -39,17 +39,15 @@ proc logputs {f m} {
 }
 
 proc db-open {} {
-    global env dbusers
+    global c dbusers
 
     if {![info exists dbusers]} { set dbusers 0 }
     if {$dbusers > 0} { incr dbusers; return }
 
-    set conninfo "dbname=osstestdb"
-    foreach e {DBI_HOST DBI_PASS DBI_USER} \
-	    p {host password user} {
-		if {![info exists env($e)]} continue
-		append conninfo " $p=$env($e)"
-	    }
+    # PgDbName_* are odbc-style strings as accepted by Perl's DBD::Pg
+    # but Tcl pg_connect unaccountably uses a different format which
+    # is whitespace-separated.
+    regsub -all {;} $c(PgDbName_osstestdb) { } conninfo
     pg_connect -conninfo $conninfo -connhandle dbh
     incr dbusers
 }
