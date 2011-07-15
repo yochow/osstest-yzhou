@@ -8,6 +8,15 @@ $c{NetGateway}= '10.80.249.254';
 
 $c{GenEtherPrefix}= '5a:36:0e';
 
+$c{PgDbNamePat}= "dbname=<dbname>;user=<whoami>";
+#$c{PgDbNamePat}= "dbname=<dbname>;user=<whoami>;".
+#    "host=<dbname>.db.$c{Domain};".
+#    "password=<~/.osstest/db-password>";
+# 1. <\w+> is replaced with variables:
+#         <dbname>    database name
+# 2. <~/path> </path> <./path> are replaced with contents of specified file
+# 3. <[> and <]> are replaced with < and >
+
 $c{WebspaceFile}= '/export/home/osstest/public_html/';
 $c{WebspaceUrl}= "http://woking.$c{Domain}/~osstest/";
 $c{WebspaceCommon}= 'osstest/';

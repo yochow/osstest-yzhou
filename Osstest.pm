@@ -133,6 +133,26 @@ sub readconfigonly () {
 	next unless defined $e;
 	$c{$v}= $e;
     }
+
+    my $whoami= `whoami`;  die if $?;  chomp $whoami;
+
+    foreach my $db (qw(osstestdb statedb configdb assetdb)) {
+        my $pat= $c{PgDbNamePat};
+        my %vars= ('dbname' => $db,
+                   'whoami' => $whoami);
+        $pat =~ s#\<(\w+)\>#
+            my $val=$vars{$1};  defined $val or die "$pat $1 ?";
+            $val;
+        #ge;
+        $pat =~ s#\<(([.~]?)(/[^<>]+))\>#
+            my $path= $2 eq '~' ? "$ENV{HOME}/$3" : $1;
+            my $data= get_filecontents_core_quiet($path);
+            chomp $data;
+            $data;
+        #ge;
+        $pat =~ s#\<([][])\># $1 eq '[' ? '<' : '>' #ge;
+        $c{"PgDbName_$db"}= $pat;
+    }
 }
 
 sub csreadconfig () {
