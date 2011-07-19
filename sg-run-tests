@@ -148,7 +148,7 @@ proc run-job/test-win {} {
 proc need-hosts/test-rhelhvm {} { return host }
 proc run-job/test-rhelhvm {} {
     run-ts . = ts-redhat-install
-    test-guest redhat
+    test-guest-nomigr redhat
 }
 
 proc need-hosts/test-pair {} { return {src_host dst_host} }
