@@ -124,9 +124,7 @@ proc check-not-blocked {} {
 proc need-hosts/test-debian-nomigr {} { return host }
 proc run-job/test-debian-nomigr {} {
     install-guest-debian
-    run-ts . =   ts-guest-stop    + host debian
-    run-ts . =.2 ts-guest-start   + host debian
-    run-ts . =   ts-guest-destroy + host debian
+    test-guest-nomigr debian
 }
 
 proc install-guest-debian {} {
@@ -175,9 +173,13 @@ proc test-guest {g} {
         run-ts . =$iteration ts-guest-localmigrate + host $g
     }
     run-ts . = ts-guest-localmigrate x10 + host $g
-    run-ts . = ts-guest-stop + host $g
-    run-ts . =.2 ts-guest-start + host $g
-    run-ts . = ts-guest-destroy + host $g
+    test-guest-nomigr $g
+}
+
+proc test-guest-nomigr {g} {
+    run-ts . =   ts-guest-stop    + host $g
+    run-ts . =.2 ts-guest-start   + host $g
+    run-ts . =   ts-guest-destroy + host $g
 }
 
 main
