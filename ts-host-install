@@ -154,12 +154,9 @@ END
     
     push @installcmdline, ("initrd=$initrd",
                            "domain=$c{TestHostDomain}",
-
-                           "acpi=off",
-
-                           "noapic",
-#                           "nolapic",
                            );
+    push @installcmdline,
+        get_host_property($ho, "install-append $ho->{Suite}", '');
 
     push @installcmdline, qw(--);
     push @installcmdline, "console=ttyS0,$c{Baud}n8";
