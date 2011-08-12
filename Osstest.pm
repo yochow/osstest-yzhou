@@ -1683,15 +1683,16 @@ END
         die if $sth->fetchrow_hashref();
         $sth->finish();
         my $get= sub {
-            my ($k) = @_;
+            my ($k,$nowarn) = @_;
             my $v= $row->{$k};
-            defined $v or warn "undefined $k in configdb::ips\n";
+            defined $v or $nowarn or
+                warn "host $name: undefined $k in configdb::ips\n";
             return $v;
         };
-        $ho->{Asset}= $get->('asset');
+        $ho->{Asset}= $get->('asset',1);
         $ho->{Ether} ||= $get->('hardware');
         $ho->{Power} ||= "statedb $ho->{Asset}";
-        push @{ $ho->{Info} }, "(asset=$ho->{Asset})";
+        push @{ $ho->{Info} }, "(asset=$ho->{Asset})" if defined $ho->{Asset};
         $dbh_config->disconnect();
     }
 
