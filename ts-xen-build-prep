@@ -30,12 +30,16 @@ END
     my $vginfo= target_cmd_output_root($ho, "vgdisplay --colon $vg");
     my @vginfo= split /\:/, $vginfo;
     @vginfo >= 17 or die "$vginfo ?";
+    my $pe_size= $vginfo[12];
     my $free_pe= $vginfo[15];
 
     my $lv= "/dev/$vg/root";
 
+    my $resize2fs_timeout = 2000 + int($pe_size * 0.000003 * $free_pe);
+    logm("extending fs by $pe_size x $free_pe (timeout=$resize2fs_timeout)");
+
     target_cmd_root($ho, "lvextend -l +$free_pe $lv") if $free_pe;
-    target_cmd_root($ho, "resize2fs $lv", 2000);
+    target_cmd_root($ho, "resize2fs $lv", $resize2fs_timeout);
 }
 
 sub prep () {
