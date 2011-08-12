@@ -73,7 +73,7 @@ END
     }
 
     my $timeout = 2000 + int($pe_size * 0.000003 * $more_pe);
-    logm("disk extend: ${pe_size}by x $more_pe (timeout=$timeout)");
+    logm("disk extend: ${pe_size}k x $more_pe (timeout=$timeout)");
     target_cmd_root($ho, "resize2fs $lv", $timeout);
 }
 
