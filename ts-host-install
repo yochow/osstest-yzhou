@@ -42,7 +42,7 @@ d-i netcfg/get_ipaddress string $ho->{Ip}
 END
 
     setup_pxeboot_firstboot($ps_url);
-    sleep(5);
+    sleep(power_cycle_time($ho));
 
     my $logtailer= Osstest::Logtailer->new($c{WebspaceLog});
     power_state($ho, 1);

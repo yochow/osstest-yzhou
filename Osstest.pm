@@ -72,7 +72,7 @@ BEGIN {
                       db_retry db_begin_work
                       poll_loop logm link_file_contents create_webfile
                       contents_make_cpio file_simple_write_contents
-                      power_state power_cycle
+                      power_state power_cycle power_cycle_time
                       setup_pxeboot setup_pxeboot_local
                       await_webspace_fetch_byleaf await_tcp
                       remote_perl_script_open remote_perl_script_done sshopts
@@ -2212,10 +2212,15 @@ sub guest_check_remus_ok {
     die "crashed somewhere $compound" if grep { m/c/ } @ststrings;
 }
 
+sub power_cycle_time ($) {
+    my ($ho) = @_;
+    return get_host_property($ho, 'power-cycle-time', 5);
+}
+
 sub power_cycle ($) {
     my ($ho) = @_;
     power_state($ho, 0);
-    sleep(1);
+    sleep(power_cycle_time($ho));
     power_state($ho, 1);
 }
 
