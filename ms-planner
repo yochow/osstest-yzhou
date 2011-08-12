@@ -537,7 +537,10 @@ sub cmd_show_html () {
 	} @{ $plan->{Events}{$reso} } ];
     }
 
-    my @colheads = sort keys %{ $plan->{Events} };
+    my $colheadsortkey= sub { ($_[0] =~ m/-/ ? "$' $`" : "").$_[0]; };
+    my @colheads = sort {
+        $colheadsortkey->($a) cmp $colheadsortkey->($b)
+    } keys %{ $plan->{Events} };
 
     #print DEBUG Dumper($earliest, $plan->{Events});
 
