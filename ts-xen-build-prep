@@ -143,7 +143,20 @@ END
         }
         printf EO "%s %s nfs rw\n", $cache, $mountpoint or die $!;
     });
-    target_cmd_root($ho, "mount $mountpoint");
+
+    my $mount_retries=10;
+    # mount can randomly fail due to upstream kernel bug (Debian #636306)
+    # this is a shonky workaround
+    for (;;) {
+        last if eval {
+            target_cmd_root($ho, "mount $mountpoint");
+            1;
+        };
+        logm("warning: failed to mount $mountpoint, trying again: $@");
+        die unless --$mount_retries > 0;
+        target_cmd_root($ho, "sync");
+        sleep(2);
+    }
 }
 
 sub cacheing_git_install () {
