@@ -3,8 +3,6 @@ $c{Domain}= 'cam.xci-test.com';
 $c{TestHostDomain}= 'cam.xci-test.com';
 
 $c{NetNameservers}= '10.80.248.2 10.80.16.28 10.80.16.67';
-$c{NetNetmask}= '255.255.254.0';
-$c{NetGateway}= '10.80.249.254';
 
 $c{GenEtherPrefix}= '5a:36:0e';
 

@@ -184,7 +184,18 @@ END
         $iface= $physif;
         $bridgex= '';
     }
-logm("iface $iface >$initscripts_nobridge<");
+
+    my $routes= target_cmd_output_root($ho, "route -n");
+
+    $routes =~ m/^ [0-9.]+ \s+ 0\.0\.0\.0 \s+ ([0-9.]+) \s+ \S*U\S* \s /mxi
+        or die "no own local network in route ?  $routes ";
+    my $netmask= $1;
+
+    $routes =~ m/^ 0\.0\.0\.0 \s+ ([0-9.]+) \s+ 0\.0\.0\.0 \s+ \S*UG\S* \s /mxi
+        or die "no default gateway ?  $routes ";
+    my $gateway= $1;
+
+    logm("iface $iface mask=$netmask gw=$gateway");
     target_editfile_root($ho, "/etc/network/interfaces",
                          "etc-network-interfaces", sub {
         my $suppress= 0;
@@ -197,8 +208,8 @@ logm("iface $iface >$initscripts_nobridge<");
                 print EO <<END;
 iface $iface inet static
     address $ho->{Ip}
-    netmask $c{NetNetmask}
-    gateway $c{NetGateway}
+    netmask $netmask
+    gateway $gateway
 $bridgex
 END
             }
