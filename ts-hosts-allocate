@@ -67,7 +67,7 @@ END
 #---------- prepared sql statements ----------
 # all users of these must ->finish them afterwards, to avoid db deadlock
 
-our ($flagscheckq, $equivflagscheckq, $duration_estimator,
+our ($flagscheckq, $equivflagscheckq, $duration_estimator, $resprop_q,
      $alloc_findres_q, $alloc_shared_q, $alloc_sharing_slot_q,
      $claim_share_reuse_q, $claim_maxshare_q, $claim_rmshares_q,
      $claim_noshares_q, $claim_rmshare_q, $claim_setres_q,
@@ -87,6 +87,12 @@ END
 
     $duration_estimator= duration_estimator($fi->{branch}, $fi->{intended},
                                             sub { print DEBUG "@_\n"; });
+
+    $resprop_q= $dbh_tests->prepare(<<END);
+            SELECT * FROM resource_properties
+                    WHERE restype = ? AND resname = ?
+                      AND name = ?
+END
 
     # for allocation
 
@@ -187,15 +193,16 @@ sub compute_hids () {
                 my $shr= $';
                 $hid->{Shared}= $shr;
                 if ($shr =~ m/^build-/) {
-                    $hid->{SharedMaxTasks}= 3;
-                    $hid->{SharedMaxWear}= 10;
+                    $hid->{DefaultSharedMaxTasks}= 3;
+                    $hid->{DefaultSharedMaxWear}= 10;
                 } else {
                     # who can say
-                    $hid->{SharedMaxTasks}= 2;
-                    $hid->{SharedMaxWear}= 5;
+                    $hid->{DefaultSharedMaxTasks}= 2;
+                    $hid->{DefaultSharedMaxWear}= 5;
                 }
                 print DEBUG "HID $ident FLAG $flag SHARE $shr".
-                    " $hid->{SharedMaxTasks} $hid->{SharedMaxWear}\n";
+                    " $hid->{DefaultSharedMaxTasks}".
+                    " $hid->{DefaultSharedMaxWear}\n";
                 next;
             } elsif ($flag =~ m/^equiv-/) {
                 my $formalclass= $';
@@ -298,6 +305,21 @@ END
         print DEBUG "$dbg GOOD\n";
 
         find_recent_duration($dbg,$hid,$candrow);
+
+        foreach my $kcomb (qw(Shared-Max-Wear Shared-Max-Tasks)) {
+            my $kdb= $kcomb;  $kdb =~ y/-A-Z/ a-z/;
+            my $khash= $kcomb;  $khash =~ y/-//d;
+            $resprop_q->execute($candrow->{restype},$candrow->{resname},$kdb);
+            my $proprow= $resprop_q->fetchrow_hashref();
+            my $val= $proprow->{val};
+            if (defined $val) {
+                print DEBUG "$dbg $khash ($kdb) FROM-RES-PROP $val\n";
+            } else {
+                $val= $hid->{"Default$khash"};
+                print DEBUG "$dbg $khash ($kdb) FROM-DEFAULT $val\n";
+            }
+            $candrow->{$khash}= $val;
+        }
 
 	push @candidates, $candrow;
 	print DEBUG "$dbg CANDIDATE.\n";
@@ -425,8 +447,8 @@ sub hid_recurse ($$) {
             Reso => $hid->{Selected}{Reso},
             Ident => $hid->{Ident},
             Shared => $hid->{Shared},
-            SharedMaxWear => $hid->{SharedMaxWear},
-            SharedMaxTasks => $hid->{SharedMaxTasks},
+            SharedMaxWear => $hid->{Selected}{SharedMaxWear},
+            SharedMaxTasks => $hid->{Selected}{SharedMaxTasks},
         };
         push @requestlist, $req;
     }
@@ -547,7 +569,7 @@ sub compute_booking_list () {
 	my $book= $alloc || {
 	    (defined $hid->{Shared} ? (Share => {
 		Type => $hid->{Shared},
-		Shares => $hid->{SharedMaxTasks},
+		Shares => $sel->{SharedMaxTasks},
 	    }) : ()),
 	};
 	$book->{Reso}= "$sel->{restype} $sel->{resname}";
@@ -615,7 +637,7 @@ sub actual_allocation ($) {
     if (defined $shr &&
 	defined $shared &&
 	$shared->{sharetype} eq $shr &&
-	$shared->{wear} < $hid->{SharedMaxWear}) {
+	$shared->{wear} < $sel->{SharedMaxWear}) {
 
 	print DEBUG "$dbg ALLOC SHARED ST $shrestype $shared->{state}\n";
 
@@ -702,7 +724,7 @@ sub actual_allocation ($) {
 					$shr);
             $claim_share_new_q->finish();
 
-            for (my $ix=1; $ix<=$hid->{SharedMaxTasks}; $ix++) {
+            for (my $ix=1; $ix<=$sel->{SharedMaxTasks}; $ix++) {
                 $claim_share_newresource_q->execute
                     ($shrestype, $cand->{resname}, $ix,
                      ($ix==1 ? $magictaskid{allocatable}
@@ -714,7 +736,7 @@ sub actual_allocation ($) {
 
 	    $bookalloc->{Share}= {
 		Type => $shr,
-		Shares => $hid->{SharedMaxTasks},
+		Shares => $sel->{SharedMaxTasks},
 	    };
         }
     }
