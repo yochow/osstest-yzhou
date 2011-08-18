@@ -13,6 +13,8 @@ our $ho= selecthost($whhost);
 my $leaf= "build.$flight.$job";
 my $builddir= "/home/osstest/$leaf";
 
+my $makeflags= get_host_property($ho, 'build make flags', '-j4');
+
 sub checkout () {
     target_cmd($ho, "rm -rf $builddir && mkdir $builddir", 600);
 
@@ -209,7 +211,7 @@ sub config () {
 sub build () {
     target_cmd_build($ho, 9000, $builddir, <<END);
 	cd linux
-        (make -j4 all modules 2>&1 && touch ../build-ok-stamp) |tee ../log
+        (make $makeflags all modules 2>&1 && touch ../build-ok-stamp) |tee ../log
         test -f ../build-ok-stamp
         echo ok.
 END
@@ -222,7 +224,7 @@ sub kinstall () {
     target_cmd_build($ho, 300, $builddir, <<END);
 	mkdir -p dist/boot dist/lib/modules
 	cd linux
-	make -j4 INSTALL_MOD_PATH=$builddir/dist modules_install
+	make $makeflags INSTALL_MOD_PATH=$builddir/dist modules_install
 	cp System.map $builddir/dist/boot/
 	cp $kernfile $builddir/dist/boot/vmlinuz
 	cp .config $builddir/dist/boot/config

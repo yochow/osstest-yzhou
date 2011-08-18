@@ -15,11 +15,13 @@ our $ho= selecthost($whhost);
 my $leaf= "build.$flight.$job";
 my $builddir= "/home/osstest/$leaf";
 
+my $makeflags= get_host_property($ho, 'build make flags', '-j4');
+    
 sub checkout () {
     my $kerns= $r{xen_kernels};
     $kerns='' unless defined $kerns;
     $kerns =~ s/,/ /g;
-    
+
     target_cmd($ho, "rm -rf $builddir && mkdir $builddir", 60);
 
     build_clone($ho, 'xen', $builddir, 'xen-unstable');
@@ -70,7 +72,7 @@ sub build () {
 END
     target_cmd_build($ho, 9000, $builddir, <<END);
         cd xen-unstable
-        (make -j4 2>&1 && touch ../build-ok-stamp) |tee ../log
+        (make $makeflags 2>&1 && touch ../build-ok-stamp) |tee ../log
         test -f ../build-ok-stamp
         echo ok.
 END
