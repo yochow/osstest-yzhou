@@ -445,10 +445,10 @@ d-i partman-lvm/confirm_nooverwrite true
 d-i partman-md/confirm_nooverwrite true
 d-i partman-crypto/confirm_nooverwrite true
 
-d-i netcfg/disable_dhcp boolean true
+#d-i netcfg/disable_dhcp boolean true
 d-i netcfg/get_nameservers string $c{NetNameservers}
-d-i netcfg/get_netmask string $c{NetNetmask}
-d-i netcfg/get_gateway string $c{NetGateway}
+#d-i netcfg/get_netmask string $c{NetNetmask}
+#d-i netcfg/get_gateway string $c{NetGateway}
 d-i netcfg/confirm_static boolean true
 d-i netcfg/get_domain string $c{TestHostDomain}
 d-i netcfg/wireless_wep string
