@@ -164,9 +164,17 @@ sub cacheing_git_install () {
     target_putfile_root($ho,10, "cacheing-git","/usr/local/bin/git", "-p");
 }
 
+sub ccache_setup () {
+    my $opts= get_host_property($ho, 'build ccache opts', '');
+    if (length $opts) {
+        target_cmd($ho, "ccache $opts");
+    }
+}
+
 lvextend();
 prep();
 cacheing_git_mount();
 cacheing_git_install();
+ccache_setup();
 resource_shared_mark_ready($ho->{Ident}, $ho->{Name},
                            "build-".$ho->{Suite}."-".$r{arch});
