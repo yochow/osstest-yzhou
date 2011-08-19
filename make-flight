@@ -213,6 +213,16 @@ for xenarch in ${TEST_ARCHES- i386 amd64 } ; do
 		debian_arch=$dom0arch   				  \
 		all_hostflags=$most_hostflags,equiv-1
 
+      if [ $xenarch = amd64 -a $dom0arch = amd64 ]; then
+
+      job_create_test test-$xenarch$kern-$dom0arch-xl-sedf  \
+           test-debian xl guests_vcpus=4 xen_boot_append='sched=sedf'      \
+		debian_kernkind=$kernkind				  \
+		debian_arch=$dom0arch   				  \
+		all_hostflags=$most_hostflags
+
+      fi
+
       if [ $xenarch = amd64 -a $dom0arch = i386 ]; then
 
       job_create_test test-$xenarch$kern-$dom0arch-xl-multivcpu \
