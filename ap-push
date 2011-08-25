@@ -30,6 +30,7 @@ linux-xen-*)
         ;;
 osstest)
 	git push $HOME/testing.git $revision:incoming
+	git push $XENBITS:git/osstest.git $revision:master
 	;;
 *)
 	echo >&2 "branch $branch ?"
