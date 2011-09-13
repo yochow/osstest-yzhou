@@ -76,6 +76,7 @@ END
         test -f ../build-ok-stamp
         echo ok.
 END
+#/;
 }
 
 sub collectversion_qemu () {
