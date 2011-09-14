@@ -8,7 +8,7 @@
 : ${TREE_QEMU:=git://hg.uk.xensource.com/HG/qemu-$xenbranch.git}
 
 
-: ${GIT_KERNEL_ORG:=git://git.eu.kernel.org}
+: ${GIT_KERNEL_ORG:=git://git.kernel.org}
 
 : ${TREE_LINUX:=${GIT_KERNEL_ORG}/pub/scm/linux/kernel/git/jeremy/xen.git}
 #: ${TREE_LINUX:=git://mariner.uk.xensource.com/linux-2.6-jeremy-temp.git}
