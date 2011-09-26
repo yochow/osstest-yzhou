@@ -17,15 +17,15 @@ xen*)
 	hg push -r "$revision" ssh://$XENBITS/HG/$branch.hg
 	;;
 linux)
-	cd $repos/xen
+	cd $repos/linux
 	git push $TREE_LINUX $revision:$TAG_LINUX
 	;;
 linux-2.6.39)
-	cd $repos/xen
+	cd $repos/linux
 	git push $TREE_LINUX $revision:$TAG_LINUX2639
 	;;
 linux-xen-*)
-        cd $repos/xen
+        cd $repos/linux
         git push $TREE_LINUX $revision:refs/heads/$branch
         ;;
 osstest)
