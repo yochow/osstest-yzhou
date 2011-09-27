@@ -56,7 +56,7 @@ if [ x$buildflight = x ]; then
 		xen_kernels=linux-2.6-xen				\
 		revision_xen=$REVISION_XEN				\
 		revision_qemu=$REVISION_QEMU				\
-	tree_linux=http://hg.uk.xensource.com/linux-2.6.18-xen.hg	\
+	tree_linux=ssh://xen@xenbits.xen.org/HG/linux-2.6.18-xen.hg	\
         revision_linux=$REVISION_LINUX_OLD
 
     fi
