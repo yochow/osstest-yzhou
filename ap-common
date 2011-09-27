@@ -2,7 +2,7 @@
 
 # $xenbranch must already be set
 
-: ${TREE_XEN:=ssh://xen@xenbits.xen.org/HG/staging/$xenbranch.hg}
+: ${TREE_XEN:=http://xenbits.xen.org/staging/$xenbranch.hg}
 
 #: ${TREE_QEMU:=git://mariner.uk.xensource.com/qemu-$xenbranch.git}
 : ${TREE_QEMU:=git://hg.uk.xensource.com/HG/qemu-$xenbranch.git}
