@@ -84,7 +84,7 @@ sub prep () {
                                flex bison
                                libpci-dev libncurses5-dev libssl-dev python-dev
                                libx11-dev git-core uuid-dev gettext gawk
-                               libsdl-dev
+                               libsdl-dev libyajl-dev
 			       ccache));
 
     target_cmd_root($ho, "chmod -R a+r /usr/share/git-core/templates");
