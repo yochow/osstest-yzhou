@@ -1,4 +1,5 @@
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+MAILTO=ian.jackson@citrix.com
 # m		h	dom mon dow	command
 49		1	* * *		cd testing.git && BRANCHES_ALWAYS=xen-unstable	./cr-for-branches branches -w "./cr-daily-branch --real"
 49	  11,14,17,19	* * *		cd testing.git &&				./cr-for-branches branches -w "./cr-daily-branch --real"
