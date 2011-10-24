@@ -1,0 +1,22 @@
+#!/bin/bash
+
+set -e
+
+. cri-common
+
+if [ $# != 0 ]; then echo >&2 'usage: mg-clear-git-caches'; exit 1; fi
+
+cache=`getconfig GitCacheLocal`
+
+for lockfile in $cache/*/lock; do
+	hostdir=${lockfile%/lock}
+	host=${hostdir##*/}
+	printf "===== %s =====\n" $host
+	aside=$cache/$host.$$.`date +%s`.to-delete
+	mkdir $aside
+	if ! ./mg-allocate $host; then continue; fi
+	mv $hostdir $aside/.
+	./mg-allocate !$host
+	printf ' deleting\n'
+	sudo rm -rf $aside
+done
