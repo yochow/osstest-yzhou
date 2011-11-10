@@ -161,4 +161,6 @@ xenstore /local/domain/0/memory/freemem-slack
 
 xenstore /vm
 
+xenstore /libxl
+
 process .* udevd
