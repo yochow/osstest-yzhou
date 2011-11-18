@@ -39,6 +39,11 @@ sub debian_boot_setup ($$$;$) {
         $kopt= "xencons=ttyS console=ttyS0,$c{Baud}n8";
     }
 
+    my $targkopt= target_var($ho,'linux_boot_append');
+    if (defined $targkopt) {
+        $kopt .= ' '.$targkopt;
+    }
+
     foreach my $hook ($hooks ? @$hooks : ()) {
         my $bo_hook= $hook->{EditBootOptions};
         $bo_hook->($ho, \$xenhopt, \$kopt) if $bo_hook;
