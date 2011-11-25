@@ -13,6 +13,8 @@ flight=`./cs-flight-create $blessing $branch`
 
 suite=`getconfig Suite`
 
+xenrt_images=/usr/groups/images/autoinstall
+
 if [ x$buildflight = x ]; then
 
   for arch in ${BUILD_ARCHES- i386 amd64 }; do
@@ -220,6 +222,15 @@ for xenarch in ${TEST_ARCHES- i386 amd64 } ; do
 		debian_kernkind=$kernkind				  \
 		debian_arch=$dom0arch   				  \
 		all_hostflags=$most_hostflags
+
+      fi
+
+      if [ $xenarch = amd64 ]; then
+
+      job_create_test test-$xenarch$kern-$dom0arch-xl-win7-amd64 \
+                test-win xl \
+		win_image=$xenrt_images/win7-x64.iso \
+		all_hostflags=$most_hostflags,hvm
 
       fi
 
