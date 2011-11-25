@@ -2084,7 +2084,7 @@ sub more_prepareguest_hvm ($$$$;@) {
     
     my $imageleaf= $r{"$gho->{Guest}_image"};
     die "$gho->{Guest} ?" unless $imageleaf;
-    my $limage= "$c{Images}/$imageleaf";
+    my $limage= $imageleaf =~ m,^/, ? $imageleaf : "$c{Images}/$imageleaf";
     $gho->{Rimage}= "/root/$imageleaf";
     target_putfile_root($ho,300, $limage,$gho->{Rimage}, '-p');
 
