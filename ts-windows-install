@@ -22,7 +22,12 @@ sub prep () {
     target_install_packages_norec($ho, qw(lvm2 rsync));
 
     $gho= prepareguest($ho, 'win', $guesthost, 8936, $disk_mb + 1);
-    more_prepareguest_hvm($ho,$gho, $ram_mb, $disk_mb);
+
+    my $viridian = guest_var($gho, 'viridian', 1);
+
+    more_prepareguest_hvm($ho,$gho, $ram_mb, $disk_mb, ExtraConfig => <<END);
+viridian=$viridian
+END
 
     store_runvar("$gho->{Guest}_pingbroken", 1);
 }
