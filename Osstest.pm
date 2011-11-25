@@ -2048,6 +2048,8 @@ sub prepareguest_part_xencfg ($$$$$) {
     my ($ho, $gho, $ram_mb, $xopts, $cfgrest) = @_;
     my $onreboot= $xopts->{OnReboot} || 'restart';
     my $vcpus= guest_var($gho, 'vcpus', $xopts->{DefVcpus} || 2);
+    my $xoptcfg= $xopts->{ExtraConfig};
+    $xoptcfg='' unless defined $xoptcfg;
     my $xencfg= <<END;
 name        = '$gho->{Name}'
 memory = ${ram_mb}
@@ -2060,6 +2062,8 @@ on_crash    = 'preserve'
 vcpus = $vcpus
 #
 $cfgrest
+#
+$xoptcfg
 END
 
     my $cfgpath= "/etc/xen/$gho->{Name}.cfg";
