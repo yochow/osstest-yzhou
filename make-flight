@@ -183,18 +183,20 @@ for xenarch in ${TEST_ARCHES- i386 amd64 } ; do
             if [ "x$vcpus" = x ] || \
                [ "$xenarch$kern-$dom0arch" = "amd64-i386" ]; then
 
-        stripy toolstack_runvars '' toolstack=xl \
+        stripy toolstack xend xl \
                 "$vcpus" 1 \
                 "$kern" '' \
                 "$xenarch" i386 \
                 "$dom0arch" i386
+
+        toolstack_runvars="toolstack=$toolstack"
 
       job_create_test test-$xenarch$kern-$dom0arch-win$vcpus_suffix \
                 test-win xend \
 		win_image=winxpsp2.iso $vcpus_runvars			\
 		all_hostflags=$most_hostflags,hvm
 
-        if [ "x$toolstack_runvars" != x ]; then
+        if [ $toolstack = xl ]; then
                 
       job_create_test \
                 test-$xenarch$kern-$dom0arch-xl-win$vcpus_suffix \
