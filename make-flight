@@ -191,21 +191,30 @@ for xenarch in ${TEST_ARCHES- i386 amd64 } ; do
 
         toolstack_runvars="toolstack=$toolstack"
 
+      job_create_test \
+                test-$xenarch$kern-$dom0arch-$toolstack-winxpsp3$vcpus_suffix \
+                test-win $toolstack \
+		win_image=$xenrt_images/winxpsp3.iso $vcpus_runvars	\
+		all_hostflags=$most_hostflags,hvm
+
+      # These next two tests are obsolete and should be removed
+      # in a few months say March 2012:
       job_create_test test-$xenarch$kern-$dom0arch-win$vcpus_suffix \
                 test-win xend \
 		win_image=winxpsp2.iso $vcpus_runvars			\
 		all_hostflags=$most_hostflags,hvm
-
+        #
         if [ $toolstack = xl ]; then
-                
+        #
       job_create_test \
                 test-$xenarch$kern-$dom0arch-xl-win$vcpus_suffix \
                 test-win xl \
 		$toolstack_runvars					  \
 		win_image=winxpsp2.iso $vcpus_runvars			\
 		all_hostflags=$most_hostflags,hvm
-
+      #
         fi
+      # end of obsolete part
 
             fi
         done
