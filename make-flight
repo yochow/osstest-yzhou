@@ -228,11 +228,15 @@ for xenarch in ${TEST_ARCHES- i386 amd64 } ; do
 
       if [ $xenarch = amd64 -a $dom0arch = amd64 ]; then
 
-      job_create_test test-$xenarch$kern-$dom0arch-xl-sedf  \
-           test-debian xl guests_vcpus=4 xen_boot_append='sched=sedf loglvl=all' linux_boot_append='loglevel=9 debug' \
+       for pin in '' -pin; do
+
+      job_create_test test-$xenarch$kern-$dom0arch-xl-sedf$pin  \
+           test-debian xl guests_vcpus=4 xen_boot_append="sched=sedf loglvl=all ${pin:+dom0_vcpus_pin}" linux_boot_append='loglevel=9 debug' \
 		debian_kernkind=$kernkind				  \
 		debian_arch=$dom0arch   				  \
 		all_hostflags=$most_hostflags
+
+       done
 
       fi
 
