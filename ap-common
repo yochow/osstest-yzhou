@@ -5,7 +5,7 @@
 : ${TREE_XEN:=http://xenbits.xen.org/staging/$xenbranch.hg}
 
 #: ${TREE_QEMU:=git://mariner.uk.xensource.com/qemu-$xenbranch.git}
-: ${TREE_QEMU:=git://hg.uk.xensource.com/HG/qemu-$xenbranch.git}
+: ${TREE_QEMU:=git://xenbits.xen.org/staging/qemu-$xenbranch.git}
 
 
 : ${GIT_KERNEL_ORG:=git://git.kernel.org}
