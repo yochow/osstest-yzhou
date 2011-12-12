@@ -42,6 +42,12 @@ END
                (length($r{revision_qemu}) ? <<END : '').
 	echo >>.config QEMU_TAG='$r{revision_qemu}'
 END
+               (length($r{revision_qemuu}) ? <<END : '').
+	echo >>.config QEMU_UPSTREAM_TAG='$r{revision_qemuu}'
+END
+               (length($r{revision_seabios}) ? <<END : '').
+	echo >>.config SEABIOS_UPSTREAM_TAG='$r{revision_seabios}'
+END
                (length($r{tree_linux}) ? <<END : '').
 	echo >>.config export $linux_url_envvar='$r{tree_linux}'
 END
