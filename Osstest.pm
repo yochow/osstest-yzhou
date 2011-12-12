@@ -1002,9 +1002,10 @@ sub dir_identify_vcs ($$) {
 END
 }
 
-sub store_revision ($$$) {
-    my ($ho,$which,$dir) = @_;
+sub store_revision ($$$;$) {
+    my ($ho,$which,$dir,$optional) = @_;
     my $vcs= dir_identify_vcs($ho,$dir);
+    return if $optional && $vcs eq 'none';
     my $rev= vcs_dir_revision($ho,$dir,$vcs);
     store_vcs_revision($which,$rev,$vcs);
 }
