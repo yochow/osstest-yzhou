@@ -12,6 +12,7 @@ use Socket;
 use IPC::Open2;
 use IO::Handle;
 use JSON;
+use File::Basename;
 #use Data::Dumper;
 
 # DATABASE TABLE LOCK HIERARCHY
@@ -2082,10 +2083,10 @@ sub more_prepareguest_hvm ($$$$;@) {
 
     prepareguest_part_lvmdisk($ho, $gho, $disk_mb);
     
-    my $imageleaf= $r{"$gho->{Guest}_image"};
-    die "$gho->{Guest} ?" unless $imageleaf;
-    my $limage= $imageleaf =~ m,^/, ? $imageleaf : "$c{Images}/$imageleaf";
-    $gho->{Rimage}= "/root/$flight.$job.$imageleaf";
+    my $specimage= $r{"$gho->{Guest}_image"};
+    die "$gho->{Guest} ?" unless $specimage;
+    my $limage= $specimage =~ m,^/, ? $specimage : "$c{Images}/$specimage";
+    $gho->{Rimage}= "/root/$flight.$job.".basename($specimage);
     target_putfile_root($ho,300, $limage,$gho->{Rimage}, '-p');
 
     my $postimage_hook= $xopts{PostImageHook};
