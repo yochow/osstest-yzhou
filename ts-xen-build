@@ -86,7 +86,11 @@ END
 }
 
 sub collectversion_qemu () {
-    store_revision($ho, 'qemu', "$builddir/xen-unstable/tools/ioemu-dir");
+    my $tools="$builddir/xen-unstable/tools";
+    store_revision($ho, 'qemu', "$tools/ioemu-dir", 1);
+    store_revision($ho, 'qemu', "$tools/qemu-xen-traditional-dir", 1);
+    store_revision($ho, 'qemuu', "$tools/qemu-xen-dir", 1);
+    store_revision($ho, 'seabios', "$tools/seabios-dir", 1);
 }
 
 sub collectversions_kernel () {
