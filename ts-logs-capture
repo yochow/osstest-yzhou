@@ -235,6 +235,9 @@ sub fetch_logs_host_guests () {
                   /var/log/xen/qemu-dm*
                   /var/log/xen/xl*.log
                   /var/log/xen/osstest*
+
+                  /var/log/xenstored*
+
                   /var/log/xen/console/*
 
                   /var/log/xen-tools/*
