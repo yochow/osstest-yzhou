@@ -437,9 +437,11 @@ END
         my $cat;
         my $heisenflightp= $failv->{Flight} != $specflight;
         if (!keys %{ $specver{that} }) {
-            $cat= "A Tests which did not succeed:";
+            $cat= "A Tests which did not succeed,".
+"including tests which could not be run:";
         } elsif ($failv->{Blocker}) {
-            $cat= "A Tests which did not succeed and are blocking:";
+            $cat= "A Tests which did not succeed and are blocking,".
+"including tests which could not be run:";
         } elsif ($failv->{Heisen}) {
             $cat= "K Tests which are failing intermittently (not blocking):";
         } else {
