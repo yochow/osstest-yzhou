@@ -10,9 +10,9 @@
 
 : ${GIT_KERNEL_ORG:=git://git.kernel.org}
 
-#: ${TREE_LINUX:=${GIT_KERNEL_ORG}/pub/scm/linux/kernel/git/jeremy/xen.git}
+: ${TREE_LINUX:=${GIT_KERNEL_ORG}/pub/scm/linux/kernel/git/jeremy/xen.git}
 #: ${TREE_LINUX:=git://mariner.uk.xensource.com/linux-2.6-jeremy-temp.git}
-: ${TREE_LINUX:=git://github.com/jsgf/linux-xen.git}
+#: ${TREE_LINUX:=git://github.com/jsgf/linux-xen.git}
 : ${TAG_LINUX:=xen/next-2.6.32}
 
 : ${TREE_LINUX2639:=${GIT_KERNEL_ORG}/pub/scm/linux/kernel/git/konrad/xen.git}
