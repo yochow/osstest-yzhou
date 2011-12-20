@@ -1931,14 +1931,16 @@ sub guest_destroy ($$) {
 sub target_choose_vg ($$) {
     my ($ho, $mbneeded) = @_;
     my $vgs= target_cmd_output_root($ho, 'vgdisplay --colon');
-    my $bestkb= 1e9;
+    my $bestkb= 1.0e90;
     my $bestvg;
     foreach my $l (split /\n/, $vgs) {
         $l =~ s/^\s+//; $l =~ s/\s+$//;
         my @l= split /\:/, $l;
         my $tvg= $l[0];
-        my $tkb= $l[11];
-        if ($tkb < $mbneeded*1024) {
+        my $pesize= $l[12];
+        my $freepekb= $l[15];
+        my $tkb= $l[12] * 1.0 * $l[15];
+        if ($tkb < $mbneeded*1024.0) {
             logm("vg $tvg ${tkb}kb free - too small");
             next;
         }
