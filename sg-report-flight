@@ -444,10 +444,12 @@ END
 "including tests which could not be run:";
         } elsif ($failv->{Heisen}) {
             $cat= "K Tests which are failing intermittently (not blocking):";
+        } elsif ($failv->{Allow}) {
+            $cat= "M ".
+"Regressions which are regarded as allowable (not blocking):";
         } else {
             $cat= "P ".
-"Tests which did not succeed, but are not blocking,\n".
-"including regressions (tests previously passed) regarded as allowable:";
+"Tests which did not succeed, but are not blocking:";
         }
         my $heisencat= \$heisenreported_jobstep{"$j->{job} $s->{testid}"};
         next if defined $$heisencat && $$heisencat ge $cat;
@@ -625,11 +627,13 @@ END
                 $blocker='';
             }
         }
+        my $allow=0;
         if ($blocker) {
             my $item= "$failv->{Job}{job} $failv->{Step}{testid}";
             print DEBUG " allow $item?";
             foreach my $allow (@allows) {
                 next unless $item =~ m/$allow/;
+                $allow=1;
                 $blocker='';
                 print DEBUG " allowed";
                 last;
@@ -637,6 +641,7 @@ END
             print DEBUG "\n";
         }
 	$failv->{Blocker}= $blocker;
+        $failv->{Allow}= 1;
 	$failv->{SummaryCore}= $rtups[0][2];
 	$failv->{SummaryRefFlight}= $rtups[0][3];
 	$failv->{Summary}= $failv->{SummaryCore};
