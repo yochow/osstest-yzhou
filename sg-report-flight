@@ -580,7 +580,7 @@ END
             $failv->{Blocker}= '';
 	    next;
 	}
-        if ($st ne 'fail') {
+        if (!($st eq 'fail' or $st eq 'broken')) {
             print MRO "broken $j->{job} $s->{testid} $st\n";
             print DEBUG " not a fail, unjustifiable\n";
             $failv->{Summary}= "[st=$st!]";
@@ -601,7 +601,8 @@ END
 	    } elsif ($chkst eq 'fail') {
 		$rtup= [ 180, '', "failed in", $chkflight ];
 	    } elsif ($chkst eq 'pass') {
-		$rtup= [ 100, 'regression', "REGR. vs.", $chkflight ];
+                my $tblocker = $st eq 'fail' ? 'regression' : $st;
+		$rtup= [ 100, $tblocker, "REGR. vs.", $chkflight ];
 	    } else {
 		$rtup= [ 170, '', "$chkst in", $chkflight ];
 	    }
@@ -611,7 +612,7 @@ END
 	@rtups= sort { $b->[0] <=> $a->[0] } @rtups;
         my $blocker= $rtups[0][1];;
         my $heisen;
-        if ($blocker eq 'regression') {
+        if ($blocker) {
             my $heisengoodflight=
                 !keys %{ $specver{this} } ? undef :
               findaflight('this', $fi->{Flight}, $j->{job}, $s->{testid}, sub {
