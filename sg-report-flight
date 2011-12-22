@@ -581,7 +581,7 @@ END
         if ($st ne 'fail') {
             print MRO "broken $j->{job} $s->{testid} $st\n";
             print DEBUG " not a fail, unjustifiable\n";
-            $failv->{Summary}= '';
+            $failv->{Summary}= "[st=$st!]";
             $failv->{Blocker}= 'broken';
             next;
         }
