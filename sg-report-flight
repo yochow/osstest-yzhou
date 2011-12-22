@@ -614,7 +614,8 @@ END
                 !keys %{ $specver{this} } ? undef :
               findaflight('this', $fi->{Flight}, $j->{job}, $s->{testid}, sub {
                 my ($heisenchkflight, $heisenchkst) = @_;
-                return "not pass" unless $heisenchkst eq "pass";
+                return "not executed" unless defined $heisenchkst;
+                return "not pass ($heisenchkst)" unless $heisenchkst eq "pass";
                 return undef;
             });
             if ($heisengoodflight) {
