@@ -2095,7 +2095,7 @@ sub more_prepareguest_hvm ($$$$;@) {
     die "$gho->{Guest} ?" unless $specimage;
     my $limage= $specimage =~ m,^/, ? $specimage : "$c{Images}/$specimage";
     $gho->{Rimage}= "/root/$flight.$job.".basename($specimage);
-    target_putfile_root($ho,300, $limage,$gho->{Rimage}, '-p');
+    target_putfile_root($ho, 1000, $limage,$gho->{Rimage}, '-p');
 
     my $postimage_hook= $xopts{PostImageHook};
     $postimage_hook->() if $postimage_hook;
