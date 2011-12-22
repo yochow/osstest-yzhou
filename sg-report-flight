@@ -440,7 +440,7 @@ END
             $cat= "A Tests which did not succeed,\n".
 "including tests which could not be run:";
         } elsif ($failv->{Blocker}) {
-            $cat= "A Tests which did not succeed and are blocking,".
+            $cat= "A Tests which did not succeed and are blocking,\n".
 "including tests which could not be run:";
         } elsif ($failv->{Heisen}) {
             $cat= "K Tests which are failing intermittently (not blocking):";
