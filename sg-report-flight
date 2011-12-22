@@ -437,7 +437,7 @@ END
         my $cat;
         my $heisenflightp= $failv->{Flight} != $specflight;
         if (!keys %{ $specver{that} }) {
-            $cat= "A Tests which did not succeed,".
+            $cat= "A Tests which did not succeed,\n".
 "including tests which could not be run:";
         } elsif ($failv->{Blocker}) {
             $cat= "A Tests which did not succeed and are blocking,".
