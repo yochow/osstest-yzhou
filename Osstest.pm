@@ -1544,6 +1544,7 @@ END
                        AND f.started >= ?
                      ORDER BY s.finished DESC
 END
+    # s J J J # fix perl-mode
 
     my $duration_duration_q= $dbh_tests->prepare(<<END);
             SELECT sum(finished-started) AS duration FROM steps
@@ -1635,7 +1636,7 @@ sub host_get_pcipassthrough_devs ($) {
         push @devs, {
             DevType => $devtype,
             Bdf => $1,
-            Info => $'
+            Info => $' #'
             };
     }
     return @devs;
@@ -1647,7 +1648,7 @@ sub selecthost ($) {
     my $name;
     if ($ident =~ m/=/) {
         $ident= $`;
-        $name= $';
+        $name= $'; #'
         $r{$ident}= $name;
     } else {
         $name= $r{$ident};
@@ -2023,7 +2024,7 @@ sub prepareguest ($$$$$) {
         my $ptnicho= selecthost($ptnichostident);
         my $ptnicinfo= get_host_property($ptnicho,'pcipassthrough nic');
         $ptnicinfo =~ m,/, or die "$ptnichostident $ptnicinfo ?";
-        my $ptether= $';
+        my $ptether= $'; #'
         $r{"${gn}_ether"}= $ptether;
         logm("passthrough nic from $ptnichostident ether $ptether");
     }
