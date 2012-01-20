@@ -114,6 +114,7 @@ END
               FROM resource_sharing s
              WHERE s.restype=? AND s.resname=?
 END
+    # s.. # fix perl-mode
 
     $alloc_sharing_slot_q= $dbh_tests->prepare(<<END);
             SELECT * FROM resources
@@ -178,7 +179,7 @@ sub compute_hids () {
         my $hid= { };
         my $override_use;
         if ($ident =~ m/\=/) {
-            $hid->{OverrideUse}= $';
+            $hid->{OverrideUse}= $'; #'
             $ident= $`;
             print DEBUG "HID $ident OVERRIDE $hid->{OverrideUse}\n";
         }
@@ -190,7 +191,7 @@ sub compute_hids () {
             print DEBUG "HID $ident FLAG $flag\n";
             if ($flag =~ m/^share-/) {
                 die if exists $hid->{Shared};
-                my $shr= $';
+                my $shr= $'; #'
                 $hid->{Shared}= $shr;
                 if ($shr =~ m/^build-/) {
                     $hid->{DefaultSharedMaxTasks}= 3;
@@ -205,7 +206,7 @@ sub compute_hids () {
                     " $hid->{DefaultSharedMaxWear}\n";
                 next;
             } elsif ($flag =~ m/^equiv-/) {
-                my $formalclass= $';
+                my $formalclass= $'; #'
                 die if exists $hid->{Equiv};
                 $equivs{$formalclass}{FormalClass}= $formalclass;
                 $equivs{$formalclass}{Wanted}++;
