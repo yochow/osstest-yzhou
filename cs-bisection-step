@@ -195,7 +195,7 @@ END
     my (@ttreenames, @ttreeurls, @trevisions);
     while ($row= $sth->fetchrow_hashref()) {
         $row->{longname} =~ m/^tree_/ or die "$row->{longname} ?";
-        my $name= $';
+        my $name= $'; #'
         print DEBUG " $flight.$row->{job} uval=$row->{uval}".
             " rval=$row->{rval} name=$name\n";
         my $rev= $row->{rval};
@@ -1087,9 +1087,9 @@ END
     db_retry($popflight,'constructing', $dbh_tests,[qw(flights)], sub {
         print STDERR "Populating $popflight...\n";
         preparejob($job, $latest_flight, 0);
-        foreach my $hostspec (split /,/, $hosts) {
+        foreach my $hostspec (split /,/, $hosts) { # /
             $hostspec =~ m/=/;
-            $addhost->execute($popflight, $job, $`, $');
+            $addhost->execute($popflight, $job, $`, $'); # '
         }
     });
 
