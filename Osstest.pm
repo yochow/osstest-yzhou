@@ -1509,15 +1509,16 @@ sub duration_estimator ($$;$) {
     # returns a function which you call like this
     #    $durest->($job, $hostidname, $onhost)
     # and returns one of
-    #    ($seconds, $samehoststarttime)
-    #    ($seconds, undef)
+    #    ($seconds, $samehostlaststarttime, $samehostlaststatus)
+    #    ($seconds, undef, undef)
     #    ()
     # $debug should be something like sub { print DEBUG "@_\n"; }.
     # Pass '' for $hostidname and $onhost for asking about on any host
 
     my $recentflights_q= $dbh_tests->prepare(<<END);
             SELECT f.flight AS flight,
-		   f.started AS started
+		   f.started AS started,
+                   j.status AS status
 		     FROM flights f
                      JOIN jobs j USING (flight)
                      JOIN runvars r
@@ -1598,7 +1599,7 @@ END
             }
         }
 
-        return ($duration_max, $refs->[0]{started});
+        return ($duration_max, $refs->[0]{started}, $refs->[0]{status});
     };
 }
 

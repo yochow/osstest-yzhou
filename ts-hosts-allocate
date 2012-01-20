@@ -341,7 +341,9 @@ END
 sub find_recent_duration ($$) {
     my ($dbg, $hid, $candrow) = @_;
     
-    ($candrow->{Duration}, $candrow->{MostRecentStarted}) =
+    ($candrow->{Duration},
+     $candrow->{MostRecentStarted},
+     $candrow->{MostRecentStatus}) =
         $duration_estimator->($job, $hid->{Ident}, $candrow->{resname});
 }
 
@@ -416,6 +418,7 @@ sub hid_recurse ($$) {
 
     my $variation_age= 0;
     my $duration= undef;
+    my $previously_failed = 0;
     foreach my $hid (@hids) {
 	my $cand= $hid->{Selected};
 	my $recentstarted= $cand->{MostRecentStarted};
@@ -424,6 +427,7 @@ sub hid_recurse ($$) {
 	$duration= $cand->{Duration} if
 	    !defined($duration) ||
 	    defined($cand->{Duration}) && $cand->{Duration} >= $duration;
+        $previously_failed++ if $cand->{MostRecentStatus} eq 'fail';
     }
     my $duration_rightaway_adjust= 0;
     
