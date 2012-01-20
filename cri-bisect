@@ -10,7 +10,7 @@ compute_state_core () {
         set +e
         ./cs-bisection-step --graph-out=$bisfile \
                 --summary-out=$summaryfile \
-                "$@"
+                "$@" >$reportfile 2>&1
         rc=$?
         set -e
 
@@ -39,7 +39,7 @@ compute_state_core () {
 
 perhaps_bisect_step_core () {
 
-        flight=`./cs-flight-create $OSSTEST_BLESSING $branch`
+        flight=`./cs-flight-create $1 $branch`
         flight_executed=false
 
         compute_state_callback --flight=$flight
@@ -52,10 +52,8 @@ perhaps_bisect_step_core () {
         else
                 inhibitqueue=300
         fi
-        export OSSTEST_RESOURCE_WAITSTART=`stat -c%Y $mrof`
-        OSSTEST_RESOURCE_WAITSTART=$(( $OSSTEST_RESOURCE_WAITSTART - 6000 ))
         
-        execute_flight $flight $OSSTEST_BLESSING-bisect
+        execute_flight $flight $2
         flight_executed=true
 
 	./mg-queue-inhibit $inhibitqueue "bisected $branch $flight" ||:

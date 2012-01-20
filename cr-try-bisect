@@ -50,12 +50,14 @@ compute_state_done_callback () {
 compute_state_callback () {
 	compute_state_core \
                 --blessings=$OSSTEST_BLESSING,$OSSTEST_BLESSING-bisect \
-                "$@" $branch $job $testid >$reportfile 2>&1
+                "$@" $branch $job $testid
 }
 
 perhaps_bisect_step_core_testing_callback () {
 #        echo $branch >$sticky.new
 #        mv -f $sticky.new $sticky
+        export OSSTEST_RESOURCE_WAITSTART=`stat -c%Y $mrof`
+        OSSTEST_RESOURCE_WAITSTART=$(( $OSSTEST_RESOURCE_WAITSTART - 6000 ))
 }
 
 perhaps_bisect_step () {
@@ -65,7 +67,7 @@ perhaps_bisect_step () {
                 echo "already completed $branch $job $testid"
                 return
         fi
-        perhaps_bisect_step_core
+        perhaps_bisect_step_core $OSSTEST_BLESSING $OSSTEST_BLESSING-bisect
 }
 
 subject_prefix="[$branch bisection]"
