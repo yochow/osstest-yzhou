@@ -60,7 +60,7 @@ perhaps_bisect_step_core () {
 
 	./mg-queue-inhibit $inhibitqueue "bisected $branch $flight" ||:
 
-        compute_state_core
+        compute_state_callback
         send_bisection_email "$flight: tested" -bisectrun
 	exit 0
 }
