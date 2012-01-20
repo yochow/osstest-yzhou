@@ -467,10 +467,12 @@ sub hid_recurse ($$) {
     my $cost= $start_time
 	+ $duration
 	+ $duration_rightaway_adjust
-        - ($variation_age / 30)
+        - $previously_failed * 366*86400
+        + ($previously_failed ? + $variation_age * 10 : - $variation_age / 30)
 	- $share_reuse * 10000;
     
-    print DEBUG "$dbg FINAL start=$start_time va=$variation_age cost=$cost\n";
+    print DEBUG "$dbg FINAL start=$start_time va=$variation_age".
+        " previously_failed=$previously_failed cost=$cost\n";
 
     if (!defined $best || $cost < $best->{Cost}) {
         print DEBUG "$dbg FINAL BEST: ".
