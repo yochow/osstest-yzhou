@@ -66,6 +66,7 @@ perhaps_bisect_step () {
                 echo "already completed $branch $job $testid"
                 return
         fi
+        perhaps_bisect_step_core
 }
 
 subject_prefix="[$branch bisection]"
