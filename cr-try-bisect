@@ -48,8 +48,7 @@ compute_state_done_callback () {
 }
 
 compute_state_callback () {
-	compute_state_core  --graph-out=$bisfile \
-                --summary-out=$summaryfile \
+	compute_state_core \
                 --blessings=$OSSTEST_BLESSING,$OSSTEST_BLESSING-bisect \
                 "$@" $branch $job $testid >$reportfile 2>&1
 }
