@@ -160,10 +160,16 @@ END
            WHERE t.job = ?
 	     AND t.flight = ?
 	     AND t.name LIKE '%buildjob'
-	     AND ((t.val NOT LIKE '%.%' AND b.flight=t.flight AND t.val=b.job)
-	       OR (t.val LIKE '%.%' AND t.val = b.flight || '.' || b.job))
-
+	     AND b.flight = (CASE WHEN t.val NOT LIKE '%.%'
+                                  THEN t.flight
+                                  ELSE cast(split_part(t.val, '.', 1) AS int)
+                                  END)
+             AND b.job = (CASE WHEN t.val NOT LIKE '%.%'
+                               THEN t.val
+                               ELSE split_part(t.val, '.', 2)
+                               END)
 END
+
     $dbh_tests->do(<<END, {}, $job, $flight);
 
         INSERT INTO tmp_build_info
