@@ -137,14 +137,22 @@ END
 sub flight_rmap ($) {
     my ($flight) = @_;
 
-    $dbh_tests->do(<<END, {}, $job, $flight);
+    $dbh_tests->do(<<END, {});
+          CREATE TEMP TABLE tmp_build_info (
+              use varchar NOT NULL,
+              name varchar NOT NULL,
+              val varchar NOT NULL,
+              job varchar NOT NULL
+              )
+END
+
+        $dbh_tests->do(<<END, {}, $job, $flight);
     
+        INSERT INTO tmp_build_info
         SELECT t.name AS use,
 	       b.name AS name,
 	       b.val  AS val,
 	       b.job  AS job
-
-          INTO TEMP TABLE tmp_build_info
 	       
 	  FROM runvars AS t
     CROSS JOIN runvars AS b
