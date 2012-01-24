@@ -1,0 +1,41 @@
+#!/bin/bash
+set -ex
+
+export OSSTEST_BLESSING=adhoc
+
+. cri-common
+
+nope () { echo "nope: $*"; exit 0; }
+
+if ! test -f job; then nope "no job"; exit 0; fi
+
+. ./job
+# job should set:
+#   branch=
+#   job=
+#   testid=
+#   bisect= list of args to cs-bisection-step, eg  '--fail-flight=<mumble>'
+
+. cri-bisect
+. cri-args-hostlists
+select_branch
+
+export OSSTEST_BLESSING=adhoc
+
+compute_state_callback () {
+	compute_state_core \
+        	--blessings=real,real-bisect,adhoc-bisect \
+                $bisect "$@" $branch $job $testid
+}
+
+compute_state_done_callback () {
+	mv -f job job.done
+}
+
+perhaps_bisect_step_core_testing_callback () {
+	:
+}
+
+subject_prefix="[adhoc $branch bisection]"
+
+perhaps_bisect_step_core real adhoc-bisect

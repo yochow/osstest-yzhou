@@ -1,0 +1,2 @@
+: ${OSSTEST_OLD_REVISION_XEN:=none}
+: ${OSSTEST_HTML_SUBDIR:=results-adhoc}

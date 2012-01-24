@@ -17,24 +17,6 @@ check_stop ''
 
 . cri-common
 
-select_branch () {
-	case "$branch" in
-	xen*)		tree=xen;	xenbranch=$branch ;;
-	linux)		tree=linux;	xenbranch=xen-unstable ;;
-	linux-xen-*)	tree=linux;	xenbranch=xen-unstable ;;
-	osstest)	tree=osstest;	xenbranch=xen-unstable ;;
-	esac
-
-	check_stop $branch.
-	check_stop $xenbranch.any.
-
-	mrof="$branch.mro"
-
-	if test -f branch-settings.$branch; then
-		. branch-settings.$branch
-	fi
-}
-
 dcs=daily-cron-settings
 
 if [ "x$1" = "x--real" ]; then

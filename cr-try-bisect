@@ -1,7 +1,9 @@
 #!/bin/bash
 set -ex
 
+. cri-bisect
 . cri-args-hostlists
+
 branch=$1; shift
 select_branch
 
@@ -39,45 +41,23 @@ if test -f $sticky; then
         fi
 fi
 
-compute_state () {
-        reportfile=tmp/$flight.bisection-report
-        summaryfile=tmp/$flight.bisection-summary
-        bisleaf=bisect.$branch.$job.$laundered_testid
-        bisfile=$OSSTEST_HTML_DIR/$bisleaf
-
-        echo "computing $branch $job $testid $*"
-
-        set +e
-        ./cs-bisection-step --graph-out=$bisfile \
-                --summary-out=$summaryfile \
-                --blessings=$OSSTEST_BLESSING,$OSSTEST_BLESSING-bisect \
-                "$@" $branch $job $testid >$reportfile 2>&1
-        rc=$?
-        set -e
-
-        bisgraph=true
-        emailsuffix=-bisectdone
-
-        case $rc in
-        0)      echo work to do; return ;;
-        4)      how=complete; emailsuffix=-bisectcomplete ;;
-        8)      how=inconclusive ;;
-        12)     how=inconsistent ;;
-        16)     how=unreproducible ;;
-        32)     how=doubtful; bisgraph=false ;;
-
-        *)      echo >&2 "FAILED $branch $job $testid $rc $* "
-                cat >&2 $reportfile
-                exit 1
-                ;;
-        esac
-
-        echo ended $how
+compute_state_done_callback () {
         touch $flagfile
         touch $anyflagfile
-        send_bisection_email $how $emailsuffix
         rm -f $sticky
-        exit 0
+}
+
+compute_state_callback () {
+	compute_state_core \
+                --blessings=$OSSTEST_BLESSING,$OSSTEST_BLESSING-bisect \
+                "$@" $branch $job $testid
+}
+
+perhaps_bisect_step_core_testing_callback () {
+#        echo $branch >$sticky.new
+#        mv -f $sticky.new $sticky
+        export OSSTEST_RESOURCE_WAITSTART=`stat -c%Y $mrof`
+        OSSTEST_RESOURCE_WAITSTART=$(( $OSSTEST_RESOURCE_WAITSTART - 6000 ))
 }
 
 perhaps_bisect_step () {
@@ -87,69 +67,10 @@ perhaps_bisect_step () {
                 echo "already completed $branch $job $testid"
                 return
         fi
-
-        flight=`./cs-flight-create $OSSTEST_BLESSING $branch`
-        flight_executed=false
-
-        compute_state --flight=$flight
-        send_bisection_email "$flight: testing" -bisectrun
-
-#        echo $branch >$sticky.new
-#        mv -f $sticky.new $sticky
-
-        if test -e $anyflagfile; then
-                inhibitqueue=0
-        else
-                inhibitqueue=300
-        fi
-        export OSSTEST_RESOURCE_WAITSTART=`stat -c%Y $mrof`
-        OSSTEST_RESOURCE_WAITSTART=$(( $OSSTEST_RESOURCE_WAITSTART - 6000 ))
-        
-        execute_flight $flight $OSSTEST_BLESSING-bisect
-        flight_executed=true
-
-	./mg-queue-inhibit $inhibitqueue "bisected $branch $flight" ||:
-
-        compute_state
-        send_bisection_email "$flight: tested" -bisectrun
-	exit 0
+        perhaps_bisect_step_core $OSSTEST_BLESSING $OSSTEST_BLESSING-bisect
 }
 
-
-send_bisection_email () {
-        echo emailing "$2" "$1"
-
-        exec 3>tmp/$flight.email
-        cat >&3 $OSSTEST_EMAIL_HEADER$2
-        cat >&3 <<END
-Subject: [$branch bisection] $1 $job
-
-branch $xenbranch
-xen branch $xenbranch
-job $job
-test $testid
-
-END
-        cat >&3 $summaryfile
-        if $bisgraph; then cat >&3 <<END; fi
-
-For bisection revision-tuple graph see:
-   $OSSTEST_HTML_URL/$bisleaf.html
-Revision IDs in each graph node refer, respectively, to the Trees above.
-END
-        cat >&3 <<END
-
-----------------------------------------
-END
-        cat >&3 $reportfile
-        if $flight_executed; then
-                echo >&3 ----------------------------------------
-                ./sg-report-flight >&3 $flight
-                ./cr-publish-flight-logs $flight
-        fi
-        exec 3>&-
-        send_email tmp/$flight.email
-}        
+subject_prefix="[$branch bisection]"
 
 exec <$mrof
 while read keyword job testid basisflight; do
