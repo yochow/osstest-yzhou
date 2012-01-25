@@ -15,6 +15,10 @@ xen*)
 	        eval "$1"
 	' x
 	;;
+qemu-upstream-*)
+        repo_tree_rev_fetch_git $branch \
+		$TREE_QEMU_UPSTREAM master $LOCALREV_QEMU_UPSTREAM
+        ;;
 linux)
 	repo_tree_rev_fetch_git linux \
 		$TREE_LINUX $TAG_LINUX $LOCALREV_LINUX

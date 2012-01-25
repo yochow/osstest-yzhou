@@ -16,6 +16,10 @@ xen*)
 	cd $repos/$branch.hg
 	hg push -r "$revision" ssh://$XENBITS/HG/$branch.hg
 	;;
+qemu-upstream-*)
+	cd $repos/$branch
+        git push $TREE_QEMU_UPSTREAM $revision:master
+        ;;
 linux)
 	cd $repos/linux
 	git push $TREE_LINUX $revision:$TAG_LINUX

@@ -13,7 +13,7 @@ scriptoptions="$1"; shift
 LOGFILE=tmp/cr-for-branches.log
 export LOGFILE
 
-: ${BRANCHES:=osstest xen-4.0-testing xen-4.1-testing xen-unstable linux}
+: ${BRANCHES:=osstest xen-4.0-testing xen-4.1-testing xen-unstable qemu-upstream-unstable linux}
 export BRANCHES
 
 with-lock-ex -w data-tree-lock bash -ec '

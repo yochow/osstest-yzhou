@@ -11,6 +11,9 @@ case "$branch" in
 xen*)
         echo $TREE_XEN
 	;;
+qemu-upstream-*)
+        echo $TREE_QEMU_UPSTREAM
+        ;;
 linux)
 	echo $TREE_LINUX
 	;;

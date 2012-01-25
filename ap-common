@@ -21,3 +21,7 @@
 : ${LOCALREV_LINUX:=daily-cron.$branch}
 
 : ${TREEBASE_LINUX_XCP:=http://hg.uk.xensource.com/carbon/trunk/linux-2.6.27}
+
+: ${TREE_QEMU_UPSTREAM:=git://xenbits.xen.org/staging/qemu-upstream-${xenbranch#xen-}.git}
+: ${LOCALREV_QEMU_UPSTREAM:=daily-cron.$branch}
+
