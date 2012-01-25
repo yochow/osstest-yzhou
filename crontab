@@ -4,5 +4,5 @@ MAILTO=ian.jackson@citrix.com
 49		1	* * *		cd testing.git && BRANCHES_ALWAYS=xen-unstable	./cr-for-branches branches -w "./cr-daily-branch --real"
 49	  11,14,17,19	* * *		cd testing.git &&				./cr-for-branches branches -w "./cr-daily-branch --real"
 18-59/5   	*	* * *		cd testing.git &&				./cr-for-branches bisects -w "./cr-try-bisect --real"
-8-59/5		*	* * *		cd bisects/adhoc.git &&	with-lock-ex -q data-tree-lock bash -c "./cr-try-bisect-adhoc; exit $?"
+#8-59/5		*	* * *		cd bisects/adhoc.git &&	with-lock-ex -q data-tree-lock bash -c "./cr-try-bisect-adhoc; exit $?"
 3		5	* * *		savelog -c7 testing.git/tmp/cr-for-branches.log >/dev/null
