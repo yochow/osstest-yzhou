@@ -572,8 +572,8 @@ sub main () {
     my (@xis, @qis);
     foreach (my $i=0; $i<@trees; $i++) {
         $_= $trees[$i]{Treename};
-        push @xis, $i if m/^xen-(?:unstable|4)/;
-        push @qis, $i if m/^qemu-(?:xen-unstable|4)/;
+        push @xis, $i if m/^xen-(?:unstable|[4-9])/;
+        push @qis, $i if m/^qemu-(?:xen-unstable|[4-9])/;
     }
     print DEBUG "MAIN xis=@xis qis=@qis.\n";
 
