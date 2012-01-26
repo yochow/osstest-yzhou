@@ -47,7 +47,14 @@ if [ "x$REVISION_XEN" = x ]; then
         export REVISION_XEN
 fi
 if [ "x$REVISION_QEMU_UPSTREAM" = x ]; then
-        REVISION_QEMU_UPSTREAM="`fetch_version qemu-upstream-${xenbranch#xen-}`"
+	case "$xenbranch" in
+        xen-3.*|xen-4.[01]-*)
+        	;;
+	xen-unstable)
+		REVISION_QEMU_UPSTREAM="`fetch_version \
+				qemu-upstream-${xenbranch#xen-}`"
+		;;
+        esac
         export REVISION_QEMU_UPSTREAM
 fi
 if [ "x$REVISION_LINUX" = x ]; then
