@@ -3,8 +3,10 @@ set -ex
 
 branch=$1
 revision=$2
-
 . cri-lock-repos
+. cri-common
+select_xenbranch
+. ap-common
 
 : ${XENBITS:=xen@xenbits.xensource.com}
 : ${TREE_LINUX:=$XENBITS:git/linux-pvops}

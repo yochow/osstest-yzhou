@@ -24,7 +24,7 @@ repo_tree_rev_fetch_git () {
 	git-rev-parse $localtag^0
 }
 
-select_branch () {
+select_xenbranch () {
 	case "$branch" in
 	xen*)			tree=xen;	xenbranch=$branch ;;
         qemu-upstream-unstable) tree=$branch;	xenbranch=xen-unstable ;;
@@ -34,6 +34,10 @@ select_branch () {
 	linux-xen-*)		tree=linux;	xenbranch=xen-unstable ;;
 	osstest)		tree=osstest;	xenbranch=xen-unstable ;;
 	esac
+}
+
+select_branch () {
+	select_xenbranch
 
 	check_stop $branch.
 	check_stop $xenbranch.any.
