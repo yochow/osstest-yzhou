@@ -114,7 +114,7 @@ END
         my $row;
         for ($row=0;
              defined($headlines[$row]) &&
-             length($headlines[$row]) >= $wantx;
+             length($headlines[$row])+1 >= $wantx;
              $row++) { }
 #print STDERR "CW $col $wantx $row $cols[$col]\n";
         $headlines[$row]='' if !defined $headlines[$row];
