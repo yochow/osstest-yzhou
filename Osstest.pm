@@ -2557,7 +2557,7 @@ our %toolstacks=
         NewDaemons => [],
         Dom0MemFixed => 1,
         Command => 'xl',
-        CfgPathVar => 'xlpath',
+        CfgPathVar => 'cfgpath',
 	RestoreNeedsConfig => 1,
         }
      );
