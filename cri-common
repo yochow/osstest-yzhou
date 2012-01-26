@@ -26,10 +26,13 @@ repo_tree_rev_fetch_git () {
 
 select_branch () {
 	case "$branch" in
-	xen*)		tree=xen;	xenbranch=$branch ;;
-	linux)		tree=linux;	xenbranch=xen-unstable ;;
-	linux-xen-*)	tree=linux;	xenbranch=xen-unstable ;;
-	osstest)	tree=osstest;	xenbranch=xen-unstable ;;
+	xen*)			tree=xen;	xenbranch=$branch ;;
+        qemu-upstream-unstable) tree=$branch;	xenbranch=xen-unstable ;;
+        qemu-upstream-*)	tree=$branch;
+					xenbranch=xen-${branch#qemu-upstream-};;
+	linux)			tree=linux;	xenbranch=xen-unstable ;;
+	linux-xen-*)		tree=linux;	xenbranch=xen-unstable ;;
+	osstest)		tree=osstest;	xenbranch=xen-unstable ;;
 	esac
 
 	check_stop $branch.

@@ -34,7 +34,8 @@ if [ x$buildflight = x ]; then
 		$RUNVARS $BUILD_RUNVARS $BUILD_XEN_RUNVARS $arch_runvars     \
 		host_hostflags=$build_hostflags    \
 		revision_xen=$REVISION_XEN				     \
-		revision_qemu=$REVISION_QEMU
+		revision_qemu=$REVISION_QEMU				     \
+		revision_qemuu=$REVISION_QEMU_UPSTREAM
 
     ./cs-job-create $flight build-$arch-pvops build-kern		     \
 		arch=$arch kconfighow=xen-enable-xen-config		     \
@@ -57,7 +58,8 @@ if [ x$buildflight = x ]; then
 		host_hostflags=$build_hostflags \
 		xen_kernels=linux-2.6-xen				\
 		revision_xen=$REVISION_XEN				\
-		revision_qemu=$REVISION_QEMU				\
+		revision_qemu=$REVISION_QEMU			        \
+		revision_qemuu=$REVISION_QEMU_UPSTREAM			\
 	tree_linux=http://xenbits.xen.org/linux-2.6.18-xen.hg	\
         revision_linux=$REVISION_LINUX_OLD
 

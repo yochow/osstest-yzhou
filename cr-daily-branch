@@ -46,6 +46,10 @@ if [ "x$REVISION_XEN" = x ]; then
         REVISION_XEN="`fetch_version $xenbranch`"
         export REVISION_XEN
 fi
+if [ "x$REVISION_QEMU_UPSTREAM" = x ]; then
+        REVISION_QEMU_UPSTREAM="`fetch_version qemu-upstream-${xenbranch#xen-}`"
+        export REVISION_QEMU_UPSTREAM
+fi
 if [ "x$REVISION_LINUX" = x ]; then
         REVISION_LINUX="`fetch_version linux`"
         export REVISION_LINUX
@@ -69,6 +73,10 @@ osstest)
 	git reset --hard incoming
 	NEW_REVISION=`git-rev-parse HEAD^0`
 	;;
+qemu-upstream-*)
+	realtree=$tree
+	NEW_REVISION=$REVISION_QEMU_UPSTREAM
+        ;;
 *)
 	NEW_REVISION=''
 	wantpush=false
