@@ -42,6 +42,9 @@ END
                (nonempty($r{revision_qemu}) ? <<END : '').
 	echo >>.config QEMU_TAG='$r{revision_qemu}'
 END
+               (nonempty($r{tree_qemuu}) ? <<END : '').
+	echo >>.config QEMU_UPSTREAM_URL='$r{tree_qemuu}'
+END
                (nonempty($r{revision_qemuu}) ? <<END : '').
 	echo >>.config QEMU_UPSTREAM_REVISION='$r{revision_qemuu}'
 END
