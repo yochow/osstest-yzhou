@@ -38,7 +38,7 @@ if [ "x$testedflight" = x ]; then
         OLD_REVISION=`./sg-check-tested --debug --branch=$branch \
           --blessings=$OSSTEST_BLESSING --print-revision=$tree`
         if [ "x$OLD_REVISION" = x ]; then
-                OLD_REVISION="$FORCE_revision"
+                OLD_REVISION="$FORCE_REVISION"
         fi
 fi
 
