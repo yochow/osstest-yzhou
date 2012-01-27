@@ -80,8 +80,8 @@ osstest)
 	git reset --hard incoming
 	NEW_REVISION=`git-rev-parse HEAD^0`
 	;;
-qemu-upstream-*)
-	realtree=$tree
+qemuu)
+	realtree=qemu-upstream-${xenbranch#xen-}
 	NEW_REVISION=$REVISION_QEMU_UPSTREAM
         ;;
 *)
