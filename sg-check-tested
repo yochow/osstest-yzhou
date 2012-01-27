@@ -58,10 +58,17 @@ END
         LIMIT 1
 END
 
-print DEBUG $qtxt, "\n----------\n", (join ' | ', @conds_vars), "\n";
+sub prepare_execute ($@) {
+    my ($qtxt, @vars) = @_;
+    print DEBUG "\n==========\n", $qtxt,
+                "\n----------\n", (join ' | ', @vars),
+                "\n==========\n";
+    my $q= $dbh_tests->prepare($qtxt);
+    $q->execute(@vars);
+    return $q;
+}
 
-my $q= $dbh_tests->prepare($qtxt);
-$q->execute(@conds_vars);
+my $q = prepare_execute($qtxt, @conds_vars);
 
 while (my $row= $q->fetchrow_hashref()) {
     my $flight= $row->{flight};
@@ -69,15 +76,18 @@ while (my $row= $q->fetchrow_hashref()) {
         print $flight,"\n" or die $!;
         exit 0;
     } else {
-        my $valsq= $dbh_tests->prepare(<<END);
+        my $valsq= prepare_execute(<<END,
             SELECT DISTINCT val
               FROM runvars
              WHERE flight=?
-             AND   name='revision_$prrev'
+             AND   (name=? OR name=?)
 END
-        $valsq->execute($flight);
+                                   $flight,
+                                   "revision_$prrev",
+                                   "built_revision_$prrev");
         my $row1= $valsq->fetchrow_hashref();
         next unless defined $row1->{val} && length $row1->{val};
+        print DEBUG "got $row1->{val}\n";
         my $row2= $valsq->fetchrow_hashref();
         next if defined $row2;
         print "$row1->{val}\n";
