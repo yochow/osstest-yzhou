@@ -85,6 +85,7 @@ sub prep () {
                                libpci-dev libncurses5-dev libssl-dev python-dev
                                libx11-dev git-core uuid-dev gettext gawk
                                libsdl-dev libyajl-dev libaio-dev
+                               libglib2.0-dev pkg-config
 			       ccache));
 
     target_cmd_root($ho, "chmod -R a+r /usr/share/git-core/templates");
