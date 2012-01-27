@@ -21,6 +21,7 @@ fetch_version () {
 	fi
 }
 
+skipidentical=true
 wantpush=$OSSTEST_PUSH
 
 if [ "x$OLD_REVISION" = x ]; then
@@ -33,6 +34,7 @@ testedflight=`./sg-check-tested --debug --branch=$branch \
 
 if [ "x$testedflight" = x ]; then
         wantpush=false
+        skipidentical=false
         FORCE_REVISION=$OLD_REVISION
         export FORCE_REVISION
         OLD_REVISION=`./sg-check-tested --debug --branch=$branch \
@@ -92,7 +94,6 @@ esac
 
 if [ "x$NEW_REVISION" = "x$OLD_REVISION" ]; then
         wantpush=false
-	skipidentical=true
 	for checkbranch in x $BRANCHES_ALWAYS; do
 		if [ x"$branch" = x"$checkbranch" ]; then
 			skipidentical=false
