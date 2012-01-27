@@ -39,25 +39,25 @@ sub checkout () {
 	echo >>.config GIT_HTTP=y
 	echo >>.config QEMU_REMOTE='$r{tree_qemu}'
 END
-               (length($r{revision_qemu}) ? <<END : '').
+               (nonempty($r{revision_qemu}) ? <<END : '').
 	echo >>.config QEMU_TAG='$r{revision_qemu}'
 END
-               (length($r{revision_qemuu}) ? <<END : '').
+               (nonempty($r{revision_qemuu}) ? <<END : '').
 	echo >>.config QEMU_UPSTREAM_REVISION='$r{revision_qemuu}'
 END
-               (length($r{revision_seabios}) ? <<END : '').
+               (nonempty($r{revision_seabios}) ? <<END : '').
 	echo >>.config SEABIOS_UPSTREAM_TAG='$r{revision_seabios}'
 END
-               (length($r{tree_linux}) ? <<END : '').
+               (nonempty($r{tree_linux}) ? <<END : '').
 	echo >>.config export $linux_url_envvar='$r{tree_linux}'
 END
-               (length($r{revision_linux}) ? <<END : '').
+               (nonempty($r{revision_linux}) ? <<END : '').
 	echo >>.config export $linux_rev_envvar='$r{revision_linux}'
 END
                ($ho->{Suite} =~ m/squeeze/ ? <<END : '').
 	echo >>.config PYTHON_PREFIX_ARG=
 END
-               (length($kerns) ? <<END : <<END)
+               (nonempty($kerns) ? <<END : <<END)
 	echo >>.config KERNELS='$kerns'
 END
 	echo >>.config KERNELS=''

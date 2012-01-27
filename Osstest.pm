@@ -54,6 +54,7 @@ BEGIN {
     @EXPORT      = qw(
                       $tftptail $logm_handle
                       %c %r $dbh_tests $flight $job $stash
+                      nonempty
                       dbfl_check grabrepolock_reexec
                       get_runvar get_runvar_maybe get_runvar_default
                       store_runvar get_stashed open_unique_stashfile
@@ -120,6 +121,11 @@ our %timeout= qw(RebootDown   100
                  HardRebootUp 600);
 
 our $logm_handle= new IO::File ">& STDERR" or die $!;
+
+sub nonempty ($) {
+    my ($v) = @_;
+    return defined($v) && length($v);
+}
 
 #---------- configuration reader etc. ----------
 
