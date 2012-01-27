@@ -43,7 +43,7 @@ END
 	echo >>.config QEMU_TAG='$r{revision_qemu}'
 END
                (length($r{revision_qemuu}) ? <<END : '').
-	echo >>.config QEMU_UPSTREAM_TAG='$r{revision_qemuu}'
+	echo >>.config QEMU_UPSTREAM_REVISION='$r{revision_qemuu}'
 END
                (length($r{revision_seabios}) ? <<END : '').
 	echo >>.config SEABIOS_UPSTREAM_TAG='$r{revision_seabios}'
