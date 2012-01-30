@@ -81,7 +81,7 @@ $c{Baud}= 115200;
 $c{PxeDiBase}= 'osstest/debian-installer';
 
 $c{Suite}= 'squeeze';
-$c{PxeDiVersion}= '2011-03-02-squeeze';
+$c{PxeDiVersion}= '2012-01-30-squeeze';
 
 $c{GuestSuite}= 'squeeze';
 $c{HostDiskBoot}=   '300'; #Mby
