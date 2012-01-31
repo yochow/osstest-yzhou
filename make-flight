@@ -157,7 +157,7 @@ for xenarch in ${TEST_ARCHES- i386 amd64 } ; do
 
       if [ x$kern = x-xcpkern -a $dom0arch != i386 ]; then continue; fi
 
-      most_hostflags="arch-$dom0arch,arch-$xenarch,purpose-test"
+      most_hostflags="arch-$dom0arch,arch-xen-$xenarch,purpose-test"
 
       most_runvars="
 		arch=$dom0arch			        	\
